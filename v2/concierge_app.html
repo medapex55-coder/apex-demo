@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX Concierge — Staff App (Prototype)</title>
+<link rel="icon" href="assets/img/logo-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#10162B; --navy2:#1C2541; --gold:#B08D57; --gold-light:#E4CFA0;
+    --cream:#F5F3EE; --paper:#FFFFFF; --ink:#1B1B1B; --muted:#767268;
+    --border:#E7E2D6; --success:#2E7D5B; --success-bg:#E7F3EC;
+    --warn:#B0752E; --warn-bg:#FBF0E1; --danger:#B0452E; --danger-bg:#FBE7E2;
+    --info:#3A5A9C; --info-bg:#E7EAF6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Inter',sans-serif; background:#EDE9E1; color:var(--ink);
+    display:flex; flex-wrap:wrap; gap:40px; justify-content:center; padding:40px 20px;
+  }
+  h1,h2,h3,.serif{font-family:'Playfair Display',serif;}
+  .phone{
+    width:375px; height:812px; background:var(--paper); border-radius:44px;
+    border:10px solid var(--navy); box-shadow:0 30px 60px rgba(0,0,0,.25);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:var(--navy); border-radius:14px; z-index:50; }
+  .statusbar{ height:44px; flex:0 0 auto; background:var(--paper); display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 6px; font-size:13px; font-weight:600; }
+  .screen{ flex:1; overflow-y:auto; display:none; background:var(--cream); }
+  .screen.active{ display:block; }
+  .screen::-webkit-scrollbar{display:none;}
+
+  .appbar{ background:var(--navy); color:#fff; padding:18px 20px 16px; display:flex; justify-content:space-between; align-items:center; }
+  .appbar .left{ display:flex; align-items:center; gap:10px; }
+  .appbar .logo{ width:26px; height:26px; border-radius:7px; flex:0 0 auto; }
+  .appbar .brand{ font-size:10.5px; letter-spacing:2px; color:var(--gold-light); text-transform:uppercase; display:flex; align-items:center; gap:2px; }
+  .appbar .back{ cursor:pointer; margin-right:10px; color:var(--gold-light); font-size:15px; }
+  .appbar h1{ font-size:19px; margin:4px 0 0; color:#fff; font-weight:600; }
+  .toggle{ display:flex; align-items:center; gap:8px; font-size:11px; color:#B9BAC9; }
+  .switch{ width:38px; height:22px; border-radius:20px; background:var(--success); position:relative; cursor:pointer; }
+  .switch::after{ content:""; width:18px; height:18px; border-radius:50%; background:#fff; position:absolute; right:2px; top:2px; transition:.2s; }
+  .switch.off{ background:#767268; }
+  .switch.off::after{ right:auto; left:2px; }
+
+  .stat-row{ display:flex; gap:10px; margin:14px 20px; }
+  .stat{ flex:1; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:12px; text-align:center; }
+  .stat .n{ font-family:'Playfair Display',serif; font-size:20px; }
+  .stat .l{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-top:2px; }
+
+  .section-title{ font-size:12.5px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin:20px 20px 10px; font-weight:600; display:flex; justify-content:space-between; }
+  .section-title .more{ color:var(--gold); text-transform:none; letter-spacing:0; font-weight:600; cursor:pointer; }
+
+  .task{ margin:0 20px 10px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:14px 16px; cursor:pointer; }
+  .task.urgent{ border-left:3px solid var(--danger); }
+  .task .top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .task .cl{ font-weight:700; font-size:14px; }
+  .task .svc{ font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .sla{ font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap; }
+  .sla.red{ background:var(--danger-bg); color:var(--danger); }
+  .sla.amber{ background:var(--warn-bg); color:var(--warn); }
+  .sla.green{ background:var(--success-bg); color:var(--success); }
+  .sla.blue{ background:var(--info-bg); color:var(--info); }
+  .task .meta{ font-size:11.5px; color:var(--muted); margin-top:8px; }
+
+  .detail-card{ margin:16px 20px; background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:16px; }
+  .detail-card h3{ margin:0 0 4px; font-size:16px; }
+  .kv{ display:flex; justify-content:space-between; font-size:13px; padding:8px 0; border-top:1px solid var(--border); gap:10px; }
+  .kv:first-of-type{ border-top:none; }
+  .kv .v{ color:var(--muted); text-align:right; max-width:60%; }
+  .kv .v.strong{ color:var(--ink); font-weight:600; }
+  .pill-row{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .pillbtn{ flex:1; min-width:30%; text-align:center; padding:10px 6px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; }
+  .pillbtn.primary{ background:var(--navy); color:#fff; }
+  .pillbtn.gold{ background:var(--gold); color:#fff; }
+  .pillbtn.ghost{ background:var(--cream); color:var(--ink); border:1px solid var(--border); }
+  .pillbtn.full{ flex:0 0 100%; }
+
+  .pref-note{ background:var(--warn-bg); color:#6b4a17; font-size:12.5px; padding:12px 14px; border-radius:12px; margin:0 20px 16px; }
+  .status-banner{ display:flex; align-items:center; gap:10px; font-size:12.5px; font-weight:600; padding:12px 14px; border-radius:12px; margin:0 20px 16px; }
+  .status-banner.ok{ background:var(--success-bg); color:var(--success); }
+  .status-banner.warn{ background:var(--warn-bg); color:#6b4a17; }
+  .status-banner.info{ background:var(--info-bg); color:var(--info); }
+
+  .chat{ margin:0 20px 16px; }
+  .bubble{ max-width:78%; padding:10px 14px; border-radius:14px; font-size:13px; margin-bottom:8px; line-height:1.4; }
+  .bubble.them{ background:var(--paper); border:1px solid var(--border); border-bottom-left-radius:4px; }
+  .bubble.me{ background:var(--navy); color:#fff; margin-left:auto; border-bottom-right-radius:4px; }
+
+  .partner{ display:flex; align-items:center; gap:12px; margin:0 20px 10px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
+  .partner .ic{ width:38px;height:38px;border-radius:10px;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:17px; flex:0 0 auto; }
+  .partner .info{ flex:1; min-width:0; }
+  .partner .name{ font-weight:600; font-size:13.5px; }
+  .partner .cat{ font-size:11.5px; color:var(--muted); }
+  .partner .rating{ font-size:11px; color:var(--gold); margin-top:2px; font-weight:600; }
+  .assignbtn{ flex:0 0 auto; background:var(--navy); color:#fff; font-size:11.5px; font-weight:700; padding:7px 12px; border-radius:20px; cursor:pointer; }
+  .assignbtn.done{ background:var(--success); }
+
+  .searchbar{ margin:14px 20px; background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:10px 14px; color:var(--muted); font-size:13px; }
+
+  .day-row{ display:flex; justify-content:space-between; align-items:center; margin:0 20px 10px; background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:12px 16px; font-size:13px; }
+  .day-row .d{ font-weight:600; }
+  .day-row .h{ color:var(--muted); }
+
+  .profile-head{ text-align:center; padding:26px 20px 6px; }
+  .avatar{ width:70px;height:70px;border-radius:50%;background:var(--navy);color:var(--gold-light);display:flex;align-items:center;justify-content:center;font-weight:700;font-family:'Playfair Display',serif; font-size:22px; margin:0 auto 10px; }
+  .perf-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 20px; }
+  .perf{ background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:14px; text-align:center; }
+  .perf .n{ font-family:'Playfair Display',serif; font-size:22px; color:var(--navy); }
+  .perf .l{ font-size:11px; color:var(--muted); margin-top:4px; }
+
+  /* Quote / Invoice */
+  .doc-head{ margin:16px 20px; background:var(--navy); border-radius:16px; padding:18px; color:#fff; }
+  .doc-head .lbl{ font-size:11px; color:var(--gold-light); letter-spacing:1.5px; text-transform:uppercase; }
+  .doc-head .client{ font-family:'Playfair Display',serif; font-size:19px; margin-top:4px; }
+  .doc-head .ref{ font-size:11.5px; color:#C9CADA; margin-top:2px; }
+  .line-card{ margin:0 20px 12px; background:var(--paper); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .line-item{ display:flex; justify-content:space-between; padding:13px 16px; border-bottom:1px solid var(--border); font-size:13px; gap:10px; }
+  .line-item:last-child{ border-bottom:none; }
+  .line-item .desc{ flex:1; }
+  .line-item .desc .t1{ font-weight:600; }
+  .line-item .desc .t2{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .line-item .amt{ font-weight:700; white-space:nowrap; }
+  .line-total{ display:flex; justify-content:space-between; padding:14px 16px; background:var(--cream); font-weight:700; font-size:14.5px; }
+  .line-total .n{ font-family:'Playfair Display',serif; color:var(--navy); }
+  .doc-status{ display:flex; justify-content:center; margin:0 20px 16px; }
+  .doc-status span{ font-size:11.5px; font-weight:700; padding:5px 14px; border-radius:20px; }
+
+  .pay-card{ margin:0 20px 16px; background:var(--paper); border:1px dashed var(--gold); border-radius:16px; padding:16px; }
+  .pay-card .top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .pay-card .method{ display:flex; align-items:center; gap:8px; font-weight:600; font-size:13.5px; }
+  .pay-card .method .ic{ width:28px;height:28px;border-radius:8px;background:var(--success-bg);color:var(--success);display:flex;align-items:center;justify-content:center;font-size:14px; }
+
+  .finance-row{ margin:0 20px 10px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:13px 16px; cursor:pointer; }
+  .finance-row .top{ display:flex; justify-content:space-between; }
+  .finance-row .cl{ font-weight:700; font-size:13.5px; }
+  .finance-row .svc{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .finance-row .amt{ font-family:'Playfair Display',serif; font-size:15px; color:var(--navy); }
+  .doctag{ font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:20px; }
+  .doctag.quote{ background:var(--info-bg); color:var(--info); }
+  .doctag.sent{ background:var(--warn-bg); color:var(--warn); }
+  .doctag.accepted{ background:var(--success-bg); color:var(--success); }
+  .doctag.paid{ background:var(--success-bg); color:var(--success); }
+  .doctag.pending{ background:var(--warn-bg); color:var(--warn); }
+  .finance-tabs{ display:flex; gap:8px; margin:14px 20px; }
+  .ftab{ flex:1; text-align:center; padding:9px; border-radius:10px; font-size:12.5px; font-weight:700; background:var(--paper); border:1px solid var(--border); color:var(--muted); cursor:pointer; }
+  .ftab.active{ background:var(--navy); color:#fff; border-color:var(--navy); }
+
+  .bottomnav{ flex:0 0 64px; background:var(--paper); border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-around; }
+  .navbtn{ text-align:center; color:var(--muted); font-size:9.5px; cursor:pointer; font-weight:600; }
+  .navbtn .ic{ font-size:18px; display:block; }
+  .navbtn.active{ color:var(--navy); }
+  .navbtn.active .ic{ color:var(--gold); }
+  .frame-label{ text-align:center; font-size:13px; color:var(--muted); margin-top:10px; font-weight:600; }
+
+  .toast{ position:absolute; left:20px; right:20px; bottom:82px; background:var(--navy); color:#fff; padding:12px 16px; border-radius:12px; font-size:12.5px; font-weight:600; text-align:center; box-shadow:0 10px 24px rgba(16,22,43,.35); z-index:60; opacity:0; pointer-events:none; transition:.25s; }
+  .toast.show{ opacity:1; transform:translateY(-4px); }
+</style>
+</head>
+<body>
+<div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span>●●●●  Wi‑Fi  84%</span></div>
+
+  <!-- DASHBOARD -->
+  <div class="screen active" id="s-dash">
+    <div class="appbar">
+      <div class="left">
+        <img class="logo" src="assets/img/logo-mark.svg" alt="APEX">
+        <div><div class="brand">APEX Concierge · Staff</div><h1>Good evening, David</h1></div>
+      </div>
+      <div class="toggle">Available<div class="switch" id="avail-switch" onclick="toggleAvail(this)"></div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="n">5</div><div class="l">Active tasks</div></div>
+      <div class="stat"><div class="n">18 min</div><div class="l">Avg. time</div></div>
+      <div class="stat"><div class="n">98%</div><div class="l">SLA met</div></div>
+    </div>
+    <div class="section-title">Needs attention now</div>
+    <div class="task urgent" onclick="openDetail('jkia')">
+      <div class="top"><div><div class="cl">Amina Wanjiru · Platinum</div><div class="svc">VIP airport transfer, JKIA</div></div><span class="sla red">12 min</span></div>
+      <div class="meta">Received 08:12 · Friday, 24 July</div>
+    </div>
+    <div class="task" onclick="openDetail('cultiva')">
+      <div class="top"><div><div class="cl">James Otieno · Gold</div><div class="svc">Table for 6, Cultiva</div></div><span class="sla amber">2 h</span></div>
+      <div class="meta">Received 09:40</div>
+    </div>
+    <div class="task" onclick="openDetail('medical')">
+      <div class="top"><div><div class="cl">Sarah Kimani · Platinum</div><div class="svc">Second medical opinion</div></div><span class="sla green">1 day</span></div>
+      <div class="meta">Received yesterday, 17:20</div>
+    </div>
+    <div class="section-title">Awaiting payment <span class="more" onclick="showScreen('s-finance')">See finance →</span></div>
+    <div class="task" onclick="openInvoice('jkia')">
+      <div class="top"><div><div class="cl">Amina Wanjiru</div><div class="svc">Invoice #APX-INV-2214</div></div><span class="sla blue">Pending</span></div>
+      <div class="meta">Sent 25 July · €640 due</div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- QUEUE -->
+  <div class="screen" id="s-queue">
+    <div class="appbar" style="padding-bottom:14px;">
+      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">Task Queue</div><h1 style="font-size:19px;">5 active requests</h1></div></div>
+    </div>
+    <div class="task urgent" onclick="openDetail('jkia')"><div class="top"><div><div class="cl">Amina Wanjiru</div><div class="svc">VIP airport transfer, JKIA</div></div><span class="sla red">12 min</span></div><div class="meta">High priority</div></div>
+    <div class="task" onclick="openDetail('cultiva')"><div class="top"><div><div class="cl">James Otieno</div><div class="svc">Table for 6, Cultiva</div></div><span class="sla amber">2 h</span></div><div class="meta">Medium priority</div></div>
+    <div class="task" onclick="openDetail('medical')"><div class="top"><div><div class="cl">Sarah Kimani</div><div class="svc">Second medical opinion</div></div><span class="sla green">1 day</span></div><div class="meta">Normal priority</div></div>
+    <div class="task" onclick="openDetail('shopping')"><div class="top"><div><div class="cl">Peter Mwangi</div><div class="svc">Personal shopping — birthday gift</div></div><span class="sla green">2 days</span></div><div class="meta">Normal priority</div></div>
+    <div class="task" onclick="openDetail('nanny')"><div class="top"><div><div class="cl">Grace Njeri</div><div class="svc">Nanny background check</div></div><span class="sla green">3 days</span></div><div class="meta">Normal priority</div></div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- DETAIL -->
+  <div class="screen" id="s-detail">
+    <div class="appbar" style="padding-bottom:14px;">
+      <div class="left"><span class="back" onclick="showScreen('s-queue')">←</span><div><div class="brand">Request detail</div><h1 style="font-size:19px;" id="detail-title">VIP Airport Transfer</h1></div></div>
+    </div>
+    <div class="detail-card">
+      <h3>Amina Wanjiru</h3>
+      <div class="kv"><span>Status</span><span class="v strong">In progress</span></div>
+      <div class="kv"><span>Member since</span><span class="v">2024 · Platinum</span></div>
+      <div class="kv"><span>Flight</span><span class="v">KQ102, arriving 18:40</span></div>
+      <div class="kv"><span>Vehicle</span><span class="v">Armoured sedan + driver</span></div>
+      <div class="kv"><span>Provider assigned</span><span class="v strong" id="detail-provider">Not yet assigned</span></div>
+      <div class="kv"><span>Budget</span><span class="v">Included in subscription</span></div>
+      <div class="pill-row">
+        <div class="pillbtn ghost" onclick="showScreen('s-chat')">💬 Message</div>
+        <div class="pillbtn gold" onclick="showScreen('s-match')">🤝 Assign Provider</div>
+        <div class="pillbtn primary" onclick="showScreen('s-quote')">📄 Create Quote</div>
+        <div class="pillbtn ghost full" onclick="markComplete()">✓ Mark Complete</div>
+      </div>
+    </div>
+    <div class="pref-note">⚠ Client preference: discreet driver, no visible branding on the vehicle, customs fast-track required.</div>
+    <div class="section-title">Client history</div>
+    <div class="detail-card">
+      <div class="kv"><span>19 Jul</span><span class="v">Restaurant booking — completed</span></div>
+      <div class="kv"><span>14 Jul</span><span class="v">Health check-up — completed</span></div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- MATCH / ASSIGN PROVIDER -->
+  <div class="screen" id="s-match">
+    <div class="appbar" style="padding-bottom:14px;">
+      <div class="left"><span class="back" onclick="showScreen('s-detail')">←</span><div><div class="brand">Provider matching</div><h1 style="font-size:19px;">Assign a provider</h1></div></div>
+    </div>
+    <div class="searchbar">🔍 Search transport &amp; security providers…</div>
+    <div class="section-title">Recommended for this request</div>
+    <div class="partner">
+      <div class="ic">🚗</div>
+      <div class="info"><div class="name">SafeRide Executive</div><div class="cat">Secure transport, 24/7</div><div class="rating">★ 4.9 · Responds in ~6 min</div></div>
+      <div class="assignbtn" onclick="assignProvider(this,'SafeRide Executive')">Assign</div>
+    </div>
+    <div class="partner">
+      <div class="ic">🛡️</div>
+      <div class="info"><div class="name">Sentinel Protection</div><div class="cat">Close protection</div><div class="rating">★ 4.8 · Responds in ~10 min</div></div>
+      <div class="assignbtn" onclick="assignProvider(this,'Sentinel Protection')">Assign</div>
+    </div>
+    <div class="partner">
+      <div class="ic">🚙</div>
+      <div class="info"><div class="name">Nairobi VIP Transfers</div><div class="cat">Airport &amp; corporate transport</div><div class="rating">★ 4.7 · Responds in ~15 min</div></div>
+      <div class="assignbtn" onclick="assignProvider(this,'Nairobi VIP Transfers')">Assign</div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- QUOTE -->
+  <div class="screen" id="s-quote">
+    <div class="appbar" style="padding-bottom:14px;">
+      <div class="left"><span class="back" onclick="showScreen('s-detail')">←</span><div><div class="brand">Quote</div><h1 style="font-size:19px;">Create a quote</h1></div></div>
+    </div>
+    <div class="doc-head">
+      <div class="lbl">Quote for</div>
+      <div class="client">Amina Wanjiru</div>
+      <div class="ref">#APX-QT-2214 · VIP airport transfer</div>
+    </div>
+    <div class="line-card">
+      <div class="line-item"><div class="desc"><div class="t1">Armoured sedan + driver</div><div class="t2">JKIA → Karen residence, one way</div></div><div class="amt">€380</div></div>
+      <div class="line-item"><div class="desc"><div class="t1">Customs fast-track escort</div><div class="t2">Meet &amp; greet on arrival</div></div><div class="amt">€150</div></div>
+      <div class="line-item"><div class="desc"><div class="t1">Concierge service fee</div><div class="t2">Included in Platinum membership</div></div><div class="amt">€0</div></div>
+      <div class="line-total"><span>Total</span><span class="n">€530</span></div>
+    </div>
+    <div class="pill-row" style="margin:0 20px;">
+      <div class="pillbtn ghost">✎ Edit</div>
+      <div class="pillbtn primary" onclick="sendQuote()">Send Quote to Client</div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- INVOICE -->
+  <div class="screen" id="s-invoice">
+    <div class="appbar" style="padding-bottom:14px;">
+      <div class="left"><span class="back" onclick="showScreen('s-finance')">←</span><div><div class="brand">Invoice</div><h1 style="font-size:19px;" id="invoice-title">Invoice #APX-INV-2214</h1></div></div>
+    </div>
+    <div class="doc-status"><span class="doctag pending" id="invoice-status-tag">Payment pending</span></div>
+    <div class="doc-head">
+      <div class="lbl">Billed to</div>
+      <div class="client">Amina Wanjiru</div>
+      <div class="ref">#APX-INV-2214 · VIP airport transfer</div>
+    </div>
+    <div class="line-card">
+      <div class="line-item"><div class="desc"><div class="t1">Armoured sedan + driver</div><div class="t2">JKIA → Karen residence, one way</div></div><div class="amt">€380</div></div>
+      <div class="line-item"><div class="desc"><div class="t1">Customs fast-track escort</div><div class="t2">Meet &amp; greet on arrival</div></div><div class="amt">€150</div></div>
+      <div class="line-item"><div class="desc"><div class="t1">Concierge service fee</div><div class="t2">Included in Platinum membership</div></div><div class="amt">€0</div></div>
+      <div class="line-total"><span>Total due</span><span class="n">€530</span></div>
+    </div>
+    <div class="section-title">Incoming payment</div>
+    <div class="pay-card">
+      <div class="top">
+        <div class="method"><div class="ic">📱</div>M-Pesa STK Push</div>
+        <div style="font-weight:700;">€530</div>
+      </div>
+      <div style="font-size:12px; color:var(--muted);">Ref. QGT7X92KLM · Received 26 Jul, 14:32</div>
+      <div class="pill-row">
+        <div class="pillbtn ghost" onclick="rejectPayment()">Flag issue</div>
+        <div class="pillbtn primary" onclick="validatePayment()">✓ Validate Payment</div>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- FINANCE -->
+  <div class="screen" id="s-finance">
+    <div class="appbar" style="padding-bottom:14px;">
+      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">Finance</div><h1 style="font-size:19px;">Quotes &amp; invoices</h1></div></div>
+    </div>
+    <div class="finance-tabs">
+      <div class="ftab active" data-ft="all" onclick="filterFinance(this,'all')">All</div>
+      <div class="ftab" data-ft="quotes" onclick="filterFinance(this,'quotes')">Quotes</div>
+      <div class="ftab" data-ft="invoices" onclick="filterFinance(this,'invoices')">Invoices</div>
+    </div>
+    <div class="finance-row" data-ftype="invoices" onclick="showScreen('s-invoice')">
+      <div class="top"><div><div class="cl">Amina Wanjiru</div><div class="svc">VIP airport transfer</div></div><div class="amt">€530</div></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag pending">Invoice · Pending</span><span style="font-size:11px; color:var(--muted);">#APX-INV-2214</span></div>
+    </div>
+    <div class="finance-row" data-ftype="quotes">
+      <div class="top"><div><div class="cl">James Otieno</div><div class="svc">Private dinner, Cultiva x6</div></div><div class="amt">€290</div></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag sent">Quote · Sent</span><span style="font-size:11px; color:var(--muted);">#APX-QT-2201</span></div>
+    </div>
+    <div class="finance-row" data-ftype="quotes">
+      <div class="top"><div><div class="cl">Sarah Kimani</div><div class="svc">Medical second opinion, travel</div></div><div class="amt">€1,120</div></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag accepted">Quote · Accepted</span><span style="font-size:11px; color:var(--muted);">#APX-QT-2189</span></div>
+    </div>
+    <div class="finance-row" data-ftype="invoices">
+      <div class="top"><div><div class="cl">Peter Mwangi</div><div class="svc">Personal shopping</div></div><div class="amt">€310</div></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag paid">Invoice · Paid</span><span style="font-size:11px; color:var(--muted);">#APX-INV-2190</span></div>
+    </div>
+    <div class="finance-row" data-ftype="invoices">
+      <div class="top"><div><div class="cl">Grace Njeri</div><div class="svc">Nanny background check</div></div><div class="amt">€95</div></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag paid">Invoice · Paid</span><span style="font-size:11px; color:var(--muted);">#APX-INV-2175</span></div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="screen" id="s-chat">
+    <div class="appbar" style="padding-bottom:14px;"><div class="left"><span class="back" onclick="showScreen('s-detail')">←</span><div><div class="brand">Message client</div><h1 style="font-size:19px;">Amina Wanjiru</h1></div></div></div>
+    <div class="chat">
+      <div class="bubble me">Good evening Amina, I've received your VIP transfer request for JKIA on Friday. What time does your flight land?</div>
+      <div class="bubble them">Flight KQ102, arriving 18:40. A discreet driver, please.</div>
+      <div class="bubble me">Understood — booking an armoured vehicle with a driver and customs fast-track. Confirmation within 15 minutes.</div>
+    </div>
+    <div style="margin:0 20px; display:flex; gap:8px;">
+      <div style="flex:1; background:var(--paper); border:1px solid var(--border); border-radius:20px; padding:10px 16px; color:var(--muted); font-size:13px;">Write a message…</div>
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;">➤</div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- PARTNERS -->
+  <div class="screen" id="s-partners">
+    <div class="appbar" style="padding-bottom:14px;"><div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">Directory</div><h1 style="font-size:19px;">Partner network</h1></div></div></div>
+    <div class="searchbar">🔍 Search a partner…</div>
+    <div class="section-title">Security &amp; transport</div>
+    <div class="partner"><div class="ic">🚗</div><div class="info"><div class="name">SafeRide Executive</div><div class="cat">Secure transport, 24/7</div></div><div class="assignbtn" style="background:var(--success-bg); color:var(--success);">📞</div></div>
+    <div class="partner"><div class="ic">🛡️</div><div class="info"><div class="name">Sentinel Protection</div><div class="cat">Close protection</div></div><div class="assignbtn" style="background:var(--success-bg); color:var(--success);">📞</div></div>
+    <div class="section-title">Hospitality &amp; dining</div>
+    <div class="partner"><div class="ic">🍽️</div><div class="info"><div class="name">Cultiva Restaurant</div><div class="cat">Priority bookings</div></div><div class="assignbtn" style="background:var(--success-bg); color:var(--success);">📞</div></div>
+    <div class="partner"><div class="ic">🏨</div><div class="info"><div class="name">Villa Rosa Kempinski</div><div class="cat">Rooms &amp; events</div></div><div class="assignbtn" style="background:var(--success-bg); color:var(--success);">📞</div></div>
+    <div class="section-title">Health</div>
+    <div class="partner"><div class="ic">🏥</div><div class="info"><div class="name">Nairobi Hospital — VIP Wing</div><div class="cat">Priority consultations</div></div><div class="assignbtn" style="background:var(--success-bg); color:var(--success);">📞</div></div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="screen" id="s-profile">
+    <div class="appbar" style="padding-bottom:6px;"><div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div class="brand">Profile</div></div></div>
+    <div class="profile-head">
+      <div class="avatar">D</div>
+      <h2 style="margin:0; font-size:18px;">David Kamau</h2>
+      <div style="color:var(--muted); font-size:13px;">Senior concierge · Travel &amp; security</div>
+    </div>
+    <div class="perf-grid">
+      <div class="perf"><div class="n">98%</div><div class="l">SLA met (30d)</div></div>
+      <div class="perf"><div class="n">4.9/5</div><div class="l">Client satisfaction</div></div>
+      <div class="perf"><div class="n">312</div><div class="l">Requests handled</div></div>
+      <div class="perf"><div class="n">18 min</div><div class="l">Avg. response time</div></div>
+    </div>
+    <div class="section-title">This week</div>
+    <div class="day-row"><span class="d">Monday 20</span><span class="h">08:00 – 18:00</span></div>
+    <div class="day-row"><span class="d">Tuesday 21</span><span class="h">08:00 – 18:00</span></div>
+    <div class="day-row"><span class="d">Wednesday 22</span><span class="h">08:00 – 20:00</span></div>
+    <div class="day-row"><span class="d">Thursday 23</span><span class="h">Off</span></div>
+    <div class="day-row"><span class="d">Friday 24</span><span class="h">07:00 – 22:00</span></div>
+    <div class="day-row"><span class="d">Saturday 25</span><span class="h">On call</span></div>
+    <div style="height:20px"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="bottomnav">
+    <div class="navbtn active" data-nav="s-dash" onclick="showScreen('s-dash')"><span class="ic">⌂</span>Home</div>
+    <div class="navbtn" data-nav="s-queue" onclick="showScreen('s-queue')"><span class="ic">☰</span>Queue</div>
+    <div class="navbtn" data-nav="s-finance" onclick="showScreen('s-finance')"><span class="ic">◒</span>Finance</div>
+    <div class="navbtn" data-nav="s-partners" onclick="showScreen('s-partners')"><span class="ic">◈</span>Partners</div>
+    <div class="navbtn" data-nav="s-profile" onclick="showScreen('s-profile')"><span class="ic">◔</span>Profile</div>
+  </div>
+</div>
+<div class="frame-label">APEX CONCIERGE — Staff App</div>
+</div>
+
+<script>
+const REQUESTS = {
+  jkia:    { title:"VIP Airport Transfer", client:"Amina Wanjiru" },
+  cultiva: { title:"Table for 6, Cultiva", client:"James Otieno" },
+  medical: { title:"Second Medical Opinion", client:"Sarah Kimani" },
+  shopping:{ title:"Personal Shopping", client:"Peter Mwangi" },
+  nanny:   { title:"Nanny Background Check", client:"Grace Njeri" },
+};
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const navMap = {
+    's-dash':'s-dash','s-queue':'s-queue','s-detail':'s-queue','s-chat':'s-queue',
+    's-match':'s-queue','s-quote':'s-queue','s-finance':'s-finance','s-invoice':'s-finance',
+    's-partners':'s-partners','s-profile':'s-profile'
+  };
+  document.querySelectorAll('.navbtn').forEach(n=>n.classList.toggle('active', n.dataset.nav===navMap[id]));
+}
+
+function openDetail(key){
+  const r = REQUESTS[key];
+  if(r){ document.getElementById('detail-title').textContent = r.title; }
+  showScreen('s-detail');
+}
+
+function openInvoice(key){ showScreen('s-invoice'); }
+
+function toggleAvail(el){
+  el.classList.toggle('off');
+}
+
+function assignProvider(btn, name){
+  document.querySelectorAll('.assignbtn').forEach(b=>{ if(b!==btn && !b.classList.contains('done')){ } });
+  btn.textContent = 'Assigned ✓';
+  btn.classList.add('done');
+  document.getElementById('detail-provider').textContent = name;
+  showToast(name + ' assigned to this request');
+  setTimeout(()=> showScreen('s-detail'), 700);
+}
+
+function sendQuote(){
+  showToast('Quote #APX-QT-2214 sent to client');
+  setTimeout(()=> showScreen('s-detail'), 700);
+}
+
+function validatePayment(){
+  const tag = document.getElementById('invoice-status-tag');
+  tag.textContent = 'Paid';
+  tag.className = 'doctag paid';
+  showToast('Payment of €530 validated');
+}
+
+function rejectPayment(){
+  const tag = document.getElementById('invoice-status-tag');
+  tag.textContent = 'Issue flagged';
+  tag.className = 'doctag sent';
+  showToast('Payment flagged for review');
+}
+
+function markComplete(){
+  showToast('Request marked as complete');
+  setTimeout(()=> showScreen('s-queue'), 700);
+}
+
+function filterFinance(el,type){
+  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.finance-row').forEach(row=>{
+    row.style.display = (type==='all' || row.dataset.ftype===type) ? '' : 'none';
+  });
+}
+
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>

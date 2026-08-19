@@ -1,0 +1,21 @@
+<svg viewBox="0 0 500 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="APEX — Africa Personal Experience">
+  <defs>
+    <linearGradient id="badge" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1C2541"/>
+      <stop offset="1" stop-color="#10162B"/>
+    </linearGradient>
+    <linearGradient id="peak" x1="18" y1="34" x2="102" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E4CFA0"/>
+      <stop offset="1" stop-color="#B08D57"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mark -->
+  <rect x="0" y="0" width="120" height="120" rx="30" fill="url(#badge)"/>
+  <circle cx="85" cy="33" r="7" fill="#E4CFA0"/>
+  <path d="M18 86L46 40L59 60L73 35L102 86Z" fill="url(#peak)"/>
+
+  <!-- Wordmark -->
+  <text x="142" y="70" font-family="Georgia, 'Playfair Display', 'Times New Roman', serif" font-size="54" font-weight="700" fill="#10162B" letter-spacing="2">APEX</text>
+  <text x="144" y="96" font-family="Arial, 'Inter', sans-serif" font-size="12.5" font-weight="600" fill="#B08D57" letter-spacing="2.4">AFRICA PERSONAL EXPERIENCE</text>
+</svg>
