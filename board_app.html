@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nyota Concierge — Board (Prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#10162B; --navy2:#1C2541; --gold:#B08D57; --gold-light:#E4CFA0;
+    --cream:#F5F3EE; --paper:#FFFFFF; --ink:#1B1B1B; --muted:#767268;
+    --border:#E4E1D8; --success:#2E7D5B; --success-bg:#E7F3EC;
+    --warn:#B0752E; --warn-bg:#FBF0E1; --danger:#B0452E; --danger-bg:#FBE7E2;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{ font-family:'Inter',sans-serif; background:#F1EEE7; color:var(--ink); }
+  h1,h2,h3,.serif{font-family:'Playfair Display',serif;}
+  .app{ display:flex; min-height:100vh; }
+
+  .sidebar{ width:230px; background:var(--navy); color:#fff; flex:0 0 auto; display:flex; flex-direction:column; padding:22px 0; }
+  .sb-brand{ padding:0 22px 22px; border-bottom:1px solid rgba(255,255,255,.1); margin-bottom:14px; }
+  .sb-brand .k{ font-size:10.5px; letter-spacing:2.5px; color:var(--gold-light); text-transform:uppercase; }
+  .sb-brand .n{ font-family:'Playfair Display',serif; font-size:20px; margin-top:4px; }
+  .sb-item{ padding:11px 22px; font-size:13.5px; color:#C6C7D6; cursor:pointer; display:flex; align-items:center; gap:10px; border-left:3px solid transparent; }
+  .sb-item .ic{ font-size:15px; width:18px; }
+  .sb-item.active{ background:rgba(255,255,255,.06); color:#fff; border-left-color:var(--gold); font-weight:600; }
+  .sb-foot{ margin-top:auto; padding:16px 22px; font-size:11.5px; color:#8586A0; border-top:1px solid rgba(255,255,255,.1); }
+
+  .main{ flex:1; padding:26px 34px; max-width:1180px; }
+  .topbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; }
+  .topbar h1{ font-size:22px; margin:0; font-weight:600; }
+  .topbar .period{ font-size:12.5px; color:var(--muted); background:var(--paper); border:1px solid var(--border); border-radius:8px; padding:8px 14px; }
+
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  .kpi-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+  .kpi{ background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
+  .kpi .l{ font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+  .kpi .n{ font-family:'Playfair Display',serif; font-size:26px; margin-top:6px; }
+  .kpi .d{ font-size:12px; margin-top:4px; }
+  .kpi .d.up{ color:var(--success); } .kpi .d.down{ color:var(--danger); }
+
+  .row2{ display:grid; grid-template-columns:1.4fr 1fr; gap:16px; margin-bottom:22px; }
+  .card{ background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:18px 20px; }
+  .card h3{ margin:0 0 14px; font-size:15px; font-weight:600; }
+
+  .bars{ display:flex; align-items:flex-end; gap:10px; height:150px; }
+  .bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; }
+  .bar{ width:100%; background:var(--navy); border-radius:5px 5px 0 0; }
+  .bar-col .m{ font-size:10.5px; color:var(--muted); }
+
+  .donut-wrap{ display:flex; align-items:center; gap:18px; }
+  .legend{ font-size:12.5px; }
+  .legend .li{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .legend .sw{ width:10px;height:10px;border-radius:3px; }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{ text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--border); }
+  td{ padding:11px 10px; border-bottom:1px solid var(--border); }
+  tr:last-child td{ border-bottom:none; }
+  .tag{ font-size:11px; padding:3px 9px; border-radius:20px; font-weight:600; }
+  .tag.gold{ background:#F6EEDF; color:#8A6524; }
+  .tag.silver{ background:#EEEEEE; color:#5A5A5A; }
+  .tag.plat{ background:#E7EAF6; color:#3A4A9C; }
+  .tag.ok{ background:var(--success-bg); color:var(--success); }
+  .tag.warn{ background:var(--warn-bg); color:var(--warn); }
+  .tag.risk{ background:var(--danger-bg); color:var(--danger); }
+
+  .list-card .row{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .list-card .row:last-child{ border-bottom:none; }
+
+  .searchbar{ margin-bottom:14px; background:var(--paper); border:1px solid var(--border); border-radius:10px; padding:9px 14px; font-size:13px; color:var(--muted); max-width:320px; }
+
+  .alert{ display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:12px; margin-bottom:10px; font-size:13px; }
+  .alert.red{ background:var(--danger-bg); color:#7a2b1a; }
+  .alert.amber{ background:var(--warn-bg); color:#6b4a17; }
+  .alert .t{ font-weight:600; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="sb-brand"><div class="k">Nyota Concierge</div><div class="n">Board</div></div>
+    <div class="sb-item active" data-v="v-overview" onclick="showView(this,'v-overview')"><span class="ic">◈</span>Vue d'ensemble</div>
+    <div class="sb-item" data-v="v-members" onclick="showView(this,'v-members')"><span class="ic">☺</span>Membres (CRM)</div>
+    <div class="sb-item" data-v="v-team" onclick="showView(this,'v-team')"><span class="ic">☰</span>Équipe concierge</div>
+    <div class="sb-item" data-v="v-finance" onclick="showView(this,'v-finance')"><span class="ic">◒</span>Finances</div>
+    <div class="sb-item" data-v="v-partners" onclick="showView(this,'v-partners')"><span class="ic">◇</span>Partenaires</div>
+    <div class="sb-item" data-v="v-compliance" onclick="showView(this,'v-compliance')"><span class="ic">▦</span>Conformité</div>
+    <div class="sb-foot">Connecté en tant que<br><b style="color:#fff;">Coraline F. — Direction</b></div>
+  </div>
+
+  <div class="main">
+    <!-- OVERVIEW -->
+    <div class="view active" id="v-overview">
+      <div class="topbar"><h1>Vue d'ensemble</h1><div class="period">Juillet 2026</div></div>
+
+      <div class="kpi-grid">
+        <div class="kpi"><div class="l">Membres actifs</div><div class="n">642</div><div class="d up">+8.4% vs juin</div></div>
+        <div class="kpi"><div class="l">Demandes ce mois</div><div class="n">1,284</div><div class="d up">+12% vs juin</div></div>
+        <div class="kpi"><div class="l">Temps de réponse moy.</div><div class="n">21 min</div><div class="d up">-3 min vs juin</div></div>
+        <div class="kpi"><div class="l">CA du mois</div><div class="n">KES 18.6M</div><div class="d up">+15% vs juin</div></div>
+      </div>
+
+      <div class="row2">
+        <div class="card">
+          <h3>Volume de demandes — 6 derniers mois</h3>
+          <div class="bars">
+            <div class="bar-col"><div class="bar" style="height:58%"></div><div class="m">Fév</div></div>
+            <div class="bar-col"><div class="bar" style="height:64%"></div><div class="m">Mars</div></div>
+            <div class="bar-col"><div class="bar" style="height:70%"></div><div class="m">Avr</div></div>
+            <div class="bar-col"><div class="bar" style="height:78%"></div><div class="m">Mai</div></div>
+            <div class="bar-col"><div class="bar" style="height:88%"></div><div class="m">Juin</div></div>
+            <div class="bar-col"><div class="bar" style="height:100%; background:var(--gold);"></div><div class="m">Juil</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Répartition par catégorie</h3>
+          <div class="donut-wrap">
+            <svg width="120" height="120" viewBox="0 0 42 42">
+              <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#E4E1D8" stroke-width="6"></circle>
+              <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#10162B" stroke-width="6" stroke-dasharray="32 68" stroke-dashoffset="25"></circle>
+              <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#B08D57" stroke-width="6" stroke-dasharray="24 76" stroke-dashoffset="-7"></circle>
+              <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#2E7D5B" stroke-width="6" stroke-dasharray="18 82" stroke-dashoffset="-31"></circle>
+              <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#B0752E" stroke-width="6" stroke-dasharray="26 74" stroke-dashoffset="-49"></circle>
+            </svg>
+            <div class="legend">
+              <div class="li"><div class="sw" style="background:#10162B;"></div>Voyages & logistique — 32%</div>
+              <div class="li"><div class="sw" style="background:#B08D57;"></div>Hôtellerie & restauration — 24%</div>
+              <div class="li"><div class="sw" style="background:#2E7D5B;"></div>Sécurité & protection — 18%</div>
+              <div class="li"><div class="sw" style="background:#B0752E;"></div>Autres — 26%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="card list-card">
+          <h3>Activité récente</h3>
+          <div class="row"><span>Nouveau membre Platinum — J. Otieno</span><span class="tag plat">Membre</span></div>
+          <div class="row"><span>Escalade SLA dépassé — demande #NC-4790</span><span class="tag risk">Urgent</span></div>
+          <div class="row"><span>Nouveau partenaire signé — Villa Rosa Kempinski</span><span class="tag ok">Partenaire</span></div>
+          <div class="row"><span>Paiement M-Pesa en échec — #TXN-8821</span><span class="tag warn">Finance</span></div>
+        </div>
+        <div class="card">
+          <h3>Alertes</h3>
+          <div class="alert red"><div><div class="t">SLA dépassé</div>Demande #NC-4790 en attente depuis 3h20 (seuil: 2h)</div></div>
+          <div class="alert amber"><div><div class="t">Charge élevée</div>L'équipe sécurité est à 92% de capacité cette semaine</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MEMBERS -->
+    <div class="view" id="v-members">
+      <div class="topbar"><h1>Membres (CRM)</h1><div class="period">642 membres actifs</div></div>
+      <input class="searchbar" placeholder="🔍  Rechercher un membre…" />
+      <div class="card">
+        <table>
+          <tr><th>Membre</th><th>Tier</th><th>Depuis</th><th>Demandes (12m)</th><th>Valeur annuelle</th><th>Statut</th></tr>
+          <tr><td>Amina Wanjiru</td><td><span class="tag plat">Platinum</span></td><td>2024</td><td>34</td><td>KES 3.2M</td><td><span class="tag ok">Actif</span></td></tr>
+          <tr><td>James Otieno</td><td><span class="tag gold">Gold</span></td><td>2025</td><td>19</td><td>KES 1.1M</td><td><span class="tag ok">Actif</span></td></tr>
+          <tr><td>Sarah Kimani</td><td><span class="tag plat">Platinum</span></td><td>2023</td><td>41</td><td>KES 4.6M</td><td><span class="tag ok">Actif</span></td></tr>
+          <tr><td>Peter Mwangi</td><td><span class="tag silver">Silver</span></td><td>2025</td><td>7</td><td>KES 340K</td><td><span class="tag warn">À relancer</span></td></tr>
+          <tr><td>Grace Njeri</td><td><span class="tag gold">Gold</span></td><td>2024</td><td>22</td><td>KES 1.4M</td><td><span class="tag ok">Actif</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- TEAM -->
+    <div class="view" id="v-team">
+      <div class="topbar"><h1>Équipe concierge</h1><div class="period">14 concierges actifs</div></div>
+      <div class="card">
+        <table>
+          <tr><th>Concierge</th><th>Spécialité</th><th>Charge active</th><th>SLA tenu</th><th>Satisfaction</th></tr>
+          <tr><td>David Kamau</td><td>Voyages & sécurité</td><td>5 tâches</td><td><span class="tag ok">98%</span></td><td>4.9 / 5</td></tr>
+          <tr><td>Faith Achieng</td><td>Hôtellerie & événementiel</td><td>7 tâches</td><td><span class="tag ok">95%</span></td><td>4.8 / 5</td></tr>
+          <tr><td>Brian Otieno</td><td>Immobilier & maison</td><td>3 tâches</td><td><span class="tag warn">88%</span></td><td>4.6 / 5</td></tr>
+          <tr><td>Lucy Wambui</td><td>Santé & bien-être</td><td>4 tâches</td><td><span class="tag ok">97%</span></td><td>4.9 / 5</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- FINANCE -->
+    <div class="view" id="v-finance">
+      <div class="topbar"><h1>Finances</h1><div class="period">Juillet 2026</div></div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="l">Revenu abonnements</div><div class="n">KES 11.2M</div><div class="d up">+6%</div></div>
+        <div class="kpi"><div class="l">Revenu à la demande</div><div class="n">KES 4.8M</div><div class="d up">+22%</div></div>
+        <div class="kpi"><div class="l">Commissions partenaires</div><div class="n">KES 2.6M</div><div class="d up">+9%</div></div>
+        <div class="kpi"><div class="l">Paiements en échec</div><div class="n">3</div><div class="d down">KES 612K</div></div>
+      </div>
+      <div class="card list-card">
+        <h3>Réconciliation des paiements</h3>
+        <div class="row"><span>M-Pesa (STK Push)</span><span>1,042 transactions — KES 14.1M</span></div>
+        <div class="row"><span>Carte bancaire (Pesapal)</span><span>186 transactions — KES 4.5M</span></div>
+        <div class="row"><span>Virements corporate (B2B)</span><span>9 contrats — KES 3.2M</span></div>
+      </div>
+    </div>
+
+    <!-- PARTNERS -->
+    <div class="view" id="v-partners">
+      <div class="topbar"><h1>Réseau de partenaires</h1><div class="period">58 partenaires actifs</div></div>
+      <div class="card">
+        <table>
+          <tr><th>Partenaire</th><th>Catégorie</th><th>Commission</th><th>CA généré (12m)</th></tr>
+          <tr><td>Villa Rosa Kempinski</td><td>Hôtellerie</td><td>15%</td><td>KES 2.1M</td></tr>
+          <tr><td>SafeRide Executive</td><td>Transport sécurisé</td><td>12%</td><td>KES 3.4M</td></tr>
+          <tr><td>Cultiva Restaurant</td><td>Restauration</td><td>10%</td><td>KES 640K</td></tr>
+          <tr><td>Nairobi Hospital VIP</td><td>Santé</td><td>8%</td><td>KES 1.2M</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- COMPLIANCE -->
+    <div class="view" id="v-compliance">
+      <div class="topbar"><h1>Conformité & audit</h1><div class="period">Data Protection Act 2019 · ODPC</div></div>
+      <div class="card list-card">
+        <h3>Journal d'audit</h3>
+        <div class="row"><span>Enregistrement ODPC renouvelé</span><span class="tag ok">Conforme</span></div>
+        <div class="row"><span>Politique de confidentialité mise à jour</span><span class="tag ok">Conforme</span></div>
+        <div class="row"><span>Notification de violation de données requise</span><span class="tag risk">Aucune en cours</span></div>
+        <div class="row"><span>Formation équipe — protection des données</span><span class="tag warn">À planifier</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showView(el, id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.sb-item').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+}
+</script>
+</body>
+</html>
