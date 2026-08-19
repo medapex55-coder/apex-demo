@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX — Africa Personal Experience</title>
+<meta name="description" content="APEX is a private concierge platform for life in Kenya — travel, dining, security, wellness and more, one request away.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%2310162B%22/><text x=%2250%22 y=%2266%22 font-size=%2255%22 font-family=%22Georgia,serif%22 fill=%22%23E4CFA0%22 text-anchor=%22middle%22>A</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header>
+  <div class="container nav">
+    <a href="#" class="brand">
+      <div class="mark">A</div>
+      <div class="txt">
+        <div class="name">APEX</div>
+        <div class="tag" data-i18n="brand.tagline">Africa Personal Experience</div>
+      </div>
+    </a>
+    <nav class="navlinks">
+      <a href="#services" data-i18n="nav.services">Services</a>
+      <a href="#how" data-i18n="nav.how">How It Works</a>
+      <a href="#membership" data-i18n="nav.membership">Membership</a>
+      <a href="#business" data-i18n="nav.business">For Business</a>
+      <a href="#contact" data-i18n="nav.contact">Contact</a>
+    </nav>
+    <div class="nav-right">
+      <select class="lang-select" aria-label="Language"></select>
+      <a href="#contact" class="btn btn-primary" data-i18n="nav.cta">Request Access</a>
+      <button class="navbtn-menu" aria-label="Menu">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="bg" style="background-image:url('assets/img/hero.jpg');"></div>
+  <div class="container hero-inner">
+    <div class="hero-badge" data-i18n="hero.eyebrow">Nairobi · Kenya</div>
+    <h1 data-i18n="hero.title">Your life in Kenya, effortlessly arranged</h1>
+    <p class="subtitle" data-i18n="hero.subtitle">APEX is a private concierge platform for executives, diplomats, expatriates and discerning residents — one request away from travel, dining, security, wellness and more.</p>
+    <div class="hero-ctas">
+      <a href="#contact" class="btn btn-primary" data-i18n="hero.cta_primary">Request a Concierge</a>
+      <a href="#membership" class="btn btn-outline" data-i18n="hero.cta_secondary">Explore Membership</a>
+    </div>
+    <div class="trustrow">
+      <div class="trust-item"><span class="dot"></span><span data-i18n="hero.trust1">Nairobi-based team</span></div>
+      <div class="trust-item"><span class="dot"></span><span data-i18n="hero.trust2">Available 24/7</span></div>
+      <div class="trust-item"><span class="dot"></span><span data-i18n="hero.trust3">Discreet &amp; secure</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="stats">
+  <div class="container stats-grid">
+    <div class="stat"><div class="num">24/7</div><div class="lbl" data-i18n="stats.label1">Always on call</div></div>
+    <div class="stat"><div class="num">8</div><div class="lbl" data-i18n="stats.label2">Service categories</div></div>
+    <div class="stat"><div class="num">3</div><div class="lbl" data-i18n="stats.label3">Cities covered</div></div>
+    <div class="stat"><div class="num">M-Pesa</div><div class="lbl" data-i18n="stats.label4">M-Pesa &amp; card payments</div></div>
+  </div>
+</section>
+
+<!-- SERVICES -->
+<section class="section" id="services">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow" data-i18n="services.eyebrow">What We Handle</div>
+      <h2 data-i18n="services.title">One platform, every request</h2>
+      <p data-i18n="services.subtitle">From a same-day restaurant table to a private jet transfer — tell us what you need and your concierge takes it from there.</p>
+    </div>
+    <div class="svc-grid">
+      <div class="svc-card">
+        <div class="img" style="background-image:url('assets/img/svc-travel.jpg');"></div>
+        <div class="body"><h3 data-i18n="svc.travel.name">Travel &amp; Logistics</h3><p data-i18n="svc.travel.desc">Private jets, VIP transfers, visas &amp; fast-track immigration</p></div>
+      </div>
+      <div class="svc-card">
+        <div class="img" style="background-image:url('assets/img/svc-dining.jpg');"></div>
+        <div class="body"><h3 data-i18n="svc.dining.name">Dining &amp; Hospitality</h3><p data-i18n="svc.dining.desc">Exclusive tables, private chefs, priority hotel bookings</p></div>
+      </div>
+      <div class="svc-card">
+        <div class="img" style="background-image:url('assets/img/svc-home.jpg');"></div>
+        <div class="body"><h3 data-i18n="svc.home.name">Real Estate &amp; Home</h3><p data-i18n="svc.home.desc">Property search, household staff, relocation support</p></div>
+      </div>
+      <div class="svc-card">
+        <div class="img" style="background-image:url('assets/img/svc-security.jpg');"></div>
+        <div class="body"><h3 data-i18n="svc.security.name">Security &amp; Protection</h3><p data-i18n="svc.security.desc">Close protection, secure transport, risk assessments</p></div>
+      </div>
+      <div class="svc-card">
+        <div class="img" style="background-image:url('assets/img/svc-health.jpg');"></div>
+        <div class="body"><h3 data-i18n="svc.health.name">Health &amp; Wellness</h3><p data-i18n="svc.health.desc">Private clinics, medical evacuation, wellness retreats</p></div>
+      </div>
+      <div class="svc-card">
+        <div class="img" style="background-image:url('assets/img/svc-events.jpg');"></div>
+        <div class="body"><h3 data-i18n="svc.events.name">Events &amp; Lifestyle</h3><p data-i18n="svc.events.desc">Private events, VIP tickets, personal shopping</p></div>
+      </div>
+      <div class="svc-card">
+        <div class="img" style="background-image:url('assets/img/svc-family.jpg');"></div>
+        <div class="body"><h3 data-i18n="svc.family.name">Family &amp; Education</h3><p data-i18n="svc.family.desc">School admissions, tutors, vetted household staff</p></div>
+      </div>
+      <div class="svc-card">
+        <div class="img" style="background-image:url('assets/img/svc-business.jpg');"></div>
+        <div class="body"><h3 data-i18n="svc.business.name">Executive Support</h3><p data-i18n="svc.business.desc">Meeting logistics, executive relocation, travel management</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section how-wrap" id="how">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow" data-i18n="how.eyebrow">Simple By Design</div>
+      <h2 data-i18n="how.title">How APEX works</h2>
+    </div>
+    <div class="how-grid">
+      <div class="how-step">
+        <div class="stepno">1</div>
+        <h3 data-i18n="how.step1.title">Make a request</h3>
+        <p data-i18n="how.step1.desc">Open the app, choose a category or chat directly with your concierge.</p>
+      </div>
+      <div class="how-step">
+        <div class="stepno">2</div>
+        <h3 data-i18n="how.step2.title">Get matched</h3>
+        <p data-i18n="how.step2.desc">A dedicated concierge takes ownership of your request within minutes.</p>
+      </div>
+      <div class="how-step">
+        <div class="stepno">3</div>
+        <h3 data-i18n="how.step3.title">Track in real time</h3>
+        <p data-i18n="how.step3.desc">Follow every step from confirmation to completion, right in the app.</p>
+      </div>
+      <div class="how-step">
+        <div class="stepno">4</div>
+        <h3 data-i18n="how.step4.title">Pay with ease</h3>
+        <p data-i18n="how.step4.desc">Settle instantly with M-Pesa or card — fully itemised, always transparent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MEMBERSHIP -->
+<section class="section" id="membership">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow" data-i18n="membership.eyebrow">Membership</div>
+      <h2 data-i18n="membership.title">Choose your level of access</h2>
+      <p data-i18n="membership.subtitle">Every tier includes a dedicated concierge and priority access to our partner network.</p>
+    </div>
+    <div class="tier-grid">
+      <div class="tier-card">
+        <div class="tname" data-i18n="tier.silver.name">Silver</div>
+        <div class="ttag" data-i18n="tier.silver.tag">For getting started</div>
+        <ul>
+          <li><span class="check">✓</span><span data-i18n="tier.silver.f1">10 requests / month</span></li>
+          <li><span class="check">✓</span><span data-i18n="tier.silver.f2">Standard response time</span></li>
+          <li><span class="check">✓</span><span data-i18n="tier.silver.f3">Access to partner network</span></li>
+        </ul>
+        <a href="#contact" class="btn btn-ghost btn-block" data-i18n="tier.cta">Become a Member</a>
+      </div>
+      <div class="tier-card featured">
+        <div class="badge-pop" data-i18n="tier.gold.tag">Most popular</div>
+        <div class="tname" data-i18n="tier.gold.name">Gold</div>
+        <div class="ttag" data-i18n="tier.gold.tag">Most popular</div>
+        <ul>
+          <li><span class="check">✓</span><span data-i18n="tier.gold.f1">30 requests / month</span></li>
+          <li><span class="check">✓</span><span data-i18n="tier.gold.f2">Priority response time</span></li>
+          <li><span class="check">✓</span><span data-i18n="tier.gold.f3">Dedicated concierge</span></li>
+        </ul>
+        <a href="#contact" class="btn btn-primary btn-block" data-i18n="tier.cta">Become a Member</a>
+      </div>
+      <div class="tier-card">
+        <div class="tname" data-i18n="tier.platinum.name">Platinum</div>
+        <div class="ttag" data-i18n="tier.platinum.tag">Unlimited &amp; personal</div>
+        <ul>
+          <li><span class="check">✓</span><span data-i18n="tier.platinum.f1">Unlimited requests</span></li>
+          <li><span class="check">✓</span><span data-i18n="tier.platinum.f2">Immediate response, 24/7</span></li>
+          <li><span class="check">✓</span><span data-i18n="tier.platinum.f3">Personal senior concierge</span></li>
+        </ul>
+        <a href="#contact" class="btn btn-ghost btn-block" data-i18n="tier.cta">Become a Member</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BUSINESS -->
+<section class="section" id="business">
+  <div class="container">
+    <div class="business">
+      <div class="img" style="background-image:url('assets/img/business-cta.jpg');"></div>
+      <div class="content">
+        <div class="eyebrow" data-i18n="business.eyebrow">For Business</div>
+        <h2 data-i18n="business.title">Mobility for your executives, simplified</h2>
+        <p data-i18n="business.desc">APEX partners with companies, embassies and family offices to manage travel, relocation and daily logistics for their people in Kenya — with consolidated billing and dedicated account support.</p>
+        <a href="#contact" class="btn btn-primary" data-i18n="business.cta">Talk to Our Team</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow" data-i18n="testimonials.eyebrow">Trusted By Our Members</div>
+      <h2 data-i18n="testimonials.title">What our members say</h2>
+    </div>
+    <div class="test-grid">
+      <div class="test-card">
+        <p class="quote" data-i18n="test1.quote">APEX arranged a same-day medical evacuation for my father. The follow-through was flawless, from the first call to the last update.</p>
+        <div class="test-person">
+          <img src="assets/img/avatar1.jpg" alt="Amina W.">
+          <div><div class="name">Amina W.</div><div class="role" data-i18n="test1.role">Platinum Member, Nairobi</div></div>
+        </div>
+      </div>
+      <div class="test-card">
+        <p class="quote" data-i18n="test2.quote">Our regional director relocated to Nairobi in two weeks — housing, school, everything. It felt effortless.</p>
+        <div class="test-person">
+          <img src="assets/img/avatar2.jpg" alt="James O.">
+          <div><div class="name">James O.</div><div class="role" data-i18n="test2.role">HR Director, Corporate Partner</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- APP PROMO -->
+<section class="section">
+  <div class="container">
+    <div class="app-promo">
+      <div>
+        <div class="eyebrow" data-i18n="app.eyebrow">Coming Soon</div>
+        <h2 data-i18n="app.title">APEX in your pocket</h2>
+        <p data-i18n="app.desc">Request, track and pay for every service from one app. Launching soon on iOS and Android.</p>
+        <div class="app-badges">
+          <div class="store-badge">
+            <span class="ic">🍎</span>
+            <div><div class="t1" data-i18n="app.badge1">Download on the</div><div class="t2" data-i18n="app.badge1b">App Store</div></div>
+          </div>
+          <div class="store-badge">
+            <span class="ic">▶</span>
+            <div><div class="t1" data-i18n="app.badge2">Get it on</div><div class="t2" data-i18n="app.badge2b">Google Play</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-mock" style="background-image:url('assets/img/svc-travel.jpg');"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="contact">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#" class="brand">
+          <div class="mark">A</div>
+          <div class="txt"><div class="name">APEX</div><div class="tag" data-i18n="brand.tagline">Africa Personal Experience</div></div>
+        </a>
+        <p class="footer-desc" data-i18n="footer.desc">A private concierge platform built for life in Kenya.</p>
+      </div>
+      <div class="footer-col">
+        <h4 data-i18n="footer.company">Company</h4>
+        <a href="#" data-i18n="footer.about">About</a>
+        <a href="#" data-i18n="footer.careers">Careers</a>
+        <a href="#" data-i18n="footer.partners">Partners</a>
+      </div>
+      <div class="footer-col">
+        <h4 data-i18n="footer.legal">Legal</h4>
+        <a href="#" data-i18n="footer.privacy">Privacy Policy</a>
+        <a href="#" data-i18n="footer.terms">Terms of Service</a>
+        <a href="#" data-i18n="footer.data">Data Protection (ODPC)</a>
+      </div>
+      <div class="footer-col">
+        <h4 data-i18n="footer.contact">Contact</h4>
+        <a href="mailto:hello@apex-concierge.com">hello@apex-concierge.com</a>
+        <a href="tel:+254700000000">+254 700 000 000</a>
+        <a href="#" data-i18n="footer.address">Nairobi, Kenya</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 APEX. <span data-i18n="footer.rights">All rights reserved.</span></span>
+      <div class="footer-lang">
+        <select class="lang-select" aria-label="Language"></select>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/i18n.js"></script>
+</body>
+</html>
