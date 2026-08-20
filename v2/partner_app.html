@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX Partenaires — Application Prestataire (Prototype)</title>
+<link rel="icon" href="assets/img/logo-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#10162B; --navy2:#1C2541; --gold:#B08D57; --gold-light:#E4CFA0;
+    --cream:#F5F3EE; --paper:#FFFFFF; --ink:#1B1B1B; --muted:#767268;
+    --border:#E7E2D6; --success:#2E7D5B; --success-bg:#E7F3EC;
+    --warn:#B0752E; --warn-bg:#FBF0E1; --danger:#B0452E; --danger-bg:#FBE7E2;
+    --info:#3A5A9C; --info-bg:#E7EAF6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Inter',sans-serif; background:#EDE9E1; color:var(--ink);
+    display:flex; flex-wrap:wrap; gap:40px; justify-content:center; padding:40px 20px;
+  }
+  h1,h2,h3,.serif{font-family:'Playfair Display',serif;}
+  .phone{
+    width:375px; height:812px; background:var(--paper); border-radius:44px;
+    border:10px solid var(--navy); box-shadow:0 30px 60px rgba(0,0,0,.25);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:var(--navy); border-radius:14px; z-index:50; }
+  .statusbar{ height:44px; flex:0 0 auto; background:var(--paper); display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 6px; font-size:13px; font-weight:600; }
+  .screen{ flex:1; overflow-y:auto; display:none; background:var(--cream); }
+  .screen.active{ display:block; }
+  .screen::-webkit-scrollbar{display:none;}
+
+  .appbar{ background:var(--navy); color:#fff; padding:18px 20px 16px; display:flex; justify-content:space-between; align-items:center; }
+  .appbar .left{ display:flex; align-items:center; gap:10px; }
+  .appbar .logo{ width:26px; height:26px; border-radius:7px; flex:0 0 auto; }
+  .appbar .brand{ font-size:10.5px; letter-spacing:2px; color:var(--gold-light); text-transform:uppercase; display:flex; align-items:center; gap:2px; }
+  .appbar .back{ cursor:pointer; margin-right:10px; color:var(--gold-light); font-size:15px; }
+  .appbar h1{ font-size:19px; margin:4px 0 0; color:#fff; font-weight:600; }
+  .toggle{ display:flex; align-items:center; gap:8px; font-size:11px; color:#B9BAC9; }
+  .switch{ width:38px; height:22px; border-radius:20px; background:var(--success); position:relative; cursor:pointer; }
+  .switch::after{ content:""; width:18px; height:18px; border-radius:50%; background:#fff; position:absolute; right:2px; top:2px; transition:.2s; }
+  .switch.off{ background:#767268; }
+  .switch.off::after{ right:auto; left:2px; }
+
+  .stat-row{ display:flex; gap:10px; margin:14px 20px; }
+  .stat{ flex:1; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:12px; text-align:center; }
+  .stat .n{ font-family:'Playfair Display',serif; font-size:20px; }
+  .stat .l{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-top:2px; }
+
+  .section-title{ font-size:12.5px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin:20px 20px 10px; font-weight:600; display:flex; justify-content:space-between; }
+  .section-title .hint{ font-size:11px; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:500; }
+
+  .req-card{ margin:0 20px 12px; background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:15px 16px; }
+  .req-card.pending{ border-left:3px solid var(--gold); }
+  .req-card.accepted{ border-left:3px solid var(--success); }
+  .req-card.declined{ opacity:.5; }
+  .req-card .top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .req-card .svc{ font-weight:700; font-size:14.5px; }
+  .req-card .meta{ font-size:12px; color:var(--muted); margin-top:3px; }
+  .req-card .via{ font-size:11.5px; color:var(--muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
+  .req-card .via b{ color:var(--ink); }
+  .amt-tag{ font-family:'Playfair Display',serif; font-size:16px; color:var(--navy); white-space:nowrap; }
+  .status-pill{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap; }
+  .status-pill.accepted{ background:var(--success-bg); color:var(--success); }
+  .status-pill.declined{ background:var(--danger-bg); color:var(--danger); }
+
+  .pill-row{ display:flex; gap:8px; margin-top:12px; }
+  .pillbtn{ flex:1; text-align:center; padding:10px 6px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer; }
+  .pillbtn.primary{ background:var(--navy); color:#fff; }
+  .pillbtn.success{ background:var(--success); color:#fff; }
+  .pillbtn.ghost{ background:var(--cream); color:var(--ink); border:1px solid var(--border); }
+
+  .empty-note{ margin:0 20px; font-size:13px; color:var(--muted); text-align:center; padding:30px 10px; }
+
+  .profile-head{ text-align:center; padding:26px 20px 6px; }
+  .avatar{ width:70px;height:70px;border-radius:50%;background:var(--navy);color:var(--gold-light);display:flex;align-items:center;justify-content:center;font-weight:700;font-family:'Playfair Display',serif; font-size:22px; margin:0 auto 10px; }
+  .perf-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 20px; }
+  .perf{ background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:14px; text-align:center; }
+  .perf .n{ font-family:'Playfair Display',serif; font-size:22px; color:var(--navy); }
+  .perf .l{ font-size:11px; color:var(--muted); margin-top:4px; }
+  .pref-row{ display:flex; justify-content:space-between; padding:13px 20px; border-bottom:1px solid var(--border); font-size:13.5px; }
+  .pref-row .v{ color:var(--muted); }
+
+  .bottomnav{ flex:0 0 64px; background:var(--paper); border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-around; }
+  .navbtn{ text-align:center; color:var(--muted); font-size:9.5px; cursor:pointer; font-weight:600; }
+  .navbtn .ic{ font-size:18px; display:block; }
+  .navbtn.active{ color:var(--navy); }
+  .navbtn.active .ic{ color:var(--gold); }
+  .frame-label{ text-align:center; font-size:13px; color:var(--muted); margin-top:10px; font-weight:600; }
+
+  .toast{ position:absolute; left:20px; right:20px; bottom:82px; background:var(--navy); color:#fff; padding:12px 16px; border-radius:12px; font-size:12.5px; font-weight:600; text-align:center; box-shadow:0 10px 24px rgba(16,22,43,.35); z-index:60; opacity:0; pointer-events:none; transition:.25s; }
+  .toast.show{ opacity:1; transform:translateY(-4px); }
+</style>
+</head>
+<body>
+<div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span>●●●●  Wi‑Fi  91%</span></div>
+
+  <!-- DEMANDES REÇUES -->
+  <div class="screen active" id="s-requests">
+    <div class="appbar">
+      <div class="left">
+        <img class="logo" src="assets/img/logo-mark.svg" alt="APEX">
+        <div><div class="brand">APEX Partenaires</div><h1>SafeRide Executive</h1></div>
+      </div>
+      <div class="toggle">Disponible<div class="switch" id="avail-switch" onclick="toggleAvail(this)"></div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="n" id="stat-pending">3</div><div class="l">En attente</div></div>
+      <div class="stat"><div class="n" id="stat-accepted">0</div><div class="l">Acceptées</div></div>
+      <div class="stat"><div class="n">4.9★</div><div class="l">Note moyenne</div></div>
+    </div>
+    <div class="section-title">Demandes transmises par un concierge <span class="hint">Nouvelles</span></div>
+    <div id="pending-list"></div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- MISSIONS ACCEPTÉES -->
+  <div class="screen" id="s-missions">
+    <div class="appbar" style="padding-bottom:14px;">
+      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">Missions</div><h1 style="font-size:19px;">Missions acceptées</h1></div></div>
+    </div>
+    <div id="accepted-list"></div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- PROFIL PARTENAIRE -->
+  <div class="screen" id="s-profile">
+    <div class="appbar" style="padding-bottom:6px;"><div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div class="brand">Profil partenaire</div></div></div>
+    <div class="profile-head">
+      <div class="avatar">S</div>
+      <h2 style="margin:0; font-size:18px;">SafeRide Executive</h2>
+      <div style="color:var(--muted); font-size:13px;">Transport sécurisé · Partenaire depuis 2023</div>
+    </div>
+    <div class="perf-grid">
+      <div class="perf"><div class="n">4.9/5</div><div class="l">Note moyenne</div></div>
+      <div class="perf"><div class="n">~6 min</div><div class="l">Temps de réponse</div></div>
+      <div class="perf"><div class="n">214</div><div class="l">Missions réalisées</div></div>
+      <div class="perf"><div class="n">12%</div><div class="l">Commission APEX</div></div>
+    </div>
+    <div class="section-title">Informations</div>
+    <div class="pref-row"><span>Catégorie</span><span class="v">Sécurité &amp; transport</span></div>
+    <div class="pref-row"><span>Zone couverte</span><span class="v">Nairobi &amp; environs</span></div>
+    <div class="pref-row"><span>Contact APEX</span><span class="v">David Kamau</span></div>
+    <div style="height:20px"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="bottomnav">
+    <div class="navbtn active" data-nav="s-requests" onclick="showScreen('s-requests')"><span class="ic">📥</span>Demandes</div>
+    <div class="navbtn" data-nav="s-missions" onclick="showScreen('s-missions')"><span class="ic">☰</span>Missions</div>
+    <div class="navbtn" data-nav="s-profile" onclick="showScreen('s-profile')"><span class="ic">◔</span>Profil</div>
+  </div>
+</div>
+<div class="frame-label">Espace PARTENAIRE — APEX Concierge</div>
+</div>
+
+<script>
+const PARTNER_REQUESTS = {
+  r1: { client:'Amina Wanjiru', tier:'Platinum', service:'Transfert VIP aéroport, JKIA', concierge:'David Kamau', when:'Aujourd’hui, 18:40', amount:380, status:'pending' },
+  r2: { client:'Sarah Kimani',  tier:'Platinum', service:'Transport sécurisé — rendez-vous médical', concierge:'Lucy Wambui', when:'Demain, 09:00', amount:150, status:'pending' },
+  r3: { client:'James Otieno',  tier:'Gold',     service:'Mise à disposition véhicule + chauffeur, soirée', concierge:'Faith Achieng', when:'Vendredi, 20:00', amount:220, status:'pending' },
+};
+
+function renderRequests(){
+  const pendingKeys = Object.keys(PARTNER_REQUESTS).filter(k=>PARTNER_REQUESTS[k].status==='pending');
+  const acceptedKeys = Object.keys(PARTNER_REQUESTS).filter(k=>PARTNER_REQUESTS[k].status==='accepted');
+
+  document.getElementById('stat-pending').textContent = pendingKeys.length;
+  document.getElementById('stat-accepted').textContent = acceptedKeys.length;
+
+  const pendingRoot = document.getElementById('pending-list');
+  pendingRoot.innerHTML = pendingKeys.length ? pendingKeys.map(k=>{
+    const r = PARTNER_REQUESTS[k];
+    return `<div class="req-card pending" id="req-${k}">
+      <div class="top">
+        <div><div class="svc">${r.service}</div><div class="meta">${r.client} · ${r.tier} · ${r.when}</div></div>
+        <div class="amt-tag">€${r.amount}</div>
+      </div>
+      <div class="via">Transmise par le concierge <b>${r.concierge}</b></div>
+      <div class="pill-row">
+        <div class="pillbtn ghost" onclick="declineRequest('${k}')">Refuser</div>
+        <div class="pillbtn success" onclick="acceptRequest('${k}')">✓ Accepter la demande</div>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-note">Aucune nouvelle demande pour le moment 🎉</div>';
+
+  const acceptedRoot = document.getElementById('accepted-list');
+  acceptedRoot.innerHTML = acceptedKeys.length ? acceptedKeys.map(k=>{
+    const r = PARTNER_REQUESTS[k];
+    return `<div class="req-card accepted">
+      <div class="top">
+        <div><div class="svc">${r.service}</div><div class="meta">${r.client} · ${r.tier} · ${r.when}</div></div>
+        <span class="status-pill accepted">✓ Acceptée</span>
+      </div>
+      <div class="via">Transmise par le concierge <b>${r.concierge}</b> · <span class="amt-tag" style="font-size:13px;">€${r.amount}</span></div>
+    </div>`;
+  }).join('') : '<div class="empty-note">Aucune mission en cours. Acceptez une demande depuis l’onglet Demandes.</div>';
+}
+
+function acceptRequest(key){
+  PARTNER_REQUESTS[key].status = 'accepted';
+  renderRequests();
+  showToast('Demande acceptée — mission ajoutée à votre planning');
+}
+
+function declineRequest(key){
+  PARTNER_REQUESTS[key].status = 'declined';
+  renderRequests();
+  showToast('Demande refusée — le concierge en sera informé');
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.navbtn').forEach(n=>n.classList.toggle('active', n.dataset.nav===id));
+}
+
+function toggleAvail(el){
+  el.classList.toggle('off');
+}
+
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+renderRequests();
+</script>
+</body>
+</html>

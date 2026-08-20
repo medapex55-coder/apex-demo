@@ -197,6 +197,20 @@ header{
 .business .btn{ margin-top:28px; align-self:flex-start; }
 [dir="rtl"] .business{ direction:rtl; }
 
+.biz-pricing{ margin-top:56px; padding-top:48px; border-top:1px solid var(--border); }
+.biz-pricing h3{ font-size:clamp(22px,2.6vw,28px); font-weight:600; color:var(--navy); max-width:640px; margin-top:10px; }
+.biz-tier-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:28px; }
+.biz-tier{ background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:24px 22px; }
+.biz-tier.featured{ border-color:var(--gold); background:linear-gradient(160deg,#FBF6EC,#FFFFFF); }
+.biz-tier .range{ font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+.biz-tier .biz-price{ display:flex; align-items:baseline; gap:6px; margin-top:12px; }
+.biz-tier .biz-price .amount{ font-family:'Playfair Display',serif; font-size:28px; font-weight:600; color:var(--navy); }
+.biz-tier .biz-price .period{ font-size:12px; color:var(--muted); }
+.biz-tier .biz-sub{ margin-top:10px; font-size:14px; font-weight:600; color:var(--navy); }
+.biz-tier .biz-sub span{ font-weight:500; color:var(--muted); font-size:12.5px; }
+.biz-pricing-note{ margin-top:22px; font-size:13.5px; color:var(--muted); max-width:600px; }
+@media (max-width:1020px){ .biz-tier-grid{ grid-template-columns:1fr; } }
+
 /* ===== Testimonials ===== */
 .test-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:26px; }
 .test-card{

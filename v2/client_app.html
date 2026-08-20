@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX Concierge — Application Membre (Prototype)</title>
+<link rel="icon" href="assets/img/logo-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#10162B; --navy2:#1C2541; --gold:#B08D57; --gold-light:#E4CFA0;
+    --cream:#F5F3EE; --paper:#FFFFFF; --ink:#1B1B1B; --muted:#767268;
+    --border:#E7E2D6; --success:#2E7D5B; --success-bg:#E7F3EC;
+    --warn:#B0752E; --warn-bg:#FBF0E1; --danger:#B0452E; --danger-bg:#FBE7E2;
+    --info:#3A5A9C; --info-bg:#E7EAF6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Inter',sans-serif; background:#EDE9E1; color:var(--ink);
+    display:flex; flex-wrap:wrap; gap:40px; justify-content:center; padding:40px 20px;
+  }
+  h1,h2,h3,.serif{font-family:'Playfair Display',serif;}
+  .phone{
+    width:375px; height:812px; background:var(--paper); border-radius:44px;
+    border:10px solid var(--navy); box-shadow:0 30px 60px rgba(0,0,0,.25);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:var(--navy); border-radius:14px; z-index:50; }
+  .statusbar{ height:44px; flex:0 0 auto; background:var(--paper); display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 6px; font-size:13px; font-weight:600; }
+  .screen{ flex:1; overflow-y:auto; display:none; background:var(--cream); }
+  .screen.active{ display:block; }
+  .screen::-webkit-scrollbar{display:none;}
+
+  .appbar{ background:var(--navy); color:#fff; padding:18px 20px 22px; }
+  .appbar.compact{ padding-bottom:16px; }
+  .appbar .row{ display:flex; align-items:center; justify-content:space-between; }
+  .appbar .back{ cursor:pointer; color:var(--gold-light); font-size:15px; margin-right:10px; }
+  .appbar .brand{ font-size:12px; letter-spacing:3px; color:var(--gold-light); text-transform:uppercase; display:flex; align-items:center; gap:8px; }
+  .appbar .brand img{ width:22px; height:22px; border-radius:6px; }
+  .appbar h1{ font-size:22px; margin:4px 0 0; color:#fff; font-weight:600; }
+  .appbar .sub{ font-size:13px; color:#B9BAC9; margin-top:4px; }
+
+  .section-title{ font-size:13px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin:22px 20px 10px; font-weight:600; display:flex; justify-content:space-between; align-items:center; }
+  .section-title .hint{ font-size:11px; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:500; }
+
+  .tier-card{
+    margin:-14px 20px 0; background:linear-gradient(135deg,var(--navy2),var(--navy));
+    border-radius:16px; padding:16px 18px; color:#fff; display:flex; justify-content:space-between; align-items:center;
+    box-shadow:0 10px 24px rgba(16,22,43,.25);
+  }
+  .tier-card .name{ font-size:11px; letter-spacing:1.5px; color:var(--gold-light); text-transform:uppercase; }
+  .tier-card .plan{ font-size:18px; font-family:'Playfair Display',serif; margin-top:2px; }
+  .tier-card .quota{ text-align:right; font-size:12px; color:#C9CADA; }
+  .tier-card .quota b{ color:#fff; font-size:16px; display:block; }
+
+  .grid4{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 20px; }
+  .cat-btn{
+    background:var(--paper); border:1px solid var(--border); border-radius:14px;
+    padding:12px 6px; text-align:center; cursor:pointer; transition:.15s;
+  }
+  .cat-btn:hover{ border-color:var(--gold); }
+  .cat-btn .ic{ font-size:20px; }
+  .cat-btn .lbl{ font-size:10.5px; margin-top:6px; color:var(--ink); font-weight:600; line-height:1.2; }
+
+  .list-item{
+    background:var(--paper); border:1px solid var(--border); border-radius:14px;
+    margin:0 20px 10px; padding:14px 16px; display:flex; gap:12px; align-items:center; cursor:pointer;
+  }
+  .list-item .ic{
+    width:40px; height:40px; border-radius:10px; background:var(--success-bg); color:var(--success);
+    display:flex; align-items:center; justify-content:center; font-size:18px; flex:0 0 auto;
+  }
+  .list-item .txt{ flex:1; min-width:0; }
+  .list-item .txt .t1{ font-weight:600; font-size:14px; }
+  .list-item .txt .t2{ font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .badge{ font-size:11px; padding:3px 9px; border-radius:20px; font-weight:600; white-space:nowrap; }
+  .badge.progress{ background:var(--warn-bg); color:var(--warn); }
+  .badge.done{ background:var(--success-bg); color:var(--success); }
+  .badge.main{ background:var(--info-bg); color:var(--info); }
+  .badge.child{ background:#EEEEEE; color:#5A5A5A; }
+
+  .bottomnav{
+    flex:0 0 64px; background:var(--paper); border-top:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-around;
+  }
+  .navbtn{ text-align:center; color:var(--muted); font-size:10px; cursor:pointer; font-weight:600; }
+  .navbtn .ic{ font-size:19px; display:block; }
+  .navbtn.active{ color:var(--navy); }
+  .navbtn.active .ic{ color:var(--gold); }
+
+  .cat-block{ margin:0 20px 16px; background:var(--paper); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .cat-head{ padding:14px 16px; display:flex; align-items:center; gap:12px; cursor:pointer; }
+  .cat-head .ic{ width:36px;height:36px;border-radius:10px;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:17px; }
+  .cat-head .t{ flex:1; font-weight:600; font-size:14.5px; }
+  .cat-head .chev{ color:var(--muted); transition:.2s; font-size:12px; }
+  .cat-block.open .chev{ transform:rotate(180deg); }
+  .cat-body{ display:none; padding:0 16px 14px 64px; }
+  .cat-block.open .cat-body{ display:block; }
+  .svc-row{ font-size:13px; padding:7px 0; color:#3d3a34; border-top:1px solid var(--border); display:flex; justify-content:space-between; }
+  .svc-row:first-child{ border-top:none; }
+  .svc-row .req{ color:var(--gold); font-weight:600; font-size:11.5px; cursor:pointer; }
+
+  .req-card{ margin:16px 20px; background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:16px; }
+  .req-card .top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .req-card .svc{ font-weight:700; font-size:15px; }
+  .req-card .meta{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .timeline{ margin-top:16px; }
+  .tl-item{ display:flex; gap:10px; margin-bottom:14px; }
+  .tl-dot{ width:22px; height:22px; border-radius:50%; background:var(--success); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .tl-dot.pending{ background:var(--border); color:var(--muted); }
+  .tl-line{ font-size:13px; font-weight:600; }
+  .tl-time{ font-size:11.5px; color:var(--muted); }
+
+  .concierge-card{ display:flex; align-items:center; gap:12px; margin:16px 20px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
+  .avatar{ width:44px;height:44px;border-radius:50%;background:var(--navy);color:var(--gold-light);display:flex;align-items:center;justify-content:center;font-weight:700;font-family:'Playfair Display',serif; flex:0 0 auto; }
+  .concierge-card .name{ font-weight:600; font-size:14px; }
+  .concierge-card .role{ font-size:11.5px; color:var(--muted); }
+  .iconbtn{ width:34px;height:34px;border-radius:50%; background:var(--cream); display:flex;align-items:center;justify-content:center; font-size:14px; margin-left:auto; cursor:pointer; }
+
+  .chat{ margin:0 20px 16px; }
+  .bubble{ max-width:78%; padding:10px 14px; border-radius:14px; font-size:13px; margin-bottom:8px; line-height:1.4; }
+  .bubble.them{ background:var(--paper); border:1px solid var(--border); border-bottom-left-radius:4px; }
+  .bubble.me{ background:var(--navy); color:#fff; margin-left:auto; border-bottom-right-radius:4px; }
+
+  .profile-head{ text-align:center; padding:26px 20px 10px; }
+  .profile-head .avatar{ width:74px;height:74px;font-size:24px; margin:0 auto 10px; }
+  .pref-row{ display:flex; justify-content:space-between; padding:13px 20px; border-bottom:1px solid var(--border); font-size:13.5px; }
+  .pref-row .v{ color:var(--muted); text-align:right; }
+
+  .fab{ position:absolute; right:20px; bottom:82px; width:54px; height:54px; border-radius:50%; background:var(--gold); color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; box-shadow:0 8px 20px rgba(176,141,87,.5); z-index:40; cursor:pointer; }
+
+  .frame-label{ text-align:center; font-size:13px; color:var(--muted); margin-top:10px; font-weight:600; }
+
+  /* ===== Espace / Compte ===== */
+  .type-tabs{ display:flex; gap:8px; margin:16px 20px; background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:4px; }
+  .type-tab{ flex:1; text-align:center; padding:9px; border-radius:9px; font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; }
+  .type-tab.active{ background:var(--navy); color:#fff; }
+
+  .account-card{ margin:0 20px 6px; background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:16px; }
+  .account-card .top{ display:flex; align-items:center; gap:12px; }
+  .account-card .mark{ width:44px; height:44px; border-radius:12px; background:var(--cream); display:flex; align-items:center; justify-content:center; font-size:20px; flex:0 0 auto; }
+  .account-card .who .n{ font-family:'Playfair Display',serif; font-size:17px; }
+  .account-card .who .t{ font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-top:1px; }
+  .account-kv{ display:flex; justify-content:space-between; font-size:12.5px; padding:9px 0; border-top:1px solid var(--border); gap:10px; margin-top:12px; }
+  .account-kv:first-of-type{ margin-top:14px; }
+  .account-kv .k{ color:var(--muted); flex:0 0 auto; }
+  .account-kv .v{ text-align:right; font-weight:600; }
+  .shared-note{ margin:10px 20px 0; font-size:11.5px; color:var(--muted); background:var(--cream); border:1px dashed var(--border); border-radius:10px; padding:9px 12px; }
+
+  .member-row{ display:flex; align-items:center; gap:12px; margin:0 20px 10px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:12px 14px; cursor:pointer; }
+  .member-row .info{ flex:1; min-width:0; }
+  .member-row .info .n{ font-weight:600; font-size:13.5px; }
+  .member-row .info .r{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+  .member-row .pm{ font-size:15px; flex:0 0 auto; }
+  .member-row .chev{ color:var(--muted); font-size:13px; flex:0 0 auto; }
+
+  .add-member-btn{ margin:4px 20px 20px; border:1.5px dashed var(--gold); color:#8A6524; background:#FBF6EC; border-radius:14px; padding:13px; text-align:center; font-weight:700; font-size:13px; cursor:pointer; }
+
+  .form-field{ margin:0 20px 14px; }
+  .form-field label{ display:block; font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .form-field input, .form-field select{
+    width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--border); background:var(--paper);
+    font-family:'Inter',sans-serif; font-size:13.5px; color:var(--ink);
+  }
+  .form-field .inherited{ padding:11px 13px; border-radius:10px; background:var(--cream); color:var(--muted); font-size:13px; border:1px solid var(--border); }
+  .form-btn{ margin:6px 20px 20px; background:var(--navy); color:#fff; text-align:center; padding:13px; border-radius:12px; font-weight:700; font-size:13.5px; cursor:pointer; }
+
+  .pm-row{ display:flex; align-items:center; gap:12px; margin:0 20px 10px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
+  .pm-row .ic{ width:36px;height:36px;border-radius:10px;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:16px; flex:0 0 auto; }
+  .pm-row .info{ flex:1; min-width:0; }
+  .pm-row .info .n{ font-weight:600; font-size:13.5px; }
+  .pm-row .info .d{ font-size:11px; color:var(--muted); margin-top:1px; }
+  .pm-row .default-tag{ font-size:10px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:.3px; }
+  .switch{ width:38px; height:22px; border-radius:20px; background:var(--border); position:relative; cursor:pointer; flex:0 0 auto; transition:.2s; }
+  .switch::after{ content:""; width:18px; height:18px; border-radius:50%; background:#fff; position:absolute; left:2px; top:2px; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+  .switch.on{ background:var(--success); }
+  .switch.on::after{ left:auto; right:2px; }
+
+  .toast{ position:absolute; left:20px; right:20px; bottom:82px; background:var(--navy); color:#fff; padding:12px 16px; border-radius:12px; font-size:12.5px; font-weight:600; text-align:center; box-shadow:0 10px 24px rgba(16,22,43,.35); z-index:60; opacity:0; pointer-events:none; transition:.25s; }
+  .toast.show{ opacity:1; transform:translateY(-4px); }
+
+  /* ===== Packages ===== */
+  .pkg-card{ margin:0 20px 10px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:14px 16px; display:flex; gap:12px; align-items:center; }
+  .pkg-card .ic{ width:44px;height:44px;border-radius:12px;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:20px; flex:0 0 auto; }
+  .pkg-card .info{ flex:1; min-width:0; }
+  .pkg-card .info .n{ font-weight:700; font-size:13.5px; }
+  .pkg-card .info .t{ font-size:11.5px; color:var(--muted); margin-top:2px; line-height:1.35; }
+  .pkg-card .info .p{ font-size:11px; color:var(--gold); font-weight:700; margin-top:4px; }
+  .pkg-card .cta{ flex:0 0 auto; background:var(--navy); color:#fff; font-size:11.5px; font-weight:700; padding:8px 12px; border-radius:20px; cursor:pointer; }
+
+  /* ===== Billing / subscription ===== */
+  .billing-link{ display:flex; justify-content:space-between; align-items:center; margin:12px 20px 6px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:13px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+  .billing-link .chev{ color:var(--muted); font-weight:400; }
+  .period-tabs{ display:flex; gap:8px; margin:14px 20px; background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:4px; }
+  .period-tab{ flex:1; text-align:center; padding:9px; border-radius:9px; font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; }
+  .period-tab.active{ background:var(--navy); color:#fff; }
+  .plan-option{ display:flex; justify-content:space-between; align-items:center; margin:0 20px 10px; background:var(--paper); border:1.5px solid var(--border); border-radius:14px; padding:13px 16px; cursor:pointer; }
+  .plan-option.selected{ border-color:var(--gold); background:#FBF6EC; }
+  .plan-option .n{ font-weight:700; font-size:14px; }
+  .plan-option .p{ font-family:'Playfair Display',serif; font-size:16px; color:var(--navy); }
+  .billing-summary{ margin:16px 20px; background:var(--navy); border-radius:16px; padding:18px; color:#fff; }
+  .billing-summary .lbl{ font-size:11px; color:var(--gold-light); letter-spacing:1.5px; text-transform:uppercase; }
+  .billing-summary .amt{ font-family:'Playfair Display',serif; font-size:28px; margin-top:6px; }
+  .billing-summary .sub{ font-size:12px; color:#C9CADA; margin-top:4px; }
+  .billing-summary .save{ display:inline-block; margin-top:8px; background:rgba(255,255,255,.12); font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; color:var(--gold-light); }
+  .pmpick-row{ display:flex; align-items:center; gap:10px; margin:0 20px 8px; background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:10px 14px; cursor:pointer; }
+  .pmpick-row.selected{ border-color:var(--gold); background:#FBF6EC; }
+  .pmpick-row .ic{ font-size:16px; }
+  .pmpick-row .n{ flex:1; font-size:13px; font-weight:600; }
+  .pmpick-row .radio{ width:16px;height:16px;border-radius:50%; border:2px solid var(--border); flex:0 0 auto; }
+  .pmpick-row.selected .radio{ border-color:var(--gold); background:radial-gradient(circle,var(--gold) 0 40%, transparent 42%); }
+</style>
+</head>
+<body>
+
+<div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span>●●●●  Wi‑Fi  100%</span></div>
+
+  <!-- SCREEN: HOME -->
+  <div class="screen active" id="s-home">
+    <div class="appbar">
+      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">APEX Concierge</div>
+      <h1 id="home-greeting">Bonsoir, Claire</h1>
+      <div class="sub" id="home-context">Famille Dupont · Nairobi, Kenya</div>
+    </div>
+    <div class="tier-card">
+      <div><div class="name">Membre</div><div class="plan">Platinum</div></div>
+      <div class="quota">Demandes ce mois<b>7 / illimité</b></div>
+    </div>
+    <div class="section-title">Accès rapide</div>
+    <div class="grid4">
+      <div class="cat-btn" onclick="showScreen('s-services')"><div class="ic">✈️</div><div class="lbl">Voyages</div></div>
+      <div class="cat-btn" onclick="showScreen('s-services')"><div class="ic">🍽️</div><div class="lbl">Dîner</div></div>
+      <div class="cat-btn" onclick="showScreen('s-services')"><div class="ic">🛡️</div><div class="lbl">Sécurité</div></div>
+      <div class="cat-btn" onclick="showScreen('s-account')"><div class="ic">👪</div><div class="lbl">Mon Espace</div></div>
+    </div>
+    <div class="section-title">Packages malins <span class="hint">Particulier &amp; Entreprise</span></div>
+    <div id="home-packages"></div>
+
+    <div class="section-title">Demandes récentes</div>
+    <div class="list-item" onclick="showScreen('s-tracking')">
+      <div class="ic">✈️</div>
+      <div class="txt"><div class="t1">Vol privé — Nairobi → Diani</div><div class="t2">Concierge: David K.</div></div>
+      <span class="badge progress">En cours</span>
+    </div>
+    <div class="list-item" onclick="showScreen('s-tracking')">
+      <div class="ic">🍽️</div>
+      <div class="txt"><div class="t1">Table pour 6 — Cultiva</div><div class="t2">Vendredi, 20h30</div></div>
+      <span class="badge done">Confirmée</span>
+    </div>
+    <div class="list-item">
+      <div class="ic">🏥</div>
+      <div class="txt"><div class="t1">Bilan de santé — Nairobi Hospital</div><div class="t2">Terminé le 14 juillet</div></div>
+      <span class="badge done">Terminée</span>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- SCREEN: SERVICES CATALOG -->
+  <div class="screen" id="s-services">
+    <div class="appbar compact">
+      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Catalogue</div>
+      <h1 style="font-size:20px;">Tous les services</h1>
+    </div>
+    <div class="section-title">Packages malins <span class="hint">Particulier &amp; Entreprise</span></div>
+    <div id="packages"></div>
+    <div class="section-title">Catégories</div>
+    <div id="catalog"></div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- SCREEN: REQUEST / CHAT -->
+  <div class="screen" id="s-request">
+    <div class="appbar compact">
+      <div class="row"><span class="back" onclick="showScreen('s-services')">←</span><div class="brand" style="margin:0;">Nouvelle demande</div></div>
+      <h1 style="font-size:20px;">Transfert aéroport VIP</h1>
+    </div>
+    <div class="concierge-card">
+      <div class="avatar">D</div>
+      <div><div class="name">David Kamau</div><div class="role">Concierge assigné</div></div>
+      <div class="iconbtn">📞</div>
+    </div>
+    <div class="chat">
+      <div class="bubble them">Bonsoir Claire, j'ai bien reçu votre demande de transfert VIP à JKIA vendredi. Quelle heure d'arrivée du vol ?</div>
+      <div class="bubble me">Vol KQ102, arrivée 18h40. Un véhicule avec chauffeur discret, merci.</div>
+      <div class="bubble them">Parfait, je réserve un véhicule blindé avec chauffeur et fast-track douane. Confirmation dans 15 minutes.</div>
+    </div>
+    <div style="margin:0 20px; display:flex; gap:8px;">
+      <div style="flex:1; background:var(--paper); border:1px solid var(--border); border-radius:20px; padding:10px 16px; color:var(--muted); font-size:13px;">Écrire un message…</div>
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;">➤</div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- SCREEN: TRACKING -->
+  <div class="screen" id="s-tracking">
+    <div class="appbar compact">
+      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Suivi de demande</div>
+      <h1 style="font-size:20px;">Vol privé — Diani</h1>
+    </div>
+    <div class="req-card">
+      <div class="top">
+        <div><div class="svc">Jet privé, 4 passagers</div><div class="meta">Réf. #APX-4821 · Vendredi 24 juillet</div></div>
+        <span class="badge progress">En cours</span>
+      </div>
+      <div class="timeline">
+        <div class="tl-item"><div class="tl-dot">✓</div><div><div class="tl-line">Demande reçue</div><div class="tl-time">08:12</div></div></div>
+        <div class="tl-item"><div class="tl-dot">✓</div><div><div class="tl-line">Acceptée par le concierge</div><div class="tl-time">08:19</div></div></div>
+        <div class="tl-item"><div class="tl-dot">✓</div><div><div class="tl-line">Vol réservé — confirmation opérateur</div><div class="tl-time">09:05</div></div></div>
+        <div class="tl-item"><div class="tl-dot pending">4</div><div><div class="tl-line" style="color:var(--muted);">Transfert domicile → aérodrome</div><div class="tl-time">À venir</div></div></div>
+      </div>
+    </div>
+    <div class="concierge-card">
+      <div class="avatar">D</div>
+      <div><div class="name">David Kamau</div><div class="role">Concierge assigné</div></div>
+      <div class="iconbtn" onclick="showScreen('s-request')">💬</div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- SCREEN: MON ESPACE (compte principal + sous-comptes) -->
+  <div class="screen" id="s-account">
+    <div class="appbar compact">
+      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Mon Espace</div>
+      <h1 style="font-size:20px;">Compte &amp; membres</h1>
+      <div class="sub">Démonstration : basculez entre un compte famille et un compte entreprise</div>
+    </div>
+
+    <div class="type-tabs">
+      <div class="type-tab active" data-type="family" onclick="switchAccountType('family')">👪 Famille</div>
+      <div class="type-tab" data-type="business" onclick="switchAccountType('business')">🏢 Entreprise</div>
+    </div>
+
+    <div class="account-card">
+      <div class="top">
+        <div class="mark" id="acc-mark">👪</div>
+        <div class="who">
+          <div class="n" id="acc-name">Famille Dupont</div>
+          <div class="t" id="acc-type-label">Compte principal · Famille</div>
+        </div>
+      </div>
+      <div class="account-kv"><span class="k">Adresse</span><span class="v" id="acc-address">12 Riverside Drive, Nairobi</span></div>
+      <div class="account-kv"><span class="k">Email du compte</span><span class="v" id="acc-email">famille.dupont@email.com</span></div>
+      <div class="account-kv"><span class="k">Formule</span><span class="v" id="acc-tier">Platinum</span></div>
+    </div>
+    <div class="shared-note">Le nom, l'adresse et l'email ci-dessus sont partagés par tous les sous-comptes liés à ce compte principal.</div>
+
+    <div class="billing-link" onclick="showScreen('s-billing')">
+      <span>💳 Abonnement &amp; paiement du compte principal</span><span class="chev">›</span>
+    </div>
+
+    <div class="section-title">Membres <span class="hint" id="acc-member-count">3 sous-comptes</span></div>
+    <div id="member-list"></div>
+    <div class="add-member-btn" onclick="showScreen('s-add-member')" id="add-member-label">+ Ajouter un membre de la famille</div>
+
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- SCREEN: DETAIL SOUS-COMPTE -->
+  <div class="screen" id="s-member-detail">
+    <div class="appbar compact">
+      <div class="row"><span class="back" onclick="showScreen('s-account')">←</span><div class="brand" style="margin:0;">Sous-compte</div></div>
+      <h1 style="font-size:20px;" id="md-name">—</h1>
+      <div class="sub" id="md-role">—</div>
+    </div>
+
+    <div class="section-title">Informations partagées avec le compte principal</div>
+    <div class="form-field"><label>Nom du foyer / de l'entreprise</label><div class="inherited" id="md-shared-name">Famille Dupont</div></div>
+    <div class="form-field"><label>Adresse</label><div class="inherited" id="md-shared-address">12 Riverside Drive, Nairobi</div></div>
+    <div class="form-field"><label>Email du compte</label><div class="inherited" id="md-shared-email">famille.dupont@email.com</div></div>
+
+    <div class="section-title">Moyens de paiement du sous-compte <span class="hint">Propres à ce membre</span></div>
+    <div id="pm-list"></div>
+
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- SCREEN: AJOUTER UN MEMBRE -->
+  <div class="screen" id="s-add-member">
+    <div class="appbar compact">
+      <div class="row"><span class="back" onclick="showScreen('s-account')">←</span><div class="brand" style="margin:0;">Nouveau membre</div></div>
+      <h1 style="font-size:20px;" id="am-title">Ajouter un membre de la famille</h1>
+    </div>
+    <div class="form-field"><label>Prénom et nom</label><input type="text" id="am-fullname" placeholder="ex. Léa Dupont"></div>
+    <div class="form-field">
+      <label id="am-relation-label">Lien avec le compte</label>
+      <select id="am-relation">
+        <option>Fils</option>
+        <option>Fille</option>
+        <option>Conjoint(e)</option>
+        <option>Autre membre du foyer</option>
+      </select>
+    </div>
+    <div class="form-field"><label>Email (facultatif)</label><input type="email" placeholder="prenom@email.com"></div>
+    <div class="form-field">
+      <div class="inherited">👪 Ce sous-compte héritera automatiquement du nom, de l'adresse et de l'email du compte principal — il pourra ensuite configurer son propre moyen de paiement.</div>
+    </div>
+    <div class="form-btn" onclick="sendInvite()">Envoyer l'invitation</div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- SCREEN: ABONNEMENT & PAIEMENT -->
+  <div class="screen" id="s-billing">
+    <div class="appbar compact">
+      <div class="row"><span class="back" onclick="showScreen('s-account')">←</span><div class="brand" style="margin:0;">Abonnement</div></div>
+      <h1 style="font-size:20px;">Facturation &amp; paiement</h1>
+      <div class="sub" id="billing-context">Compte principal</div>
+    </div>
+
+    <div class="section-title" id="billing-plans-title">Choisissez votre formule</div>
+    <div id="billing-plans"></div>
+
+    <div class="period-tabs">
+      <div class="period-tab active" data-period="monthly" onclick="setBillingPeriod('monthly')">Mensuel</div>
+      <div class="period-tab" data-period="annual" onclick="setBillingPeriod('annual')">Annuel (−15%)</div>
+    </div>
+
+    <div class="billing-summary" id="billing-summary"></div>
+
+    <div class="section-title">Payer avec</div>
+    <div id="billing-pm-list"></div>
+
+    <div class="form-btn" onclick="payMembership()">Payer maintenant</div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- SCREEN: PROFILE -->
+  <div class="screen" id="s-profile">
+    <div class="appbar" style="padding-bottom:6px;">
+      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Profil</div>
+    </div>
+    <div class="profile-head">
+      <div class="avatar">C</div>
+      <h2 style="margin:0; font-size:19px;">Claire Dupont</h2>
+      <div style="color:var(--muted); font-size:13px;">Titulaire du compte · Membre Platinum depuis 2024</div>
+    </div>
+    <div class="section-title">Préférences</div>
+    <div class="pref-row"><span>Compagnie aérienne favorite</span><span class="v">Kenya Airways</span></div>
+    <div class="pref-row"><span>Régime alimentaire</span><span class="v">Sans gluten</span></div>
+    <div class="pref-row"><span>Contact d'urgence</span><span class="v">+254 7•• •• 812</span></div>
+    <div class="pref-row"><span>Langue</span><span class="v">Français</span></div>
+    <div class="section-title">Mon Espace</div>
+    <div class="pref-row" style="cursor:pointer;" onclick="showScreen('s-account')"><span>Compte &amp; sous-comptes</span><span class="v">Gérer →</span></div>
+    <div class="section-title">Fidélité</div>
+    <div class="pref-row"><span>Points cumulés</span><span class="v">12,480 pts</span></div>
+    <div class="pref-row"><span>Prochain palier</span><span class="v">Dans 1,520 pts</span></div>
+    <div style="height:20px"></div>
+  </div>
+
+  <div class="fab" onclick="showScreen('s-request')">＋</div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="bottomnav">
+    <div class="navbtn active" data-nav="s-home" onclick="nav(this,'s-home')"><span class="ic">⌂</span>Accueil</div>
+    <div class="navbtn" data-nav="s-services" onclick="nav(this,'s-services')"><span class="ic">▤</span>Services</div>
+    <div class="navbtn" data-nav="s-tracking" onclick="nav(this,'s-tracking')"><span class="ic">◷</span>Demandes</div>
+    <div class="navbtn" data-nav="s-account" onclick="nav(this,'s-account')"><span class="ic">👪</span>Espace</div>
+    <div class="navbtn" data-nav="s-profile" onclick="nav(this,'s-profile')"><span class="ic">◔</span>Profil</div>
+  </div>
+</div>
+<div class="frame-label">Application MEMBRE — APEX Concierge</div>
+</div>
+
+<script>
+const SERVICES = [
+  { ic:"✈️", name:"Voyages & logistique", items:[
+    "Vols commerciaux et jets privés","Transferts VIP avec chauffeur","Assistance visa et immigration",
+    "Location de véhicules de luxe","Conciergerie aéroportuaire (fast-track)"
+  ]},
+  { ic:"🍽️", name:"Hôtellerie & restauration", items:[
+    "Réservations restaurants exclusifs","Chef privé à domicile","Réservations hôtelières prioritaires","Organisation de dîners privés"
+  ]},
+  { ic:"🏡", name:"Immobilier & maison", items:[
+    "Recherche de biens (achat/location)","Gestion de personnel de maison","Maintenance et entretien","Coordination de déménagement"
+  ]},
+  { ic:"🛡️", name:"Sécurité & protection", items:[
+    "Protection rapprochée","Transport sécurisé","Sécurité résidentielle","Évaluation de risques pour déplacements"
+  ]},
+  { ic:"🏥", name:"Santé & bien-être", items:[
+    "Accès à des cliniques privées","Évacuation médicale","Second avis médical international","Retraites bien-être et spas"
+  ]},
+  { ic:"🎉", name:"Événementiel & lifestyle", items:[
+    "Organisation d'événements privés","Billetterie VIP (concerts, sport)","Personal shopping","Cadeaux et sélection curatée"
+  ]},
+  { ic:"🎓", name:"Famille & éducation", items:[
+    "Admission scolaire","Tuteurs particuliers","Vérification de nounous / personnel","Camps et activités enfants"
+  ]},
+  { ic:"💼", name:"Support exécutif & entreprise", items:[
+    "Logistique de réunions","Relocation de cadres","Coordination de voyages d'affaires","Support administratif ponctuel"
+  ]},
+];
+
+function buildCatalog(){
+  const root = document.getElementById('catalog');
+  SERVICES.forEach((cat, i)=>{
+    const block = document.createElement('div');
+    block.className = 'cat-block';
+    block.innerHTML = `
+      <div class="cat-head" onclick="this.parentElement.classList.toggle('open')">
+        <div class="ic">${cat.ic}</div>
+        <div class="t">${cat.name}</div>
+        <div class="chev">▾</div>
+      </div>
+      <div class="cat-body">
+        ${cat.items.map(it=>`<div class="svc-row"><span>${it}</span><span class="req" onclick="event.stopPropagation(); showScreen('s-request')">Demander</span></div>`).join('')}
+      </div>`;
+    root.appendChild(block);
+  });
+  root.children[0].classList.add('open');
+}
+buildCatalog();
+
+/* ===== Packages malins (particulier & entreprise) ===== */
+const PACKAGES = [
+  { ic:'🍼', name:'Bébé Zen Box',  tag:"Couches, lait infantile & indispensables bébé, livrés en 2h",        price:'à partir de 65€' },
+  { ic:'🛒', name:'Ravito Express', tag:"Courses alimentaires & essentiels d'hygiène du quotidien, livrés chez vous", price:'à partir de 85€' },
+  { ic:'💆', name:'Cocon Glow',    tag:'Rituel bien-être & beauté à domicile, sur mesure',                    price:'à partir de 120€' },
+];
+
+function renderPackages(containerId){
+  const root = document.getElementById(containerId);
+  if(!root) return;
+  root.innerHTML = PACKAGES.map(p=>`
+    <div class="pkg-card">
+      <div class="ic">${p.ic}</div>
+      <div class="info">
+        <div class="n">${p.name}</div>
+        <div class="t">${p.tag}</div>
+        <div class="p">${p.price}</div>
+      </div>
+      <div class="cta" onclick="orderPackage('${p.name}')">Commander</div>
+    </div>`).join('');
+}
+renderPackages('home-packages');
+renderPackages('packages');
+
+function orderPackage(name){
+  showToast(name + ' — commande transmise à votre concierge');
+  showScreen('s-request');
+}
+
+/* ===== Comptes principaux & sous-comptes ===== */
+const PAY_METHODS = [
+  { key:'cb',         ic:'💳', name:'Carte bancaire',    desc:'Visa, Mastercard, Amex' },
+  { key:'applepay',   ic:'🍎', name:'Apple Pay',          desc:'Paiement via appareil Apple' },
+  { key:'googlepay',  ic:'🅖', name:'Google Pay',         desc:'Paiement via compte Google' },
+  { key:'androidpay', ic:'🤖', name:'Android Pay',        desc:'Paiement via appareil Android' },
+  { key:'paypal',     ic:'🅿️', name:'PayPal',             desc:'Compte PayPal lié' },
+  { key:'mpesa',      ic:'📱', name:'M-Pesa',             desc:'Paiement mobile M-Pesa' },
+];
+
+const ACCOUNTS = {
+  family: {
+    mark:'👪',
+    name:'Famille Dupont',
+    typeLabel:'Compte principal · Famille',
+    address:'12 Riverside Drive, Nairobi',
+    email:'famille.dupont@email.com',
+    tier:'Platinum',
+    relationLabel:'Lien avec la famille',
+    addLabel:'+ Ajouter un membre de la famille',
+    addTitle:'Ajouter un membre de la famille',
+    members:[
+      { id:'m1', name:'Claire Dupont', role:'Titulaire du compte', main:true,  pm:{cb:true,  applepay:true,  googlepay:false, androidpay:false, paypal:false, mpesa:true,  default:'cb'} },
+      { id:'m2', name:'Lucas Dupont',  role:'Fils · 16 ans',       main:false, pm:{cb:false, applepay:false, googlepay:true,  androidpay:false, paypal:false, mpesa:false, default:'googlepay'} },
+      { id:'m3', name:'Emma Dupont',   role:'Fille · 13 ans',      main:false, pm:{cb:false, applepay:false, googlepay:false, androidpay:false, paypal:false, mpesa:true,  default:'mpesa'} },
+    ]
+  },
+  business: {
+    mark:'🏢',
+    name:'Kileleshwa Holdings Ltd',
+    typeLabel:'Compte principal · Entreprise',
+    address:'Waiyaki Way, Nairobi',
+    email:'admin@kileleshwaholdings.com',
+    tier:'Business Gold',
+    relationLabel:'Poste dans l\'entreprise',
+    addLabel:'+ Ajouter un employé',
+    addTitle:'Ajouter un employé',
+    members:[
+      { id:'e1', name:'Coraline Flobinus', role:'Administratrice du compte', main:true,  pm:{cb:true,  applepay:false, googlepay:false, androidpay:false, paypal:false, mpesa:false, default:'cb'} },
+      { id:'e2', name:'James Otieno',      role:'Employé · Direction régionale', main:false, pm:{cb:true,  applepay:false, googlepay:false, androidpay:false, paypal:true,  mpesa:false, default:'paypal'} },
+      { id:'e3', name:'Sarah Kimani',      role:'Employée · Ressources humaines', main:false, pm:{cb:false, applepay:false, googlepay:false, androidpay:true,  paypal:false, mpesa:true,  default:'mpesa'} },
+    ]
+  }
+};
+
+let currentAccountType = 'family';
+let currentMemberId = null;
+
+function switchAccountType(type){
+  currentAccountType = type;
+  document.querySelectorAll('.type-tab').forEach(t=> t.classList.toggle('active', t.dataset.type===type));
+  renderAccount();
+  renderBilling();
+}
+
+/* ===== Abonnement & paiement du compte principal ===== */
+const FAMILY_TIERS = [
+  { key:'silver',   name:'Silver',   monthly:15 },
+  { key:'gold',     name:'Gold',     monthly:55 },
+  { key:'platinum', name:'Platinum', monthly:120 },
+];
+const BUSINESS_TIERS = [
+  { max:10,       base:89,  perSub:29, label:'0 à 10 sous-comptes' },
+  { max:99,       base:150, perSub:9,  label:'11 à 99 sous-comptes' },
+  { max:Infinity, base:450, perSub:29, label:'100 sous-comptes et plus' },
+];
+let selectedFamilyTier = 'platinum';
+let billingPeriod = 'monthly';
+let billingPayMethod = 'cb';
+
+function getBusinessTier(subCount){
+  return BUSINESS_TIERS.find(t=> subCount <= t.max);
+}
+
+function computeMonthlyTotal(){
+  const acc = ACCOUNTS[currentAccountType];
+  if(currentAccountType==='family'){
+    return FAMILY_TIERS.find(t=>t.key===selectedFamilyTier).monthly;
+  }
+  const subCount = acc.members.filter(m=>!m.main).length;
+  const tier = getBusinessTier(subCount);
+  return tier.base + subCount*tier.perSub;
+}
+
+function setBillingPeriod(period){
+  billingPeriod = period;
+  document.querySelectorAll('.period-tab').forEach(t=> t.classList.toggle('active', t.dataset.period===period));
+  renderBilling();
+}
+
+function selectFamilyTier(key){
+  selectedFamilyTier = key;
+  renderBilling();
+}
+
+function selectBillingPM(key){
+  billingPayMethod = key;
+  renderBilling();
+}
+
+function renderBilling(){
+  const acc = ACCOUNTS[currentAccountType];
+  const ctxEl = document.getElementById('billing-context');
+  if(!ctxEl) return; // screen not yet in DOM on first paint
+  ctxEl.textContent = acc.name + ' · Compte principal';
+
+  const plansTitle = document.getElementById('billing-plans-title');
+  const plansRoot = document.getElementById('billing-plans');
+  if(currentAccountType==='family'){
+    plansTitle.textContent = 'Choisissez votre formule';
+    plansRoot.innerHTML = FAMILY_TIERS.map(t=>`
+      <div class="plan-option ${t.key===selectedFamilyTier?'selected':''}" onclick="selectFamilyTier('${t.key}')">
+        <div class="n">${t.name}</div><div class="p">€${t.monthly}<span style="font-size:11px;color:var(--muted);font-weight:500;"> /mois</span></div>
+      </div>`).join('');
+  } else {
+    plansTitle.textContent = 'Votre tarif Entreprise';
+    const subCount = acc.members.filter(m=>!m.main).length;
+    const tier = getBusinessTier(subCount);
+    plansRoot.innerHTML = `
+      <div class="plan-option selected" style="cursor:default;">
+        <div><div class="n">Compte principal</div><div style="font-size:11px;color:var(--muted);">${tier.label}</div></div>
+        <div class="p">€${tier.base}<span style="font-size:11px;color:var(--muted);font-weight:500;"> /mois</span></div>
+      </div>
+      <div class="plan-option selected" style="cursor:default;">
+        <div><div class="n">${subCount} sous-compte${subCount>1?'s':''}</div><div style="font-size:11px;color:var(--muted);">€${tier.perSub} / mois / sous-compte</div></div>
+        <div class="p">€${subCount*tier.perSub}<span style="font-size:11px;color:var(--muted);font-weight:500;"> /mois</span></div>
+      </div>`;
+  }
+
+  const monthly = computeMonthlyTotal();
+  const summary = document.getElementById('billing-summary');
+  if(billingPeriod==='monthly'){
+    summary.innerHTML = `<div class="lbl">Total à payer</div><div class="amt">€${monthly}<span style="font-size:14px;"> /mois</span></div><div class="sub">Facturation mensuelle, résiliable à tout moment</div>`;
+  } else {
+    const annual = Math.round(monthly*12*0.85);
+    const perMonth = Math.round(annual/12);
+    summary.innerHTML = `<div class="lbl">Total à payer</div><div class="amt">€${annual}<span style="font-size:14px;"> /an</span></div><div class="sub">Soit €${perMonth} / mois — facturé en une fois</div><div class="save">Vous économisez 15%</div>`;
+  }
+
+  document.getElementById('billing-pm-list').innerHTML = PAY_METHODS.map(p=>`
+    <div class="pmpick-row ${billingPayMethod===p.key?'selected':''}" onclick="selectBillingPM('${p.key}')">
+      <div class="ic">${p.ic}</div><div class="n">${p.name}</div><div class="radio"></div>
+    </div>`).join('');
+}
+
+function payMembership(){
+  const monthly = computeMonthlyTotal();
+  const amount = billingPeriod==='annual' ? Math.round(monthly*12*0.85) : monthly;
+  const methodName = PAY_METHODS.find(p=>p.key===billingPayMethod).name;
+  const renewal = billingPeriod==='annual' ? '20 août 2027' : '20 septembre 2026';
+  showToast(`Paiement de €${amount} effectué via ${methodName} — renouvellement le ${renewal}`);
+}
+
+function renderAccount(){
+  const acc = ACCOUNTS[currentAccountType];
+  document.getElementById('acc-mark').textContent = acc.mark;
+  document.getElementById('acc-name').textContent = acc.name;
+  document.getElementById('acc-type-label').textContent = acc.typeLabel;
+  document.getElementById('acc-address').textContent = acc.address;
+  document.getElementById('acc-email').textContent = acc.email;
+  document.getElementById('acc-tier').textContent = acc.tier;
+  document.getElementById('acc-member-count').textContent = acc.members.length + ' sous-comptes';
+  document.getElementById('add-member-label').textContent = acc.addLabel;
+
+  const list = document.getElementById('member-list');
+  list.innerHTML = acc.members.map(m=>{
+    const activeMethod = PAY_METHODS.find(p=>p.key===m.pm.default);
+    return `
+    <div class="member-row" onclick="openMember('${m.id}')">
+      <div class="avatar">${m.name.charAt(0)}</div>
+      <div class="info">
+        <div class="n">${m.name}</div>
+        <div class="r">${m.role}</div>
+      </div>
+      <div class="pm" title="Moyen de paiement par défaut">${activeMethod ? activeMethod.ic : '—'}</div>
+      <span class="badge ${m.main ? 'main' : 'child'}">${m.main ? 'Principal' : 'Sous-compte'}</span>
+      <span class="chev">›</span>
+    </div>`;
+  }).join('');
+}
+
+function openMember(id){
+  const acc = ACCOUNTS[currentAccountType];
+  const m = acc.members.find(x=>x.id===id);
+  if(!m) return;
+  currentMemberId = id;
+  document.getElementById('md-name').textContent = m.name;
+  document.getElementById('md-role').textContent = m.role + (m.main ? ' — accès complet au compte' : ' — sous-compte lié');
+  document.getElementById('md-shared-name').textContent = acc.name;
+  document.getElementById('md-shared-address').textContent = acc.address;
+  document.getElementById('md-shared-email').textContent = acc.email;
+  renderPaymentMethods(m);
+  showScreen('s-member-detail');
+}
+
+function renderPaymentMethods(member){
+  const root = document.getElementById('pm-list');
+  root.innerHTML = PAY_METHODS.map(p=>{
+    const on = !!member.pm[p.key];
+    const isDefault = member.pm.default === p.key;
+    return `
+    <div class="pm-row">
+      <div class="ic">${p.ic}</div>
+      <div class="info">
+        <div class="n">${p.name} ${isDefault ? '<span class="default-tag">· Par défaut</span>' : ''}</div>
+        <div class="d">${p.desc}</div>
+      </div>
+      <div class="switch ${on ? 'on' : ''}" onclick="togglePayMethod('${p.key}', this)"></div>
+    </div>`;
+  }).join('');
+}
+
+function togglePayMethod(key, el){
+  const acc = ACCOUNTS[currentAccountType];
+  const m = acc.members.find(x=>x.id===currentMemberId);
+  if(!m) return;
+  m.pm[key] = !m.pm[key];
+  el.classList.toggle('on', m.pm[key]);
+  if(m.pm[key]){
+    m.pm.default = key;
+  } else if(m.pm.default === key){
+    const stillOn = PAY_METHODS.find(p=> p.key!==key && m.pm[p.key]);
+    m.pm.default = stillOn ? stillOn.key : null;
+  }
+  renderPaymentMethods(m);
+  showToast((m.pm[key] ? 'Moyen de paiement activé : ' : 'Moyen de paiement désactivé : ') + PAY_METHODS.find(p=>p.key===key).name);
+}
+
+function sendInvite(){
+  const acc = ACCOUNTS[currentAccountType];
+  const nameInput = document.getElementById('am-fullname');
+  const name = nameInput.value.trim() || 'Nouveau membre';
+  const relation = document.getElementById('am-relation').value;
+  const id = 'new-' + Date.now();
+  acc.members.push({
+    id, name, role: relation, main:false,
+    pm:{cb:false, applepay:false, googlepay:false, androidpay:false, paypal:false, mpesa:false, default:null}
+  });
+  nameInput.value = '';
+  renderAccount();
+  showToast('Invitation envoyée à ' + name);
+  showScreen('s-account');
+}
+
+function updateAddMemberForm(){
+  const acc = ACCOUNTS[currentAccountType];
+  document.getElementById('am-title').textContent = acc.addTitle;
+  document.getElementById('am-relation-label').textContent = acc.relationLabel;
+  const sel = document.getElementById('am-relation');
+  const options = currentAccountType==='family'
+    ? ['Fils','Fille','Conjoint(e)','Autre membre du foyer']
+    : ['Employé(e) · Direction','Employé(e) · Opérations','Employé(e) · RH','Autre collaborateur'];
+  sel.innerHTML = options.map(o=>`<option>${o}</option>`).join('');
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const navMap = {
+    's-home':'s-home', 's-services':'s-services', 's-request':'s-services',
+    's-tracking':'s-tracking',
+    's-account':'s-account', 's-member-detail':'s-account', 's-add-member':'s-account', 's-billing':'s-account',
+    's-profile':'s-profile'
+  };
+  document.querySelectorAll('.navbtn').forEach(n=>n.classList.toggle('active', n.dataset.nav===navMap[id]));
+  if(id === 's-add-member') updateAddMemberForm();
+  if(id === 's-billing') renderBilling();
+}
+function nav(el,id){ showScreen(id); }
+
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+renderAccount();
+renderBilling();
+</script>
+</body>
+</html>

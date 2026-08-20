@@ -63,6 +63,11 @@
   .sla.amber{ background:var(--warn-bg); color:var(--warn); }
   .sla.green{ background:var(--success-bg); color:var(--success); }
   .sla.blue{ background:var(--info-bg); color:var(--info); }
+  .task .top .badges{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+  .statuspill{ font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; }
+  .statuspill.progress{ background:var(--info-bg); color:var(--info); }
+  .statuspill.completed{ background:var(--success-bg); color:var(--success); }
+  .task.done{ opacity:.55; }
   .task .meta{ font-size:11.5px; color:var(--muted); margin-top:8px; }
 
   .detail-card{ margin:16px 20px; background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:16px; }
@@ -175,23 +180,12 @@
       <div class="toggle">Available<div class="switch" id="avail-switch" onclick="toggleAvail(this)"></div></div>
     </div>
     <div class="stat-row">
-      <div class="stat"><div class="n">5</div><div class="l">Active tasks</div></div>
+      <div class="stat"><div class="n" id="stat-active">5</div><div class="l">Active tasks</div></div>
       <div class="stat"><div class="n">18 min</div><div class="l">Avg. time</div></div>
       <div class="stat"><div class="n">98%</div><div class="l">SLA met</div></div>
     </div>
     <div class="section-title">Needs attention now</div>
-    <div class="task urgent" onclick="openDetail('jkia')">
-      <div class="top"><div><div class="cl">Amina Wanjiru · Platinum</div><div class="svc">VIP airport transfer, JKIA</div></div><span class="sla red">12 min</span></div>
-      <div class="meta">Received 08:12 · Friday, 24 July</div>
-    </div>
-    <div class="task" onclick="openDetail('cultiva')">
-      <div class="top"><div><div class="cl">James Otieno · Gold</div><div class="svc">Table for 6, Cultiva</div></div><span class="sla amber">2 h</span></div>
-      <div class="meta">Received 09:40</div>
-    </div>
-    <div class="task" onclick="openDetail('medical')">
-      <div class="top"><div><div class="cl">Sarah Kimani · Platinum</div><div class="svc">Second medical opinion</div></div><span class="sla green">1 day</span></div>
-      <div class="meta">Received yesterday, 17:20</div>
-    </div>
+    <div id="dash-attention"></div>
     <div class="section-title">Awaiting payment <span class="more" onclick="showScreen('s-finance')">See finance →</span></div>
     <div class="task" onclick="openInvoice('jkia')">
       <div class="top"><div><div class="cl">Amina Wanjiru</div><div class="svc">Invoice #APX-INV-2214</div></div><span class="sla blue">Pending</span></div>
@@ -203,13 +197,9 @@
   <!-- QUEUE -->
   <div class="screen" id="s-queue">
     <div class="appbar" style="padding-bottom:14px;">
-      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">Task Queue</div><h1 style="font-size:19px;">5 active requests</h1></div></div>
+      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">Task Queue</div><h1 style="font-size:19px;" id="queue-count">5 active requests</h1></div></div>
     </div>
-    <div class="task urgent" onclick="openDetail('jkia')"><div class="top"><div><div class="cl">Amina Wanjiru</div><div class="svc">VIP airport transfer, JKIA</div></div><span class="sla red">12 min</span></div><div class="meta">High priority</div></div>
-    <div class="task" onclick="openDetail('cultiva')"><div class="top"><div><div class="cl">James Otieno</div><div class="svc">Table for 6, Cultiva</div></div><span class="sla amber">2 h</span></div><div class="meta">Medium priority</div></div>
-    <div class="task" onclick="openDetail('medical')"><div class="top"><div><div class="cl">Sarah Kimani</div><div class="svc">Second medical opinion</div></div><span class="sla green">1 day</span></div><div class="meta">Normal priority</div></div>
-    <div class="task" onclick="openDetail('shopping')"><div class="top"><div><div class="cl">Peter Mwangi</div><div class="svc">Personal shopping — birthday gift</div></div><span class="sla green">2 days</span></div><div class="meta">Normal priority</div></div>
-    <div class="task" onclick="openDetail('nanny')"><div class="top"><div><div class="cl">Grace Njeri</div><div class="svc">Nanny background check</div></div><span class="sla green">3 days</span></div><div class="meta">Normal priority</div></div>
+    <div id="queue-list"></div>
     <div style="height:20px"></div>
   </div>
 
@@ -220,17 +210,18 @@
     </div>
     <div class="detail-card">
       <h3>Amina Wanjiru</h3>
-      <div class="kv"><span>Status</span><span class="v strong">In progress</span></div>
+      <div class="kv"><span>Status</span><span class="v strong" id="detail-status">New request</span></div>
       <div class="kv"><span>Member since</span><span class="v">2024 · Platinum</span></div>
       <div class="kv"><span>Flight</span><span class="v">KQ102, arriving 18:40</span></div>
       <div class="kv"><span>Vehicle</span><span class="v">Armoured sedan + driver</span></div>
       <div class="kv"><span>Provider assigned</span><span class="v strong" id="detail-provider">Not yet assigned</span></div>
       <div class="kv"><span>Budget</span><span class="v">Included in subscription</span></div>
       <div class="pill-row">
+        <div class="pillbtn primary full" id="btn-accept" onclick="acceptRequest()">✓ Accept Request</div>
         <div class="pillbtn ghost" onclick="showScreen('s-chat')">💬 Message</div>
         <div class="pillbtn gold" onclick="showScreen('s-match')">🤝 Assign Provider</div>
         <div class="pillbtn primary" onclick="showScreen('s-quote')">📄 Create Quote</div>
-        <div class="pillbtn ghost full" onclick="markComplete()">✓ Mark Complete</div>
+        <div class="pillbtn ghost full" id="btn-complete" onclick="completeRequest()">✓ Mark Complete</div>
       </div>
     </div>
     <div class="pref-note">⚠ Client preference: discreet driver, no visible branding on the vehicle, customs fast-track required.</div>
@@ -424,12 +415,65 @@
 
 <script>
 const REQUESTS = {
-  jkia:    { title:"VIP Airport Transfer", client:"Amina Wanjiru" },
-  cultiva: { title:"Table for 6, Cultiva", client:"James Otieno" },
-  medical: { title:"Second Medical Opinion", client:"Sarah Kimani" },
-  shopping:{ title:"Personal Shopping", client:"Peter Mwangi" },
-  nanny:   { title:"Nanny Background Check", client:"Grace Njeri" },
+  jkia:    { title:"VIP Airport Transfer",   client:"Amina Wanjiru", tier:"Platinum", service:"VIP airport transfer, JKIA",           sla:"12 min", slaClass:"red",   received:"Received 08:12 · Friday, 24 July", status:"new" },
+  cultiva: { title:"Table for 6, Cultiva",   client:"James Otieno",  tier:"Gold",     service:"Table for 6, Cultiva",                 sla:"2 h",    slaClass:"amber", received:"Received 09:40",                    status:"new" },
+  medical: { title:"Second Medical Opinion", client:"Sarah Kimani",  tier:"Platinum", service:"Second medical opinion",               sla:"1 day",  slaClass:"green", received:"Received yesterday, 17:20",         status:"new" },
+  shopping:{ title:"Personal Shopping",      client:"Peter Mwangi",  tier:"",         service:"Personal shopping — birthday gift",    sla:"2 days", slaClass:"green", received:"Normal priority",                   status:"new" },
+  nanny:   { title:"Nanny Background Check", client:"Grace Njeri",   tier:"",         service:"Nanny background check",               sla:"3 days", slaClass:"green", received:"Normal priority",                   status:"new" },
 };
+const DASH_KEYS = ['jkia','cultiva','medical'];
+const STATUS_LABEL = { new:"New request", in_progress:"In progress", done:"Completed" };
+let currentRequestKey = null;
+
+function taskBadgesHTML(r){
+  let extra = '';
+  if(r.status==='in_progress') extra = '<span class="statuspill progress">● In Progress</span>';
+  if(r.status==='done') extra = '<span class="statuspill completed">✓ Completed</span>';
+  return `<div class="badges"><span class="sla ${r.slaClass}">${r.sla}</span>${extra}</div>`;
+}
+
+function taskRowHTML(key){
+  const r = REQUESTS[key];
+  const cls = 'task' + (r.status==='new' && r.slaClass==='red' ? ' urgent' : '') + (r.status==='done' ? ' done' : '');
+  const clientLine = r.client + (r.tier ? ' · ' + r.tier : '');
+  return `<div class="${cls}" onclick="openDetail('${key}')">
+    <div class="top"><div><div class="cl">${clientLine}</div><div class="svc">${r.service}</div></div>${taskBadgesHTML(r)}</div>
+    <div class="meta">${r.received}</div>
+  </div>`;
+}
+
+function renderAll(){
+  const activeCount = Object.values(REQUESTS).filter(r=>r.status!=='done').length;
+  document.getElementById('stat-active').textContent = activeCount;
+  document.getElementById('queue-count').textContent = activeCount + ' active requests';
+  document.getElementById('dash-attention').innerHTML = DASH_KEYS.filter(k=>REQUESTS[k].status!=='done').map(taskRowHTML).join('') || '<div class="task" style="cursor:default;"><div class="meta">Nothing needs attention right now 🎉</div></div>';
+  document.getElementById('queue-list').innerHTML = Object.keys(REQUESTS).map(taskRowHTML).join('');
+}
+
+function renderDetailState(){
+  if(!currentRequestKey) return;
+  const r = REQUESTS[currentRequestKey];
+  document.getElementById('detail-status').textContent = STATUS_LABEL[r.status];
+  document.getElementById('btn-accept').style.display = r.status==='new' ? '' : 'none';
+  document.getElementById('btn-complete').style.display = r.status==='in_progress' ? '' : 'none';
+}
+
+function acceptRequest(){
+  if(!currentRequestKey) return;
+  REQUESTS[currentRequestKey].status = 'in_progress';
+  renderDetailState();
+  renderAll();
+  showToast('Request accepted — status: In Progress');
+}
+
+function completeRequest(){
+  if(!currentRequestKey) return;
+  REQUESTS[currentRequestKey].status = 'done';
+  renderDetailState();
+  renderAll();
+  showToast('Request marked as complete');
+  setTimeout(()=> showScreen('s-queue'), 700);
+}
 
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -444,7 +488,9 @@ function showScreen(id){
 
 function openDetail(key){
   const r = REQUESTS[key];
+  currentRequestKey = key;
   if(r){ document.getElementById('detail-title').textContent = r.title; }
+  renderDetailState();
   showScreen('s-detail');
 }
 
@@ -455,7 +501,6 @@ function toggleAvail(el){
 }
 
 function assignProvider(btn, name){
-  document.querySelectorAll('.assignbtn').forEach(b=>{ if(b!==btn && !b.classList.contains('done')){ } });
   btn.textContent = 'Assigned ✓';
   btn.classList.add('done');
   document.getElementById('detail-provider').textContent = name;
@@ -482,11 +527,6 @@ function rejectPayment(){
   showToast('Payment flagged for review');
 }
 
-function markComplete(){
-  showToast('Request marked as complete');
-  setTimeout(()=> showScreen('s-queue'), 700);
-}
-
 function filterFinance(el,type){
   document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
@@ -503,6 +543,8 @@ function showToast(msg){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
 }
+
+renderAll();
 </script>
 </body>
 </html>
