@@ -51,14 +51,44 @@ function apexBridgeUpdateStatus(id, status, extra){
 
 function apexBridgeClear(){
   localStorage.removeItem(APEX_BRIDGE_KEY);
+  localStorage.removeItem(APEX_MESSAGES_KEY);
   window.dispatchEvent(new CustomEvent('apex-bridge-local-change'));
 }
 
-// callback(list) est appelé chaque fois qu'une autre app (autre onglet, même
-// origine) écrit dans la passerelle — ainsi que pour les écritures locales.
+/* ===== Messagerie liée à une demande ===== */
+const APEX_MESSAGES_KEY = 'apex_shared_messages_v1';
+
+function apexBridgeLoadAllMessages(){
+  try {
+    const raw = localStorage.getItem(APEX_MESSAGES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e){
+    return {};
+  }
+}
+
+function apexBridgeLoadMessages(requestId){
+  const all = apexBridgeLoadAllMessages();
+  return all[requestId] || [];
+}
+
+function apexBridgeSendMessage(requestId, sender, text){
+  if(!requestId || !text) return null;
+  const all = apexBridgeLoadAllMessages();
+  if(!all[requestId]) all[requestId] = [];
+  const msg = { sender, text, time: new Date().toISOString() };
+  all[requestId].push(msg);
+  localStorage.setItem(APEX_MESSAGES_KEY, JSON.stringify(all));
+  window.dispatchEvent(new CustomEvent('apex-bridge-local-change'));
+  return msg;
+}
+
+// callback() est appelé chaque fois qu'une autre app (autre onglet, même
+// origine) écrit une demande ou un message — ainsi que pour les écritures
+// faites localement dans cet onglet.
 function apexBridgeOnChange(callback){
   window.addEventListener('storage', (e) => {
-    if(e.key === APEX_BRIDGE_KEY) callback(apexBridgeLoad());
+    if(e.key === APEX_BRIDGE_KEY || e.key === APEX_MESSAGES_KEY) callback();
   });
-  window.addEventListener('apex-bridge-local-change', () => callback(apexBridgeLoad()));
+  window.addEventListener('apex-bridge-local-change', () => callback());
 }

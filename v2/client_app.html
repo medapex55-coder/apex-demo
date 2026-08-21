@@ -282,21 +282,19 @@
   <div class="screen" id="s-request">
     <div class="appbar compact">
       <div class="row"><span class="back" onclick="showScreen('s-services')">←</span><div class="brand" style="margin:0;">Nouvelle demande</div></div>
-      <h1 style="font-size:20px;">Transfert aéroport VIP</h1>
+      <h1 style="font-size:20px;" id="chat-title">Nouvelle demande</h1>
     </div>
     <div class="concierge-card">
       <div class="avatar">D</div>
       <div><div class="name">David Kamau</div><div class="role">Concierge assigné</div></div>
       <div class="iconbtn">📞</div>
     </div>
-    <div class="chat">
-      <div class="bubble them">Bonsoir Claire, j'ai bien reçu votre demande de transfert VIP à JKIA vendredi. Quelle heure d'arrivée du vol ?</div>
-      <div class="bubble me">Vol KQ102, arrivée 18h40. Un véhicule avec chauffeur discret, merci.</div>
-      <div class="bubble them">Parfait, je réserve un véhicule blindé avec chauffeur et fast-track douane. Confirmation dans 15 minutes.</div>
-    </div>
+    <div class="chat" id="chat-messages"></div>
     <div style="margin:0 20px; display:flex; gap:8px;">
-      <div style="flex:1; background:var(--paper); border:1px solid var(--border); border-radius:20px; padding:10px 16px; color:var(--muted); font-size:13px;">Écrire un message…</div>
-      <div style="width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;">➤</div>
+      <input id="chat-input" type="text" placeholder="Écrire un message…" autocomplete="off"
+             style="flex:1; background:var(--paper); border:1px solid var(--border); border-radius:20px; padding:10px 16px; color:var(--ink); font-size:13px; font-family:'Inter',sans-serif;"
+             onkeydown="if(event.key==='Enter'){ event.preventDefault(); sendClientMessage(); }">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="sendClientMessage()">➤</div>
     </div>
     <div style="height:20px"></div>
   </div>
@@ -322,7 +320,7 @@
     <div class="concierge-card">
       <div class="avatar">D</div>
       <div><div class="name">David Kamau</div><div class="role">Concierge assigné</div></div>
-      <div class="iconbtn" onclick="showScreen('s-request')">💬</div>
+      <div class="iconbtn" onclick="openRequestChat('Vol privé — Nairobi → Diani')">💬</div>
     </div>
     <div style="height:20px"></div>
   </div>
@@ -458,7 +456,7 @@
     <div style="height:20px"></div>
   </div>
 
-  <div class="fab" onclick="showScreen('s-request')">＋</div>
+  <div class="fab" onclick="openRequestChat('Nouvelle demande')">＋</div>
 
   <div class="toast" id="toast"></div>
 
@@ -548,20 +546,17 @@ renderPackages('home-packages');
 renderPackages('packages');
 
 function orderPackage(name){
-  submitLiveRequest(name);
-  showToast(name + ' — envoyée en direct à l\'app Concierge');
-  showScreen('s-request');
+  openRequestChat(name);
 }
 
 function requestService(name){
-  submitLiveRequest(name);
-  showToast(name + ' — envoyée en direct à l\'app Concierge');
-  showScreen('s-request');
+  openRequestChat(name);
 }
 
 /* ===== Passerelle en direct avec l'app Concierge ===== */
 let knownLiveStatuses = {};
 let liveBridgeInitialized = false;
+let currentChatRequestId = null;
 
 function submitLiveRequest(serviceName){
   const acc = ACCOUNTS[currentAccountType];
@@ -572,8 +567,46 @@ function submitLiveRequest(serviceName){
     service: serviceName,
   });
   knownLiveStatuses[req.id] = req.status;
+  currentChatRequestId = req.id;
   renderLiveRequests();
   return req;
+}
+
+function openRequestChat(serviceName){
+  submitLiveRequest(serviceName);
+  showToast(serviceName + ' — envoyée en direct à l\'app Concierge');
+  showScreen('s-request');
+}
+
+function renderChat(){
+  const titleEl = document.getElementById('chat-title');
+  const root = document.getElementById('chat-messages');
+  if(!root) return;
+  if(!currentChatRequestId){
+    if(titleEl) titleEl.textContent = 'Nouvelle demande';
+    root.innerHTML = '<div class="bubble them">Bonsoir, comment puis-je vous aider aujourd\'hui ?</div>';
+    return;
+  }
+  const req = apexBridgeLoad().find(r => r.id === currentChatRequestId);
+  if(titleEl) titleEl.textContent = req ? req.service : 'Nouvelle demande';
+  const messages = apexBridgeLoadMessages(currentChatRequestId);
+  if(!messages.length){
+    root.innerHTML = '<div class="bubble them">Bonsoir, votre demande a bien été transmise. Un concierge va la prendre en charge sous peu — vous pouvez déjà m\'écrire ici.</div>';
+  } else {
+    root.innerHTML = messages.map(m=>
+      `<div class="bubble ${m.sender === 'client' ? 'me' : 'them'}">${m.text}</div>`
+    ).join('');
+  }
+  root.scrollTop = root.scrollHeight;
+}
+
+function sendClientMessage(){
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if(!text || !currentChatRequestId) return;
+  apexBridgeSendMessage(currentChatRequestId, 'client', text);
+  input.value = '';
+  renderChat();
 }
 
 function renderLiveRequests(){
@@ -619,7 +652,12 @@ function checkLiveStatusChanges(){
 if(typeof apexBridgeOnChange === 'function'){
   checkLiveStatusChanges();
   renderLiveRequests();
-  apexBridgeOnChange(()=>{ checkLiveStatusChanges(); renderLiveRequests(); });
+  apexBridgeOnChange(()=>{
+    checkLiveStatusChanges();
+    renderLiveRequests();
+    const activeScreen = document.querySelector('.screen.active');
+    if(activeScreen && activeScreen.id === 's-request') renderChat();
+  });
 }
 
 /* ===== Comptes principaux & sous-comptes ===== */
@@ -948,6 +986,7 @@ function showScreen(id){
   document.querySelectorAll('.navbtn').forEach(n=>n.classList.toggle('active', n.dataset.nav===navMap[id]));
   if(id === 's-add-member') updateAddMemberForm();
   if(id === 's-billing') renderBilling();
+  if(id === 's-request') renderChat();
 }
 function nav(el,id){ showScreen(id); }
 
