@@ -68,6 +68,8 @@
   .statuspill.progress{ background:var(--info-bg); color:var(--info); }
   .statuspill.completed{ background:var(--success-bg); color:var(--success); }
   .task.done{ opacity:.55; }
+  .task.live{ border-left:3px solid var(--gold); }
+  .live-tag{ font-size:10.5px; font-weight:700; color:var(--gold); }
   .task .meta{ font-size:11.5px; color:var(--muted); margin-top:8px; }
 
   .detail-card{ margin:16px 20px; background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:16px; }
@@ -207,11 +209,11 @@
       <div class="left"><span class="back" onclick="showScreen('s-queue')">←</span><div><div class="brand">Request detail</div><h1 style="font-size:19px;" id="detail-title">VIP Airport Transfer</h1></div></div>
     </div>
     <div class="detail-card">
-      <h3>Amina Wanjiru</h3>
+      <h3 id="detail-client-name">Amina Wanjiru</h3>
       <div class="kv"><span>Status</span><span class="v strong" id="detail-status">New request</span></div>
       <div class="kv"><span>Member since</span><span class="v">2024 · Platinum</span></div>
-      <div class="kv"><span>Flight</span><span class="v">KQ102, arriving 18:40</span></div>
-      <div class="kv"><span>Vehicle</span><span class="v">Armoured sedan + driver</span></div>
+      <div class="kv" id="detail-flight-row"><span>Flight</span><span class="v">KQ102, arriving 18:40</span></div>
+      <div class="kv" id="detail-vehicle-row"><span>Vehicle</span><span class="v">Armoured sedan + driver</span></div>
       <div class="kv"><span>Provider assigned</span><span class="v strong" id="detail-provider">Not yet assigned</span></div>
       <div class="kv"><span>Budget</span><span class="v">Included in subscription</span></div>
       <div class="pill-row">
@@ -222,7 +224,7 @@
         <div class="pillbtn ghost full" id="btn-complete" onclick="completeRequest()">✓ Mark Complete</div>
       </div>
     </div>
-    <div class="pref-note">⚠ Client preference: discreet driver, no visible branding on the vehicle, customs fast-track required.</div>
+    <div class="pref-note" id="detail-pref-note">⚠ Client preference: discreet driver, no visible branding on the vehicle, customs fast-track required.</div>
     <div class="section-title">Client history</div>
     <div class="detail-card">
       <div class="kv"><span>19 Jul</span><span class="v">Restaurant booking — completed</span></div>
@@ -392,6 +394,7 @@
 <div class="frame-label">APEX CONCIERGE — Staff App</div>
 </div>
 
+<script src="assets/js/request-bridge.js"></script>
 <script>
 const REQUESTS = {
   jkia:    { title:"VIP Airport Transfer",   client:"Amina Wanjiru", tier:"Platinum", service:"VIP airport transfer, JKIA",           sla:"12 min", slaClass:"red",   received:"Received 08:12 · Friday, 24 July", status:"new", amount:530 },
@@ -405,6 +408,33 @@ const STATUS_LABEL = { new:"New request", in_progress:"In progress", done:"Compl
 const BASE_WEEK_REVENUE = 950;
 const BASE_MONTH_REVENUE = 3400;
 let currentRequestKey = null;
+let LIVE_KEYS = [];
+let liveSyncInitialized = false;
+
+function syncLiveRequests(){
+  if(typeof apexBridgeLoad !== 'function') return;
+  apexBridgeLoad().forEach(r=>{
+    if(!REQUESTS[r.id]){
+      REQUESTS[r.id] = {
+        title: r.service,
+        client: r.client,
+        tier: r.tier,
+        service: r.service,
+        sla: 'Live',
+        slaClass: 'blue',
+        received: 'Reçue via l\'app client · ' + new Date(r.createdAt).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}),
+        status: r.status,
+        amount: 0,
+        live: true,
+      };
+      LIVE_KEYS.unshift(r.id);
+      if(liveSyncInitialized) showToast('🔴 New live request: ' + r.service + ' (' + r.client + ')');
+    } else if(REQUESTS[r.id].live && REQUESTS[r.id].status !== r.status){
+      REQUESTS[r.id].status = r.status;
+    }
+  });
+  liveSyncInitialized = true;
+}
 
 function taskBadgesHTML(r){
   let extra = '';
@@ -415,8 +445,8 @@ function taskBadgesHTML(r){
 
 function taskRowHTML(key){
   const r = REQUESTS[key];
-  const cls = 'task' + (r.status==='new' && r.slaClass==='red' ? ' urgent' : '') + (r.status==='done' ? ' done' : '');
-  const clientLine = r.client + (r.tier ? ' · ' + r.tier : '');
+  const cls = 'task' + (r.status==='new' && r.slaClass==='red' ? ' urgent' : '') + (r.status==='done' ? ' done' : '') + (r.live ? ' live' : '');
+  const clientLine = (r.live ? '<span class="live-tag">🔴 LIVE</span> ' : '') + r.client + (r.tier ? ' · ' + r.tier : '');
   return `<div class="${cls}" onclick="openDetail('${key}')">
     <div class="top"><div><div class="cl">${clientLine}</div><div class="svc">${r.service}</div></div>${taskBadgesHTML(r)}</div>
     <div class="meta">${r.received}</div>
@@ -424,11 +454,17 @@ function taskRowHTML(key){
 }
 
 function renderAll(){
+  syncLiveRequests();
   const activeCount = Object.values(REQUESTS).filter(r=>r.status!=='done').length;
   document.getElementById('stat-active').textContent = activeCount;
   document.getElementById('queue-count').textContent = activeCount + ' active requests';
-  document.getElementById('dash-attention').innerHTML = DASH_KEYS.filter(k=>REQUESTS[k].status!=='done').map(taskRowHTML).join('') || '<div class="task" style="cursor:default;"><div class="meta">Nothing needs attention right now 🎉</div></div>';
-  document.getElementById('queue-list').innerHTML = Object.keys(REQUESTS).map(taskRowHTML).join('');
+  const attentionKeys = [
+    ...LIVE_KEYS.filter(k=>REQUESTS[k] && REQUESTS[k].status!=='done'),
+    ...DASH_KEYS.filter(k=>REQUESTS[k].status!=='done'),
+  ];
+  document.getElementById('dash-attention').innerHTML = attentionKeys.map(taskRowHTML).join('') || '<div class="task" style="cursor:default;"><div class="meta">Nothing needs attention right now 🎉</div></div>';
+  const otherKeys = Object.keys(REQUESTS).filter(k=>!LIVE_KEYS.includes(k));
+  document.getElementById('queue-list').innerHTML = [...LIVE_KEYS, ...otherKeys].map(taskRowHTML).join('');
   renderRevenue();
 }
 
@@ -448,14 +484,23 @@ function renderRevenue(){
 function renderDetailState(){
   if(!currentRequestKey) return;
   const r = REQUESTS[currentRequestKey];
+  document.getElementById('detail-client-name').textContent = r.client;
   document.getElementById('detail-status').textContent = STATUS_LABEL[r.status];
   document.getElementById('btn-accept').style.display = r.status==='new' ? '' : 'none';
   document.getElementById('btn-complete').style.display = r.status==='in_progress' ? '' : 'none';
+  const isJkiaDemo = currentRequestKey === 'jkia';
+  document.getElementById('detail-flight-row').style.display = isJkiaDemo ? '' : 'none';
+  document.getElementById('detail-vehicle-row').style.display = isJkiaDemo ? '' : 'none';
+  document.getElementById('detail-pref-note').style.display = isJkiaDemo ? '' : 'none';
 }
 
 function acceptRequest(){
   if(!currentRequestKey) return;
-  REQUESTS[currentRequestKey].status = 'in_progress';
+  const r = REQUESTS[currentRequestKey];
+  r.status = 'in_progress';
+  if(r.live && typeof apexBridgeUpdateStatus === 'function'){
+    apexBridgeUpdateStatus(currentRequestKey, 'in_progress', { concierge: 'David Kamau' });
+  }
   renderDetailState();
   renderAll();
   showToast('Request accepted — client notified · Status: In Progress');
@@ -463,7 +508,11 @@ function acceptRequest(){
 
 function completeRequest(){
   if(!currentRequestKey) return;
-  REQUESTS[currentRequestKey].status = 'done';
+  const r = REQUESTS[currentRequestKey];
+  r.status = 'done';
+  if(r.live && typeof apexBridgeUpdateStatus === 'function'){
+    apexBridgeUpdateStatus(currentRequestKey, 'done');
+  }
   renderDetailState();
   renderAll();
   showToast('Request completed — client notified');
@@ -532,6 +581,12 @@ function showToast(msg){
 }
 
 renderAll();
+if(typeof apexBridgeOnChange === 'function'){
+  apexBridgeOnChange(()=>{
+    renderAll();
+    if(currentRequestKey) renderDetailState();
+  });
+}
 </script>
 </body>
 </html>

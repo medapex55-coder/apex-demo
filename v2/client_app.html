@@ -80,6 +80,8 @@
   .badge.done{ background:var(--success-bg); color:var(--success); }
   .badge.main{ background:var(--info-bg); color:var(--info); }
   .badge.child{ background:#EEEEEE; color:#5A5A5A; }
+  .badge.pending{ background:var(--info-bg); color:var(--info); }
+  .list-item.live{ border-color:var(--gold); }
 
   .bottomnav{
     flex:0 0 64px; background:var(--paper); border-top:1px solid var(--border);
@@ -240,6 +242,9 @@
     </div>
     <div class="section-title">Packages malins <span class="hint">Particulier &amp; Entreprise</span></div>
     <div id="home-packages"></div>
+
+    <div class="section-title" id="live-requests-title" style="display:none;">Suivi en direct <span class="hint">🔴 Connecté à l'app Concierge</span></div>
+    <div id="live-requests"></div>
 
     <div class="section-title">Demandes récentes</div>
     <div class="list-item" onclick="showScreen('s-tracking')">
@@ -468,6 +473,7 @@
 <div class="frame-label">Application MEMBRE — APEX Concierge</div>
 </div>
 
+<script src="assets/js/request-bridge.js"></script>
 <script>
 const SERVICES = [
   { ic:"✈️", name:"Voyages & logistique", items:[
@@ -509,7 +515,7 @@ function buildCatalog(){
         <div class="chev">▾</div>
       </div>
       <div class="cat-body">
-        ${cat.items.map(it=>`<div class="svc-row"><span>${it}</span><span class="req" onclick="event.stopPropagation(); showScreen('s-request')">Demander</span></div>`).join('')}
+        ${cat.items.map(it=>`<div class="svc-row"><span>${it}</span><span class="req" onclick="event.stopPropagation(); requestService('${it.replace(/'/g,"\\'")}')">Demander</span></div>`).join('')}
       </div>`;
     root.appendChild(block);
   });
@@ -542,8 +548,78 @@ renderPackages('home-packages');
 renderPackages('packages');
 
 function orderPackage(name){
-  showToast(name + ' — commande transmise à votre concierge');
+  submitLiveRequest(name);
+  showToast(name + ' — envoyée en direct à l\'app Concierge');
   showScreen('s-request');
+}
+
+function requestService(name){
+  submitLiveRequest(name);
+  showToast(name + ' — envoyée en direct à l\'app Concierge');
+  showScreen('s-request');
+}
+
+/* ===== Passerelle en direct avec l'app Concierge ===== */
+let knownLiveStatuses = {};
+let liveBridgeInitialized = false;
+
+function submitLiveRequest(serviceName){
+  const acc = ACCOUNTS[currentAccountType];
+  const req = apexBridgeSubmitRequest({
+    client: acc.name,
+    tier: acc.tier,
+    accountType: currentAccountType,
+    service: serviceName,
+  });
+  knownLiveStatuses[req.id] = req.status;
+  renderLiveRequests();
+  return req;
+}
+
+function renderLiveRequests(){
+  const list = apexBridgeLoad();
+  const title = document.getElementById('live-requests-title');
+  const root = document.getElementById('live-requests');
+  if(!root || !title) return;
+  if(!list.length){
+    title.style.display = 'none';
+    root.innerHTML = '';
+    return;
+  }
+  title.style.display = '';
+  const statusMeta = {
+    new:         { label:'Envoyée · en attente',        cls:'pending' },
+    in_progress: { label:'Prise en charge',              cls:'progress' },
+    done:        { label:'Terminée',                     cls:'done' },
+  };
+  root.innerHTML = list.slice(0, 6).map(r=>{
+    const meta = statusMeta[r.status] || { label:r.status, cls:'pending' };
+    const sub = r.concierge ? 'Concierge : ' + r.concierge : 'En attente d\'un concierge';
+    return `<div class="list-item live" style="cursor:default;">
+      <div class="ic">🔴</div>
+      <div class="txt"><div class="t1">${r.service}</div><div class="t2">${sub}</div></div>
+      <span class="badge ${meta.cls}">${meta.label}</span>
+    </div>`;
+  }).join('');
+}
+
+function checkLiveStatusChanges(){
+  const list = apexBridgeLoad();
+  list.forEach(r=>{
+    const prev = knownLiveStatuses[r.id];
+    if(liveBridgeInitialized && prev && prev !== r.status){
+      if(r.status === 'in_progress') showToast('Votre demande "' + r.service + '" a été prise en charge par ' + (r.concierge || 'un concierge'));
+      if(r.status === 'done') showToast('Votre demande "' + r.service + '" est terminée !');
+    }
+    knownLiveStatuses[r.id] = r.status;
+  });
+  liveBridgeInitialized = true;
+}
+
+if(typeof apexBridgeOnChange === 'function'){
+  checkLiveStatusChanges();
+  renderLiveRequests();
+  apexBridgeOnChange(()=>{ checkLiveStatusChanges(); renderLiveRequests(); });
 }
 
 /* ===== Comptes principaux & sous-comptes ===== */
