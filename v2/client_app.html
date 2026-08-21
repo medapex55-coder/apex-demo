@@ -83,6 +83,23 @@
   .badge.pending{ background:var(--info-bg); color:var(--info); }
   .list-item.live{ border-color:var(--gold); }
 
+  .quote-card{ margin:0 20px 16px; background:var(--paper); border:1.5px solid var(--gold); border-radius:16px; padding:16px; }
+  .quote-card .qhead{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; }
+  .quote-card .qhead .t{ font-weight:700; font-size:14px; }
+  .quote-card .qline{ display:flex; justify-content:space-between; font-size:12.5px; padding:6px 0; border-top:1px solid var(--border); color:var(--muted); }
+  .quote-card .qline:first-of-type{ border-top:none; }
+  .quote-card .qtotal{ display:flex; justify-content:space-between; font-weight:700; font-size:14.5px; padding-top:10px; margin-top:6px; border-top:1px solid var(--border); color:var(--navy); }
+  .quote-card .qactions{ display:flex; gap:8px; margin-top:14px; }
+  .quote-card .qbtn{ flex:1; text-align:center; padding:10px 6px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer; }
+  .quote-card .qbtn.accept{ background:var(--navy); color:#fff; }
+  .quote-card .qbtn.decline{ background:var(--cream); color:var(--ink); border:1px solid var(--border); }
+  .quote-card .qbtn.pay{ background:var(--gold); color:#fff; }
+  .quote-card .qstatus{ font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; white-space:nowrap; }
+  .quote-card .qstatus.sent{ background:var(--info-bg); color:var(--info); }
+  .quote-card .qstatus.accepted{ background:var(--warn-bg); color:var(--warn); }
+  .quote-card .qstatus.paid{ background:var(--success-bg); color:var(--success); }
+  .quote-card .qstatus.declined{ background:#EEEEEE; color:#5A5A5A; }
+
   .bottomnav{
     flex:0 0 64px; background:var(--paper); border-top:1px solid var(--border);
     display:flex; align-items:center; justify-content:space-around;
@@ -289,6 +306,7 @@
       <div><div class="name">David Kamau</div><div class="role">Concierge assigné</div></div>
       <div class="iconbtn">📞</div>
     </div>
+    <div id="quote-card"></div>
     <div class="chat" id="chat-messages"></div>
     <div style="margin:0 20px; display:flex; gap:8px;">
       <input id="chat-input" type="text" placeholder="Écrire un message…" autocomplete="off"
@@ -591,6 +609,7 @@ function renderChat(){
   if(!currentChatRequestId){
     if(titleEl) titleEl.textContent = 'Nouvelle demande';
     root.innerHTML = '<div class="bubble them">Bonsoir, comment puis-je vous aider aujourd\'hui ?</div>';
+    document.getElementById('quote-card').innerHTML = '';
     return;
   }
   const req = apexBridgeLoad().find(r => r.id === currentChatRequestId);
@@ -605,6 +624,86 @@ function renderChat(){
     ).join('');
   }
   root.scrollTop = root.scrollHeight;
+  renderQuoteCard();
+}
+
+/* ===== Devis reçu du concierge ===== */
+const QUOTE_STATUS_META = {
+  sent:     { label:'En attente de votre réponse', cls:'sent' },
+  accepted: { label:'Accepté · en attente de paiement', cls:'accepted' },
+  paid:     { label:'Payé', cls:'paid' },
+  declined: { label:'Refusé', cls:'declined' },
+};
+
+function renderQuoteCard(){
+  const root = document.getElementById('quote-card');
+  if(!root) return;
+  const quote = currentChatRequestId ? apexBridgeLoadQuote(currentChatRequestId) : null;
+  if(!quote){
+    root.innerHTML = '';
+    return;
+  }
+  const meta = QUOTE_STATUS_META[quote.status] || { label:quote.status, cls:'sent' };
+  const itemsHTML = quote.items.map(it =>
+    `<div class="qline"><span>${it.description}</span><span>€${it.amount.toFixed(2)}</span></div>`
+  ).join('');
+  const commissionHTML = quote.commissionAmount > 0
+    ? `<div class="qline"><span>Commission conciergerie (20%)</span><span>€${quote.commissionAmount.toFixed(2)}</span></div>` : '';
+
+  let actionsHTML = '';
+  if(quote.status === 'sent'){
+    actionsHTML = `<div class="qactions">
+      <div class="qbtn decline" onclick="respondToQuote(false)">✗ Refuser</div>
+      <div class="qbtn accept" onclick="respondToQuote(true)">✓ Accepter le devis</div>
+    </div>`;
+  } else if(quote.status === 'accepted'){
+    actionsHTML = `<div class="qactions"><div class="qbtn pay" onclick="payQuote()">💳 Payer le devis — €${quote.totalTTC.toFixed(2)}</div></div>`;
+  }
+
+  root.innerHTML = `<div class="quote-card">
+    <div class="qhead"><span class="t">📄 Devis du concierge</span><span class="qstatus ${meta.cls}">${meta.label}</span></div>
+    ${itemsHTML}
+    <div class="qline"><span>TVA (20%)</span><span>€${quote.vatAmount.toFixed(2)}</span></div>
+    ${commissionHTML}
+    <div class="qtotal"><span>Total TTC</span><span>€${quote.totalTTC.toFixed(2)}</span></div>
+    ${actionsHTML}
+  </div>`;
+}
+
+function respondToQuote(accepted){
+  if(!currentChatRequestId) return;
+  apexBridgeUpdateQuoteStatus(currentChatRequestId, accepted ? 'accepted' : 'declined');
+  showToast(accepted ? 'Devis accepté — vous pouvez maintenant le régler' : 'Devis refusé');
+  renderQuoteCard();
+}
+
+function payQuote(){
+  if(!currentChatRequestId) return;
+  const quote = apexBridgeLoadQuote(currentChatRequestId);
+  if(!quote) return;
+  const acc = ACCOUNTS[currentAccountType];
+  const mainMember = acc.members.find(m => m.main);
+  const methodKey = mainMember && mainMember.pm.default;
+  const method = PAY_METHODS.find(p => p.key === methodKey);
+  apexBridgeUpdateQuoteStatus(currentChatRequestId, 'paid');
+  showToast('Paiement de €' + quote.totalTTC.toFixed(2) + (method ? ' effectué via ' + method.name : ' effectué') + ' — concierge notifié');
+  renderQuoteCard();
+}
+
+let knownQuoteStatuses = {};
+function checkQuoteChanges(){
+  const requests = apexBridgeLoad();
+  requests.forEach(r=>{
+    const quote = apexBridgeLoadQuote(r.id);
+    if(!quote) return;
+    const prev = knownQuoteStatuses[r.id];
+    if(liveBridgeInitialized && prev !== quote.status){
+      if(!prev && quote.status === 'sent'){
+        showToast('📄 Un devis de €' + quote.totalTTC.toFixed(2) + ' vous a été envoyé — ' + r.service);
+      }
+    }
+    knownQuoteStatuses[r.id] = quote.status;
+  });
 }
 
 function sendClientMessage(){
@@ -661,10 +760,12 @@ function checkLiveStatusChanges(){
 }
 
 if(typeof apexBridgeOnChange === 'function'){
+  checkQuoteChanges();
   checkLiveStatusChanges();
   renderLiveRequests();
   apexBridgeOnChange(()=>{
     checkLiveStatusChanges();
+    checkQuoteChanges();
     renderLiveRequests();
     const activeScreen = document.querySelector('.screen.active');
     if(activeScreen && activeScreen.id === 's-request') renderChat();

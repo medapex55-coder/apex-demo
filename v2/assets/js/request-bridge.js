@@ -52,7 +52,70 @@ function apexBridgeUpdateStatus(id, status, extra){
 function apexBridgeClear(){
   localStorage.removeItem(APEX_BRIDGE_KEY);
   localStorage.removeItem(APEX_MESSAGES_KEY);
+  localStorage.removeItem(APEX_QUOTES_KEY);
   window.dispatchEvent(new CustomEvent('apex-bridge-local-change'));
+}
+
+/* ===== Devis liés à une demande ===== */
+const APEX_QUOTES_KEY = 'apex_shared_quotes_v1';
+const APEX_VAT_RATE = 0.20;
+const APEX_COMMISSION_RATE = 0.20;
+
+function apexBridgeLoadAllQuotes(){
+  try {
+    const raw = localStorage.getItem(APEX_QUOTES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e){
+    return {};
+  }
+}
+
+function apexBridgeLoadQuote(requestId){
+  const all = apexBridgeLoadAllQuotes();
+  return all[requestId] || null;
+}
+
+function apexBridgeSaveQuote(quote){
+  const all = apexBridgeLoadAllQuotes();
+  all[quote.requestId] = quote;
+  localStorage.setItem(APEX_QUOTES_KEY, JSON.stringify(all));
+  window.dispatchEvent(new CustomEvent('apex-bridge-local-change'));
+}
+
+// items: [{ description, amount }], amount en HT. hasMembership détermine si
+// la commission de conciergerie de 20% s'applique (seuls les clients sans
+// abonnement la paient).
+function apexBridgeCreateQuote(requestId, items, hasMembership){
+  const round2 = n => Math.round(n * 100) / 100;
+  const subtotalHT = round2(items.reduce((sum, it) => sum + it.amount, 0));
+  const vatAmount = round2(subtotalHT * APEX_VAT_RATE);
+  const commissionAmount = hasMembership ? 0 : round2(subtotalHT * APEX_COMMISSION_RATE);
+  const totalTTC = round2(subtotalHT + vatAmount + commissionAmount);
+  const quote = {
+    requestId,
+    items,
+    subtotalHT,
+    vatRate: APEX_VAT_RATE,
+    vatAmount,
+    hasMembership,
+    commissionRate: hasMembership ? 0 : APEX_COMMISSION_RATE,
+    commissionAmount,
+    totalTTC,
+    status: 'sent',
+    createdAt: new Date().toISOString(),
+  };
+  apexBridgeSaveQuote(quote);
+  return quote;
+}
+
+function apexBridgeUpdateQuoteStatus(requestId, status){
+  const quote = apexBridgeLoadQuote(requestId);
+  if(quote){
+    quote.status = status;
+    quote[status + 'At'] = new Date().toISOString();
+    apexBridgeSaveQuote(quote);
+  }
+  return quote;
 }
 
 /* ===== Messagerie liée à une demande ===== */
@@ -88,7 +151,7 @@ function apexBridgeSendMessage(requestId, sender, text){
 // faites localement dans cet onglet.
 function apexBridgeOnChange(callback){
   window.addEventListener('storage', (e) => {
-    if(e.key === APEX_BRIDGE_KEY || e.key === APEX_MESSAGES_KEY) callback();
+    if(e.key === APEX_BRIDGE_KEY || e.key === APEX_MESSAGES_KEY || e.key === APEX_QUOTES_KEY) callback();
   });
   window.addEventListener('apex-bridge-local-change', () => callback());
 }

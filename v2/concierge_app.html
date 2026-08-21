@@ -220,7 +220,7 @@
         <div class="pillbtn primary full" id="btn-accept" onclick="acceptRequest()">✓ Accept Request</div>
         <div class="pillbtn ghost" onclick="showScreen('s-chat')">💬 Message</div>
         <div class="pillbtn gold" onclick="showScreen('s-match')">🤝 Assign Provider</div>
-        <div class="pillbtn primary" onclick="showScreen('s-quote')">📄 Create Quote</div>
+        <div class="pillbtn primary" onclick="openQuoteBuilder()">📄 Create Quote</div>
         <div class="pillbtn ghost full" id="btn-complete" onclick="completeRequest()">✓ Mark Complete</div>
       </div>
     </div>
@@ -263,20 +263,59 @@
     <div class="appbar" style="padding-bottom:14px;">
       <div class="left"><span class="back" onclick="showScreen('s-detail')">←</span><div><div class="brand">Quote</div><h1 style="font-size:19px;">Create a quote</h1></div></div>
     </div>
-    <div class="doc-head">
-      <div class="lbl">Quote for</div>
-      <div class="client">Amina Wanjiru</div>
-      <div class="ref">#APX-QT-2214 · VIP airport transfer</div>
+
+    <!-- Demande de démonstration : devis figé, inchangé -->
+    <div id="quote-demo-view">
+      <div class="doc-head">
+        <div class="lbl">Quote for</div>
+        <div class="client">Amina Wanjiru</div>
+        <div class="ref">#APX-QT-2214 · VIP airport transfer</div>
+      </div>
+      <div class="line-card">
+        <div class="line-item"><div class="desc"><div class="t1">Armoured sedan + driver</div><div class="t2">JKIA → Karen residence, one way</div></div><div class="amt">€380</div></div>
+        <div class="line-item"><div class="desc"><div class="t1">Customs fast-track escort</div><div class="t2">Meet &amp; greet on arrival</div></div><div class="amt">€150</div></div>
+        <div class="line-item"><div class="desc"><div class="t1">Concierge service fee</div><div class="t2">Included in Platinum membership</div></div><div class="amt">€0</div></div>
+        <div class="line-total"><span>Total</span><span class="n">€530</span></div>
+      </div>
+      <div class="pill-row" style="margin:0 20px;">
+        <div class="pillbtn ghost">✎ Edit</div>
+        <div class="pillbtn primary" onclick="sendQuote()">Send Quote to Client</div>
+      </div>
     </div>
-    <div class="line-card">
-      <div class="line-item"><div class="desc"><div class="t1">Armoured sedan + driver</div><div class="t2">JKIA → Karen residence, one way</div></div><div class="amt">€380</div></div>
-      <div class="line-item"><div class="desc"><div class="t1">Customs fast-track escort</div><div class="t2">Meet &amp; greet on arrival</div></div><div class="amt">€150</div></div>
-      <div class="line-item"><div class="desc"><div class="t1">Concierge service fee</div><div class="t2">Included in Platinum membership</div></div><div class="amt">€0</div></div>
-      <div class="line-total"><span>Total</span><span class="n">€530</span></div>
-    </div>
-    <div class="pill-row" style="margin:0 20px;">
-      <div class="pillbtn ghost">✎ Edit</div>
-      <div class="pillbtn primary" onclick="sendQuote()">Send Quote to Client</div>
+
+    <!-- Demande en direct : générateur de devis dynamique HT / TVA / commission -->
+    <div id="quote-live-view" style="display:none;">
+      <div class="doc-head">
+        <div class="lbl">Devis pour</div>
+        <div class="client" id="quote-client-name">—</div>
+        <div class="ref" id="quote-service-name">—</div>
+      </div>
+
+      <div class="section-title">Lignes du devis (HT)</div>
+      <div id="quote-items-list"></div>
+      <div style="margin:0 20px 14px; display:flex; gap:8px;">
+        <input id="quote-item-desc" type="text" placeholder="Description de la prestation"
+               style="flex:1.6; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;">
+        <input id="quote-item-amount" type="number" placeholder="€ HT" min="0" step="0.01"
+               style="width:84px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;">
+        <div class="pillbtn ghost" style="flex:0 0 auto; padding:9px 14px;" onclick="addQuoteItem()">+ Ajouter</div>
+      </div>
+
+      <div class="status-banner info" style="justify-content:space-between; cursor:pointer;" onclick="toggleQuoteMembership()">
+        <span id="quote-membership-label">🎫 Client abonné à un membership — pas de commission</span>
+        <span class="switch" id="quote-membership-switch"></span>
+      </div>
+
+      <div class="line-card" style="margin-top:16px;">
+        <div class="line-item"><div class="desc">Sous-total HT</div><div class="amt" id="quote-sum-ht">€0.00</div></div>
+        <div class="line-item"><div class="desc">TVA (20%)</div><div class="amt" id="quote-sum-vat">€0.00</div></div>
+        <div class="line-item" id="quote-commission-row" style="display:none;"><div class="desc">Commission conciergerie (20%)</div><div class="amt" id="quote-sum-commission">€0.00</div></div>
+        <div class="line-total"><span>Total TTC</span><span class="n" id="quote-sum-total">€0.00</span></div>
+      </div>
+
+      <div class="pill-row" style="margin:14px 20px 0;">
+        <div class="pillbtn primary full" onclick="sendLiveQuote()">📄 Envoyer le devis au client</div>
+      </div>
     </div>
     <div style="height:20px"></div>
   </div>
@@ -479,6 +518,7 @@ function taskRowHTML(key){
 
 function renderAll(){
   syncLiveRequests();
+  syncQuotes();
   const activeCount = Object.values(REQUESTS).filter(r=>r.status!=='done').length;
   document.getElementById('stat-active').textContent = activeCount;
   document.getElementById('queue-count').textContent = activeCount + ' active requests';
@@ -570,6 +610,113 @@ function sendConciergeMessage(){
   }
   input.value = '';
   renderChat();
+}
+
+/* ===== Devis manuel (demandes en direct) ===== */
+let draftQuoteItems = [];
+let draftQuoteHasMembership = true;
+let lastNotifiedQuoteStatus = {};
+
+function openQuoteBuilder(){
+  const r = currentRequestKey ? REQUESTS[currentRequestKey] : null;
+  const liveView = document.getElementById('quote-live-view');
+  const demoView = document.getElementById('quote-demo-view');
+  if(r && r.live){
+    liveView.style.display = '';
+    demoView.style.display = 'none';
+    draftQuoteItems = [];
+    draftQuoteHasMembership = !!r.tier;
+    document.getElementById('quote-client-name').textContent = r.client;
+    document.getElementById('quote-service-name').textContent = r.service;
+    document.getElementById('quote-item-desc').value = '';
+    document.getElementById('quote-item-amount').value = '';
+    renderQuoteItemsList();
+    updateMembershipToggleUI();
+  } else {
+    liveView.style.display = 'none';
+    demoView.style.display = '';
+  }
+  showScreen('s-quote');
+}
+
+function renderQuoteItemsList(){
+  const root = document.getElementById('quote-items-list');
+  root.innerHTML = draftQuoteItems.length ? draftQuoteItems.map((it, i) => `
+    <div class="line-item" style="margin:0 20px 8px; background:var(--paper); border:1px solid var(--border); border-radius:10px; padding:10px 14px;">
+      <div class="desc"><div class="t1">${it.description}</div></div>
+      <div class="amt">€${it.amount.toFixed(2)} <span style="cursor:pointer; color:var(--danger); margin-left:8px;" onclick="removeQuoteItem(${i})">✕</span></div>
+    </div>`).join('') : '<div class="revenue-hint">Aucune ligne pour l\'instant — ajoutez une prestation ci-dessous.</div>';
+  updateQuoteTotals();
+}
+
+function addQuoteItem(){
+  const descInput = document.getElementById('quote-item-desc');
+  const amountInput = document.getElementById('quote-item-amount');
+  const description = descInput.value.trim();
+  const amount = parseFloat(amountInput.value);
+  if(!description || !amount || amount <= 0) return;
+  draftQuoteItems.push({ description, amount });
+  descInput.value = '';
+  amountInput.value = '';
+  renderQuoteItemsList();
+}
+
+function removeQuoteItem(i){
+  draftQuoteItems.splice(i, 1);
+  renderQuoteItemsList();
+}
+
+function toggleQuoteMembership(){
+  draftQuoteHasMembership = !draftQuoteHasMembership;
+  updateMembershipToggleUI();
+}
+
+function updateMembershipToggleUI(){
+  document.getElementById('quote-membership-switch').classList.toggle('off', !draftQuoteHasMembership);
+  document.getElementById('quote-membership-label').textContent = draftQuoteHasMembership
+    ? '🎫 Client abonné à un membership — pas de commission'
+    : '👤 Client sans membership — commission de 20% appliquée';
+  updateQuoteTotals();
+}
+
+function updateQuoteTotals(){
+  const round2 = n => Math.round(n * 100) / 100;
+  const subtotalHT = round2(draftQuoteItems.reduce((sum, it) => sum + it.amount, 0));
+  const vat = round2(subtotalHT * 0.20);
+  const commission = draftQuoteHasMembership ? 0 : round2(subtotalHT * 0.20);
+  const total = round2(subtotalHT + vat + commission);
+  document.getElementById('quote-sum-ht').textContent = '€' + subtotalHT.toFixed(2);
+  document.getElementById('quote-sum-vat').textContent = '€' + vat.toFixed(2);
+  document.getElementById('quote-sum-commission').textContent = '€' + commission.toFixed(2);
+  document.getElementById('quote-commission-row').style.display = draftQuoteHasMembership ? 'none' : '';
+  document.getElementById('quote-sum-total').textContent = '€' + total.toFixed(2);
+}
+
+function sendLiveQuote(){
+  if(!currentRequestKey || !draftQuoteItems.length){
+    showToast('Ajoutez au moins une ligne avant d\'envoyer le devis.');
+    return;
+  }
+  const quote = apexBridgeCreateQuote(currentRequestKey, draftQuoteItems, draftQuoteHasMembership);
+  lastNotifiedQuoteStatus[currentRequestKey] = quote.status;
+  showToast('Devis de €' + quote.totalTTC.toFixed(2) + ' envoyé au client — client notifié');
+  showScreen('s-detail');
+}
+
+function syncQuotes(){
+  if(typeof apexBridgeLoadAllQuotes !== 'function') return;
+  const all = apexBridgeLoadAllQuotes();
+  Object.values(all).forEach(q => {
+    const req = REQUESTS[q.requestId];
+    if(!req) return;
+    const prev = lastNotifiedQuoteStatus[q.requestId];
+    if(liveSyncInitialized && prev && prev !== q.status){
+      if(q.status === 'accepted') showToast('✅ Quote accepted by ' + req.client + ' — ' + req.service);
+      if(q.status === 'declined') showToast('❌ Quote declined by ' + req.client + ' — ' + req.service);
+      if(q.status === 'paid') showToast('💰 Quote paid by ' + req.client + ' — €' + q.totalTTC.toFixed(2));
+    }
+    lastNotifiedQuoteStatus[q.requestId] = q.status;
+  });
 }
 
 function acceptRequest(){
