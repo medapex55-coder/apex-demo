@@ -149,9 +149,7 @@
   .doctag.accepted{ background:var(--success-bg); color:var(--success); }
   .doctag.paid{ background:var(--success-bg); color:var(--success); }
   .doctag.pending{ background:var(--warn-bg); color:var(--warn); }
-  .finance-tabs{ display:flex; gap:8px; margin:14px 20px; }
-  .ftab{ flex:1; text-align:center; padding:9px; border-radius:10px; font-size:12.5px; font-weight:700; background:var(--paper); border:1px solid var(--border); color:var(--muted); cursor:pointer; }
-  .ftab.active{ background:var(--navy); color:#fff; border-color:var(--navy); }
+  .revenue-hint{ margin:0 20px 16px; font-size:12.5px; color:var(--muted); text-align:center; padding:24px 10px; }
 
   .bottomnav{ flex:0 0 64px; background:var(--paper); border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-around; }
   .navbtn{ text-align:center; color:var(--muted); font-size:9.5px; cursor:pointer; font-weight:600; }
@@ -186,7 +184,7 @@
     </div>
     <div class="section-title">Needs attention now</div>
     <div id="dash-attention"></div>
-    <div class="section-title">Awaiting payment <span class="more" onclick="showScreen('s-finance')">See finance →</span></div>
+    <div class="section-title">Awaiting payment <span class="more" onclick="showScreen('s-revenue')">See revenue →</span></div>
     <div class="task" onclick="openInvoice('jkia')">
       <div class="top"><div><div class="cl">Amina Wanjiru</div><div class="svc">Invoice #APX-INV-2214</div></div><span class="sla blue">Pending</span></div>
       <div class="meta">Sent 25 July · €640 due</div>
@@ -284,7 +282,7 @@
   <!-- INVOICE -->
   <div class="screen" id="s-invoice">
     <div class="appbar" style="padding-bottom:14px;">
-      <div class="left"><span class="back" onclick="showScreen('s-finance')">←</span><div><div class="brand">Invoice</div><h1 style="font-size:19px;" id="invoice-title">Invoice #APX-INV-2214</h1></div></div>
+      <div class="left"><span class="back" onclick="showScreen('s-revenue')">←</span><div><div class="brand">Invoice</div><h1 style="font-size:19px;" id="invoice-title">Invoice #APX-INV-2214</h1></div></div>
     </div>
     <div class="doc-status"><span class="doctag pending" id="invoice-status-tag">Payment pending</span></div>
     <div class="doc-head">
@@ -313,36 +311,17 @@
     <div style="height:20px"></div>
   </div>
 
-  <!-- FINANCE -->
-  <div class="screen" id="s-finance">
+  <!-- REVENUE -->
+  <div class="screen" id="s-revenue">
     <div class="appbar" style="padding-bottom:14px;">
-      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">Finance</div><h1 style="font-size:19px;">Quotes &amp; invoices</h1></div></div>
+      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">My Revenue</div><h1 style="font-size:19px;">Chiffre d'affaires</h1></div></div>
     </div>
-    <div class="finance-tabs">
-      <div class="ftab active" data-ft="all" onclick="filterFinance(this,'all')">All</div>
-      <div class="ftab" data-ft="quotes" onclick="filterFinance(this,'quotes')">Quotes</div>
-      <div class="ftab" data-ft="invoices" onclick="filterFinance(this,'invoices')">Invoices</div>
+    <div class="stat-row">
+      <div class="stat"><div class="n" id="rev-week">€950</div><div class="l">This week</div></div>
+      <div class="stat"><div class="n" id="rev-month">€3,400</div><div class="l">This month</div></div>
     </div>
-    <div class="finance-row" data-ftype="invoices" onclick="showScreen('s-invoice')">
-      <div class="top"><div><div class="cl">Amina Wanjiru</div><div class="svc">VIP airport transfer</div></div><div class="amt">€530</div></div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag pending">Invoice · Pending</span><span style="font-size:11px; color:var(--muted);">#APX-INV-2214</span></div>
-    </div>
-    <div class="finance-row" data-ftype="quotes">
-      <div class="top"><div><div class="cl">James Otieno</div><div class="svc">Private dinner, Cultiva x6</div></div><div class="amt">€290</div></div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag sent">Quote · Sent</span><span style="font-size:11px; color:var(--muted);">#APX-QT-2201</span></div>
-    </div>
-    <div class="finance-row" data-ftype="quotes">
-      <div class="top"><div><div class="cl">Sarah Kimani</div><div class="svc">Medical second opinion, travel</div></div><div class="amt">€1,120</div></div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag accepted">Quote · Accepted</span><span style="font-size:11px; color:var(--muted);">#APX-QT-2189</span></div>
-    </div>
-    <div class="finance-row" data-ftype="invoices">
-      <div class="top"><div><div class="cl">Peter Mwangi</div><div class="svc">Personal shopping</div></div><div class="amt">€310</div></div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag paid">Invoice · Paid</span><span style="font-size:11px; color:var(--muted);">#APX-INV-2190</span></div>
-    </div>
-    <div class="finance-row" data-ftype="invoices">
-      <div class="top"><div><div class="cl">Grace Njeri</div><div class="svc">Nanny background check</div></div><div class="amt">€95</div></div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag paid">Invoice · Paid</span><span style="font-size:11px; color:var(--muted);">#APX-INV-2175</span></div>
-    </div>
+    <div class="section-title">Missions billed this month</div>
+    <div id="rev-missions"></div>
     <div style="height:20px"></div>
   </div>
 
@@ -405,7 +384,7 @@
   <div class="bottomnav">
     <div class="navbtn active" data-nav="s-dash" onclick="showScreen('s-dash')"><span class="ic">⌂</span>Home</div>
     <div class="navbtn" data-nav="s-queue" onclick="showScreen('s-queue')"><span class="ic">☰</span>Queue</div>
-    <div class="navbtn" data-nav="s-finance" onclick="showScreen('s-finance')"><span class="ic">◒</span>Finance</div>
+    <div class="navbtn" data-nav="s-revenue" onclick="showScreen('s-revenue')"><span class="ic">📈</span>Revenue</div>
     <div class="navbtn" data-nav="s-partners" onclick="showScreen('s-partners')"><span class="ic">◈</span>Partners</div>
     <div class="navbtn" data-nav="s-profile" onclick="showScreen('s-profile')"><span class="ic">◔</span>Profile</div>
   </div>
@@ -415,14 +394,16 @@
 
 <script>
 const REQUESTS = {
-  jkia:    { title:"VIP Airport Transfer",   client:"Amina Wanjiru", tier:"Platinum", service:"VIP airport transfer, JKIA",           sla:"12 min", slaClass:"red",   received:"Received 08:12 · Friday, 24 July", status:"new" },
-  cultiva: { title:"Table for 6, Cultiva",   client:"James Otieno",  tier:"Gold",     service:"Table for 6, Cultiva",                 sla:"2 h",    slaClass:"amber", received:"Received 09:40",                    status:"new" },
-  medical: { title:"Second Medical Opinion", client:"Sarah Kimani",  tier:"Platinum", service:"Second medical opinion",               sla:"1 day",  slaClass:"green", received:"Received yesterday, 17:20",         status:"new" },
-  shopping:{ title:"Personal Shopping",      client:"Peter Mwangi",  tier:"",         service:"Personal shopping — birthday gift",    sla:"2 days", slaClass:"green", received:"Normal priority",                   status:"new" },
-  nanny:   { title:"Nanny Background Check", client:"Grace Njeri",   tier:"",         service:"Nanny background check",               sla:"3 days", slaClass:"green", received:"Normal priority",                   status:"new" },
+  jkia:    { title:"VIP Airport Transfer",   client:"Amina Wanjiru", tier:"Platinum", service:"VIP airport transfer, JKIA",           sla:"12 min", slaClass:"red",   received:"Received 08:12 · Friday, 24 July", status:"new", amount:530 },
+  cultiva: { title:"Table for 6, Cultiva",   client:"James Otieno",  tier:"Gold",     service:"Table for 6, Cultiva",                 sla:"2 h",    slaClass:"amber", received:"Received 09:40",                    status:"new", amount:290 },
+  medical: { title:"Second Medical Opinion", client:"Sarah Kimani",  tier:"Platinum", service:"Second medical opinion",               sla:"1 day",  slaClass:"green", received:"Received yesterday, 17:20",         status:"new", amount:1120 },
+  shopping:{ title:"Personal Shopping",      client:"Peter Mwangi",  tier:"",         service:"Personal shopping — birthday gift",    sla:"2 days", slaClass:"green", received:"Normal priority",                   status:"new", amount:310 },
+  nanny:   { title:"Nanny Background Check", client:"Grace Njeri",   tier:"",         service:"Nanny background check",               sla:"3 days", slaClass:"green", received:"Normal priority",                   status:"new", amount:95 },
 };
 const DASH_KEYS = ['jkia','cultiva','medical'];
 const STATUS_LABEL = { new:"New request", in_progress:"In progress", done:"Completed" };
+const BASE_WEEK_REVENUE = 950;
+const BASE_MONTH_REVENUE = 3400;
 let currentRequestKey = null;
 
 function taskBadgesHTML(r){
@@ -448,6 +429,20 @@ function renderAll(){
   document.getElementById('queue-count').textContent = activeCount + ' active requests';
   document.getElementById('dash-attention').innerHTML = DASH_KEYS.filter(k=>REQUESTS[k].status!=='done').map(taskRowHTML).join('') || '<div class="task" style="cursor:default;"><div class="meta">Nothing needs attention right now 🎉</div></div>';
   document.getElementById('queue-list').innerHTML = Object.keys(REQUESTS).map(taskRowHTML).join('');
+  renderRevenue();
+}
+
+function renderRevenue(){
+  const completed = Object.values(REQUESTS).filter(r=>r.status==='done');
+  const completedAmt = completed.reduce((sum,r)=> sum + r.amount, 0);
+  document.getElementById('rev-week').textContent = '€' + (BASE_WEEK_REVENUE + completedAmt).toLocaleString('en-US');
+  document.getElementById('rev-month').textContent = '€' + (BASE_MONTH_REVENUE + completedAmt).toLocaleString('en-US');
+  const root = document.getElementById('rev-missions');
+  root.innerHTML = completed.length ? completed.map(r=>`
+    <div class="finance-row" style="cursor:default;">
+      <div class="top"><div><div class="cl">${r.client}</div><div class="svc">${r.service}</div></div><div class="amt">€${r.amount}</div></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag paid">Completed</span></div>
+    </div>`).join('') : '<div class="revenue-hint">No missions completed yet this period.</div>';
 }
 
 function renderDetailState(){
@@ -463,7 +458,7 @@ function acceptRequest(){
   REQUESTS[currentRequestKey].status = 'in_progress';
   renderDetailState();
   renderAll();
-  showToast('Request accepted — status: In Progress');
+  showToast('Request accepted — client notified · Status: In Progress');
 }
 
 function completeRequest(){
@@ -471,7 +466,7 @@ function completeRequest(){
   REQUESTS[currentRequestKey].status = 'done';
   renderDetailState();
   renderAll();
-  showToast('Request marked as complete');
+  showToast('Request completed — client notified');
   setTimeout(()=> showScreen('s-queue'), 700);
 }
 
@@ -480,7 +475,7 @@ function showScreen(id){
   document.getElementById(id).classList.add('active');
   const navMap = {
     's-dash':'s-dash','s-queue':'s-queue','s-detail':'s-queue','s-chat':'s-queue',
-    's-match':'s-queue','s-quote':'s-queue','s-finance':'s-finance','s-invoice':'s-finance',
+    's-match':'s-queue','s-quote':'s-queue','s-revenue':'s-revenue','s-invoice':'s-revenue',
     's-partners':'s-partners','s-profile':'s-profile'
   };
   document.querySelectorAll('.navbtn').forEach(n=>n.classList.toggle('active', n.dataset.nav===navMap[id]));
@@ -525,14 +520,6 @@ function rejectPayment(){
   tag.textContent = 'Issue flagged';
   tag.className = 'doctag sent';
   showToast('Payment flagged for review');
-}
-
-function filterFinance(el,type){
-  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  document.querySelectorAll('.finance-row').forEach(row=>{
-    row.style.display = (type==='all' || row.dataset.ftype===type) ? '' : 'none';
-  });
 }
 
 let toastTimer;

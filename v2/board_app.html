@@ -87,6 +87,21 @@
 
   .progress-track{ height:8px; border-radius:6px; background:var(--border); overflow:hidden; margin-top:6px; }
   .progress-fill{ height:100%; border-radius:6px; }
+
+  .brand-masthead{ margin-bottom:20px; }
+  .brand-masthead img{ height:34px; width:auto; display:block; }
+
+  .create-form{ display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:end; }
+  .create-form .field label{ display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:5px; }
+  .create-form .field input{ width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-family:'Inter',sans-serif; font-size:13px; box-sizing:border-box; }
+  .create-form .field input:focus{ outline:none; border-color:var(--gold); }
+  .create-btn{ background:var(--navy); color:#fff; border:none; padding:10px 18px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; white-space:nowrap; }
+  .create-btn:hover{ background:var(--navy2); }
+  .create-msg{ font-size:12.5px; margin-top:10px; color:var(--success); display:none; }
+  @media (max-width:900px){ .create-form{ grid-template-columns:1fr; } }
+
+  .rank-note{ font-size:12px; color:var(--muted); margin:-8px 0 14px; }
+  .rank-medal{ font-weight:700; }
 </style>
 </head>
 <body>
@@ -94,9 +109,11 @@
   <div class="sidebar">
     <div class="sb-brand"><img src="assets/img/logo-mark.svg" alt="APEX"><div><div class="k">APEX</div><div class="n">Board</div></div></div>
     <div class="sb-item active" data-v="v-overview" onclick="showView(this,'v-overview')"><span class="ic">◈</span>Overview</div>
+    <div class="sb-item" data-v="v-growth" onclick="showView(this,'v-growth')"><span class="ic">📈</span>Croissance</div>
     <div class="sb-item" data-v="v-requests" onclick="showView(this,'v-requests')"><span class="ic">▤</span>Requests</div>
     <div class="sb-item" data-v="v-members" onclick="showView(this,'v-members')"><span class="ic">☺</span>Members (CRM)</div>
     <div class="sb-item" data-v="v-team" onclick="showView(this,'v-team')"><span class="ic">☰</span>Concierge Team</div>
+    <div class="sb-item" data-v="v-rankings" onclick="showView(this,'v-rankings')"><span class="ic">🏆</span>Classements</div>
     <div class="sb-item" data-v="v-finance" onclick="showView(this,'v-finance')"><span class="ic">◒</span>Finance</div>
     <div class="sb-item" data-v="v-partners" onclick="showView(this,'v-partners')"><span class="ic">◇</span>Providers</div>
     <div class="sb-item" data-v="v-compliance" onclick="showView(this,'v-compliance')"><span class="ic">▦</span>Compliance</div>
@@ -104,6 +121,7 @@
   </div>
 
   <div class="main">
+    <div class="brand-masthead"><img src="assets/img/apex-logo-full.svg" alt="APEX — Africa Personal Experience"></div>
     <!-- OVERVIEW -->
     <div class="view active" id="v-overview">
       <div class="topbar"><h1>Overview</h1><div class="period">July 2026</div></div>
@@ -161,6 +179,36 @@
           <h3>Alerts</h3>
           <div class="alert red"><div><div class="t">SLA breached</div>Request #APX-4790 pending for 3h20 (threshold: 2h)</div></div>
           <div class="alert amber"><div><div class="t">High load</div>The security team is at 92% capacity this week</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GROWTH -->
+    <div class="view" id="v-growth">
+      <div class="topbar"><h1>Croissance</h1><div class="period">Juillet 2026</div></div>
+
+      <div class="kpi-grid">
+        <div class="kpi"><div class="l">Nouveaux clients</div><div class="n">86</div><div class="d up">+18% vs juin</div></div>
+        <div class="kpi"><div class="l">Demandes totales</div><div class="n">1,284</div><div class="d up">+12% vs juin</div></div>
+        <div class="kpi accent"><div class="l">Premières demandes</div><div class="n">312</div><div class="d up">24.3% du total des demandes</div></div>
+        <div class="kpi"><div class="l">Nouveaux prestataires</div><div class="n">4</div><div class="d up">+4 ce mois</div></div>
+      </div>
+
+      <div class="row2">
+        <div class="card list-card">
+          <h3>Derniers clients inscrits</h3>
+          <div class="row"><span>Léa Dupont — Particulier</span><span class="tag ok">Nouveau</span></div>
+          <div class="row"><span>Kilimani Heights Développement — Promoteur</span><span class="tag ok">Nouveau</span></div>
+          <div class="row"><span>Marc Otieno — Particulier</span><span class="tag ok">Nouveau</span></div>
+          <div class="row"><span>Nairobi Legal Partners — Société</span><span class="tag ok">Nouveau</span></div>
+          <div class="row"><span>Grace Wambui — Particulier</span><span class="tag ok">Nouveau</span></div>
+        </div>
+        <div class="card list-card">
+          <h3>Derniers prestataires intégrés</h3>
+          <div class="row"><span>Villa Rosa Kempinski</span><span class="tag ok">Hospitalité</span></div>
+          <div class="row"><span>Nairobi VIP Transfers</span><span class="tag ok">Transport</span></div>
+          <div class="row"><span>Cultiva Restaurant</span><span class="tag ok">Restauration</span></div>
+          <div class="row"><span>Sentinel Protection</span><span class="tag ok">Sécurité</span></div>
         </div>
       </div>
     </div>
@@ -238,15 +286,48 @@
 
     <!-- TEAM -->
     <div class="view" id="v-team">
-      <div class="topbar"><h1>Concierge Team</h1><div class="period">14 active concierges</div></div>
+      <div class="topbar"><h1>Concierge Team</h1><div class="period" id="team-count">14 active concierges</div></div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <h3>+ Créer un compte concierge <span style="font-weight:400; color:var(--muted); font-size:12px;">(réservé à l'administration)</span></h3>
+        <div class="create-form">
+          <div class="field"><label>Nom complet</label><input id="new-concierge-name" type="text" placeholder="ex. Jane Wanjala"></div>
+          <div class="field"><label>Email</label><input id="new-concierge-email" type="email" placeholder="jane@apex-concierge.com"></div>
+          <div class="field"><label>Spécialité</label><input id="new-concierge-specialty" type="text" placeholder="ex. Voyages & sécurité"></div>
+          <button class="create-btn" onclick="createConcierge()">+ Créer le compte</button>
+        </div>
+        <div class="create-msg" id="create-concierge-msg"></div>
+      </div>
+
       <div class="card">
         <table>
           <tr><th>Concierge</th><th>Specialty</th><th>Active Load</th><th>SLA Met</th><th>Satisfaction</th></tr>
-          <tr><td>David Kamau</td><td>Travel & security</td><td>5 tasks</td><td><span class="tag ok">98%</span></td><td>4.9 / 5</td></tr>
-          <tr><td>Faith Achieng</td><td>Hospitality & events</td><td>7 tasks</td><td><span class="tag ok">95%</span></td><td>4.8 / 5</td></tr>
-          <tr><td>Brian Otieno</td><td>Real estate & home</td><td>3 tasks</td><td><span class="tag warn">88%</span></td><td>4.6 / 5</td></tr>
-          <tr><td>Lucy Wambui</td><td>Health & wellness</td><td>4 tasks</td><td><span class="tag ok">97%</span></td><td>4.9 / 5</td></tr>
+          <tbody id="team-tbody"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- RANKINGS -->
+    <div class="view" id="v-rankings">
+      <div class="topbar"><h1>Classements</h1><div class="period">30 derniers jours</div></div>
+
+      <div class="row2">
+        <div class="card list-card">
+          <h3>⚡ Les plus réactifs</h3>
+          <p class="rank-note">Classés par temps de réponse moyen le plus court.</p>
+          <div id="rank-speed"></div>
+        </div>
+        <div class="card list-card">
+          <h3>🎯 Meilleur taux de réussite</h3>
+          <p class="rank-note">Classés par pourcentage de missions réussies.</p>
+          <div id="rank-success"></div>
+        </div>
+      </div>
+
+      <div class="card list-card">
+        <h3>🏆 Classement général — Top 3</h3>
+        <p class="rank-note">Somme des positions obtenues dans les deux classements ci-dessus — le score le plus bas gagne.</p>
+        <div id="rank-overall"></div>
       </div>
     </div>
 
@@ -308,6 +389,71 @@ function showView(el, id){
   document.querySelectorAll('.sb-item').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
 }
+
+let CONCIERGES = [
+  { name:'David Kamau',   specialty:'Travel & security',    activeLoad:5, slaMet:98, satisfaction:4.9, avgResponse:14, successRate:97 },
+  { name:'Faith Achieng', specialty:'Hospitality & events',  activeLoad:7, slaMet:95, satisfaction:4.8, avgResponse:9,  successRate:95 },
+  { name:'Brian Otieno',  specialty:'Real estate & home',    activeLoad:3, slaMet:88, satisfaction:4.6, avgResponse:22, successRate:88 },
+  { name:'Lucy Wambui',   specialty:'Health & wellness',     activeLoad:4, slaMet:97, satisfaction:4.9, avgResponse:11, successRate:96 },
+];
+
+function renderTeamTable(){
+  document.getElementById('team-count').textContent = CONCIERGES.length + ' active concierges';
+  document.getElementById('team-tbody').innerHTML = CONCIERGES.map(c=>`
+    <tr><td>${c.name}</td><td>${c.specialty}</td><td>${c.activeLoad} tasks</td><td><span class="tag ${c.slaMet>=95?'ok':'warn'}">${c.slaMet}%</span></td><td>${c.satisfaction.toFixed(1)} / 5</td></tr>`).join('');
+}
+
+function createConcierge(){
+  const nameInput = document.getElementById('new-concierge-name');
+  const emailInput = document.getElementById('new-concierge-email');
+  const specialtyInput = document.getElementById('new-concierge-specialty');
+  const msg = document.getElementById('create-concierge-msg');
+  const name = nameInput.value.trim();
+  const email = emailInput.value.trim();
+  const specialty = specialtyInput.value.trim() || 'Général';
+
+  if(!name || !email){
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Merci de renseigner au minimum le nom et l\'email du concierge.';
+    msg.style.display = 'block';
+    return;
+  }
+
+  CONCIERGES.push({ name, specialty, activeLoad:0, slaMet:100, satisfaction:5.0, avgResponse:15, successRate:100 });
+  nameInput.value = ''; emailInput.value = ''; specialtyInput.value = '';
+  renderTeamTable();
+  renderRankings();
+
+  msg.style.color = 'var(--success)';
+  msg.textContent = '✓ Compte concierge créé pour ' + name + ' (' + email + ')';
+  msg.style.display = 'block';
+}
+
+function renderRankings(){
+  const medal = i => ['🥇','🥈','🥉'][i] || ((i+1) + '.');
+
+  const bySpeed = [...CONCIERGES].sort((a,b)=> a.avgResponse - b.avgResponse);
+  const bySuccess = [...CONCIERGES].sort((a,b)=> b.successRate - a.successRate);
+  const speedRank = new Map(bySpeed.map((c,i)=>[c.name, i+1]));
+  const successRank = new Map(bySuccess.map((c,i)=>[c.name, i+1]));
+
+  document.getElementById('rank-speed').innerHTML = bySpeed.map((c,i)=>`
+    <div class="row"><span class="rank-medal">${medal(i)}</span> <span>${c.name}</span><span class="tag ok">${c.avgResponse} min</span></div>`).join('');
+
+  document.getElementById('rank-success').innerHTML = bySuccess.map((c,i)=>`
+    <div class="row"><span class="rank-medal">${medal(i)}</span> <span>${c.name}</span><span class="tag ok">${c.successRate}%</span></div>`).join('');
+
+  const overall = CONCIERGES
+    .map(c=> ({...c, combined: speedRank.get(c.name) + successRank.get(c.name)}))
+    .sort((a,b)=> a.combined - b.combined)
+    .slice(0,3);
+
+  document.getElementById('rank-overall').innerHTML = overall.map((c,i)=>`
+    <div class="row"><span class="rank-medal">${medal(i)}</span> <span>${c.name}</span><span class="tag gold">Score : ${c.combined} (${c.avgResponse} min · ${c.successRate}%)</span></div>`).join('');
+}
+
+renderTeamTable();
+renderRankings();
 </script>
 </body>
 </html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>APEX — Présentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0C1124; --gold:#B08D57; --gold-light:#E9D5A8; --cream:#FAF7F2;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{ width:1280px; height:720px; overflow:hidden; background:#000; font-family:'Inter',sans-serif; }
+  .stage{ position:relative; width:1280px; height:720px; }
+
+  .scene{ position:absolute; inset:0; opacity:0; visibility:hidden; }
+  .scene.active{ opacity:1; visibility:visible; z-index:2; transition:opacity 1s ease; }
+  .scene.leaving{ opacity:0; visibility:visible; z-index:1; transition:opacity 1s ease; }
+  html.frame-mode .scene, html.frame-mode .scene *{ transition:none !important; animation:none !important; }
+
+  .kb{ position:absolute; inset:0; background-size:cover; background-position:center; transform:scale(1); animation:kenburns 7s ease-out forwards; }
+  @keyframes kenburns{ from{ transform:scale(1.12) translate(0,0);} to{ transform:scale(1) translate(0,0);} }
+  .scrim{ position:absolute; inset:0; }
+  .scrim.d1{ background:linear-gradient(100deg, rgba(12,17,36,.96) 0%, rgba(12,17,36,.82) 38%, rgba(12,17,36,.32) 100%); }
+  .scrim.d2{ background:linear-gradient(0deg, rgba(12,17,36,.94) 0%, rgba(12,17,36,.35) 55%, rgba(12,17,36,.15) 100%); }
+  .scrim.navy{ background:var(--navy); }
+  .scrim.cream{ background:var(--cream); }
+
+  .body-txt{ position:relative; z-index:3; height:100%; display:flex; flex-direction:column; justify-content:center; padding:0 100px; color:#fff; }
+  .body-txt.center{ align-items:center; text-align:center; }
+  .kicker{ font-size:13px; letter-spacing:4px; text-transform:uppercase; color:var(--gold-light); opacity:0; transform:translateY(14px); animation:up .7s ease .15s forwards; }
+  h1.t{ font-family:'Playfair Display',serif; font-weight:700; font-size:56px; line-height:1.1; margin-top:18px; opacity:0; transform:translateY(18px); animation:up .8s ease .32s forwards; max-width:920px; }
+  h1.t em{ font-style:normal; color:var(--gold-light); }
+  p.sub{ margin-top:20px; font-size:16.5px; line-height:1.65; color:#D8D9E4; max-width:640px; opacity:0; transform:translateY(16px); animation:up .8s ease .5s forwards; }
+  .navy-text h1.t, .navy-text .kicker{ color:var(--navy); }
+  .navy-text .kicker{ color:#8a6c3e; }
+  .navy-text p.sub{ color:#524f47; }
+  @keyframes up{ to{ opacity:1; transform:translateY(0); } }
+
+  /* mosaic scene */
+  .mosaic{ position:absolute; inset:0; background:var(--navy); display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(2,1fr); gap:6px; padding:6px; }
+  .mosaic .cell{ position:relative; overflow:hidden; border-radius:6px; }
+  .mosaic .cell img{ width:100%; height:100%; object-fit:cover; opacity:0; transform:scale(1.15); animation:cellin .8s ease forwards; }
+  .mosaic .cell .cap{ position:absolute; left:10px; bottom:9px; z-index:2; color:#fff; font-size:12px; font-weight:600; letter-spacing:.3px; opacity:0; animation:up .6s ease forwards; }
+  .mosaic .cell::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(12,17,36,0) 45%, rgba(12,17,36,.85) 100%); }
+  @keyframes cellin{ to{ opacity:1; transform:scale(1); } }
+
+  /* tiers scene */
+  .tiers-wrap{ position:relative; z-index:3; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+  .tiers-row{ margin-top:34px; display:flex; gap:26px; }
+  .tier-card{ width:230px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.15); border-radius:14px; padding:22px; color:#fff; opacity:0; transform:translateY(20px); animation:up .7s ease forwards; }
+  .tier-card.f{ background:var(--gold); border-color:var(--gold); }
+  .tier-card b.name{ font-family:'Playfair Display',serif; font-size:18px; display:block; }
+  .tier-card .amt{ font-family:'Playfair Display',serif; font-size:28px; color:var(--gold-light); margin-top:10px; display:block; }
+  .tier-card.f .amt{ color:#fff; }
+
+  .progress{ position:absolute; left:0; bottom:0; height:4px; background:var(--gold); z-index:10; width:0%; }
+  .brandwm{ position:absolute; top:28px; left:100px; z-index:10; display:flex; align-items:center; gap:8px; }
+  .brandwm .dot{ width:7px; height:7px; border-radius:50%; background:var(--gold); }
+  .brandwm span{ font-family:'Playfair Display',serif; color:#fff; font-weight:700; letter-spacing:2px; font-size:13px; }
+  .navy-text ~ .brandwm span, .scene:has(.navy-text) .brandwm span{ color:var(--navy); }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+  <!-- 1 COVER -->
+  <div class="scene active" data-dur="4800">
+    <div class="kb" style="background-image:url('assets/img/hero-elegance.jpg'); background-position:center 15%;"></div>
+    <div class="scrim d1"></div>
+    <div class="body-txt">
+      <div class="kicker">Nairobi, Kenya</div>
+      <h1 class="t">Conciergerie privée<br><em>d'exception</em></h1>
+      <p class="sub">APEX orchestre chaque aspect de la vie de ses membres, avec la rigueur d'un service véritablement haut de gamme.</p>
+    </div>
+  </div>
+
+  <!-- 2 VISION -->
+  <div class="scene" data-dur="4200">
+    <div class="kb" style="background-image:url('assets/img/lifestyle-detail.jpg'); background-position:25% center;"></div>
+    <div class="scrim d1"></div>
+    <div class="body-txt">
+      <div class="kicker">Notre philosophie</div>
+      <h1 class="t">Le luxe, c'est <em>l'attention</em><br>portée à chaque détail.</h1>
+      <p class="sub">Un concierge dédié prend en charge chaque demande, jusqu'à sa parfaite exécution.</p>
+    </div>
+  </div>
+
+  <!-- 3 SERVICES MOSAIC -->
+  <div class="scene" data-dur="4600">
+    <div class="mosaic">
+      <div class="cell" style="animation-delay:.05s"><img src="assets/img/svc-executive.jpg"><div class="cap" style="animation-delay:.3s">Support Exécutif</div></div>
+      <div class="cell" style="animation-delay:.12s"><img src="assets/img/svc-dining.jpg"><div class="cap" style="animation-delay:.37s">Dining</div></div>
+      <div class="cell" style="animation-delay:.19s"><img src="assets/img/svc-security.jpg"><div class="cap" style="animation-delay:.44s">Sécurité</div></div>
+      <div class="cell" style="animation-delay:.26s"><img src="assets/img/svc-events.jpg"><div class="cap" style="animation-delay:.51s">Événements</div></div>
+      <div class="cell" style="animation-delay:.33s"><img src="assets/img/svc-home.jpg"><div class="cap" style="animation-delay:.58s">Immobilier</div></div>
+      <div class="cell" style="animation-delay:.40s"><img src="assets/img/svc-wellness.jpg"><div class="cap" style="animation-delay:.65s">Bien-être</div></div>
+      <div class="cell" style="animation-delay:.47s"><img src="assets/img/svc-family.jpg"><div class="cap" style="animation-delay:.72s">Famille</div></div>
+      <div class="cell" style="animation-delay:.54s; background:var(--navy); display:flex; align-items:center; justify-content:center;"><div class="cap" style="position:static; animation-delay:.8s; text-align:center; font-family:'Playfair Display',serif; font-size:14px; color:var(--gold-light);">Une seule<br>plateforme</div></div>
+    </div>
+  </div>
+
+  <!-- 4 HOW IT WORKS -->
+  <div class="scene" data-dur="3800">
+    <div class="scrim navy"></div>
+    <div class="body-txt">
+      <div class="kicker">Simplicité d'exécution</div>
+      <h1 class="t">Une demande.<br>Un concierge. <em>Zéro friction.</em></h1>
+      <p class="sub">Suivi en temps réel, du premier appel jusqu'à la clôture — 24 heures sur 24.</p>
+    </div>
+  </div>
+
+  <!-- 5 MEMBERSHIP -->
+  <div class="scene" data-dur="4400">
+    <div class="scrim cream"></div>
+    <div class="tiers-wrap">
+      <div class="navy-text" style="text-align:center;">
+        <div class="kicker">Adhésion</div>
+        <h1 class="t" style="font-size:38px;">Trois niveaux d'accès.</h1>
+      </div>
+      <div class="tiers-row">
+        <div class="tier-card" style="animation-delay:.2s; background:rgba(12,17,36,.05); border-color:rgba(12,17,36,.15); color:var(--navy);"><b class="name">Silver</b><span class="amt" style="color:var(--gold);">€15</span></div>
+        <div class="tier-card f" style="animation-delay:.35s; color:#fff;"><b class="name">Gold</b><span class="amt">€55</span></div>
+        <div class="tier-card" style="animation-delay:.5s; background:rgba(12,17,36,.05); border-color:rgba(12,17,36,.15); color:var(--navy);"><b class="name">Platinum</b><span class="amt" style="color:var(--gold);">€120</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 BUSINESS -->
+  <div class="scene" data-dur="4200">
+    <div class="kb" style="background-image:url('assets/img/business-cta.jpg'); background-position:center;"></div>
+    <div class="scrim d1"></div>
+    <div class="body-txt">
+      <div class="kicker">Offre entreprise</div>
+      <h1 class="t">La mobilité de vos<br>cadres, <em>simplifiée.</em></h1>
+      <p class="sub">Comptes consolidés pour entreprises, ambassades et family offices.</p>
+    </div>
+  </div>
+
+  <!-- 7 WHY -->
+  <div class="scene" data-dur="4200">
+    <div class="kb" style="background-image:url('assets/img/family-portrait.jpg'); background-position:center 20%;"></div>
+    <div class="scrim d2"></div>
+    <div class="body-txt">
+      <div class="kicker">Nos différenciateurs</div>
+      <h1 class="t">Discrétion. Expertise.<br><em>Exigence de qualité.</em></h1>
+    </div>
+  </div>
+
+  <!-- 8 CONTACT -->
+  <div class="scene" data-dur="5200">
+    <div class="kb" style="background-image:url('assets/img/nairobi-night.jpg');"></div>
+    <div class="scrim d1"></div>
+    <div class="body-txt center">
+      <div class="kicker">APEX — Africa Personal Experience</div>
+      <h1 class="t">Offrez à vos équipes<br><em>l'exigence APEX.</em></h1>
+      <p class="sub">hello@apex-concierge.com &nbsp;·&nbsp; +254 700 000 000 &nbsp;·&nbsp; Nairobi, Kenya</p>
+    </div>
+  </div>
+
+  <div class="progress" id="progress"></div>
+</div>
+
+<script>
+  const scenes = Array.from(document.querySelectorAll('.scene'));
+  const progress = document.getElementById('progress');
+  const total = scenes.reduce((a,s)=>a+parseInt(s.dataset.dur),0);
+  let elapsed = 0;
+  let i = 0;
+
+  const params = new URLSearchParams(location.search);
+  const frameScene = params.get('scene');
+  const frameFrac = params.get('frac');
+
+  if(frameScene !== null){
+    document.documentElement.classList.add('frame-mode');
+    const idx = parseInt(frameScene);
+    const frac = parseFloat(frameFrac || '0');
+    scenes.forEach((s,n)=>{
+      s.classList.remove('active','leaving');
+      if(n===idx){ s.classList.add('active'); s.style.opacity='1'; s.style.visibility='visible'; }
+    });
+    const target = scenes[idx];
+    const dur = parseInt(target.dataset.dur);
+    target.querySelectorAll('.kb').forEach(el=>{
+      el.style.animation='none';
+      const scale = 1.12 - 0.12*Math.min(frac,1);
+      el.style.transform = 'scale('+scale.toFixed(4)+')';
+    });
+    target.querySelectorAll('.kicker,.t,.sub,.tier-card,img,.cap').forEach(el=>{
+      el.style.animation='none';
+      el.style.opacity='1';
+      el.style.transform='none';
+    });
+    let before=0;
+    for(let n=0;n<idx;n++){ before += parseInt(scenes[n].dataset.dur); }
+    const w = ((before + dur*frac)/total*100);
+    progress.style.width = w+'%';
+  } else {
+    playNext();
+  }
+
+  function playNext(){
+    scenes.forEach((s,idx)=>{ s.classList.remove('active','leaving'); });
+    scenes[i].classList.add('active');
+    scenes[i].querySelectorAll('.kb').forEach(el=>{ el.style.animation='none'; void el.offsetWidth; el.style.animation=''; });
+    scenes[i].querySelectorAll('[style*="animation-delay"]').forEach(el=>{
+      el.style.animation='none'; void el.offsetWidth;
+      const cls = el.classList.contains('cell') || el.tagName==='IMG' ? null : null;
+    });
+    // restart child animations
+    scenes[i].querySelectorAll('img, .cap, .kicker, .t, .sub, .tier-card').forEach(el=>{
+      const anim = getComputedStyle(el).animationName;
+      el.style.animation='none';
+      void el.offsetWidth;
+      el.style.removeProperty('animation');
+    });
+
+    const dur = parseInt(scenes[i].dataset.dur);
+    const startElapsed = elapsed;
+    const stepStart = performance.now();
+    function tick(now){
+      const local = Math.min(now - stepStart, dur);
+      progress.style.width = (((startElapsed+local)/total)*100) + '%';
+      if(local < dur){ requestAnimationFrame(tick); }
+      else{
+        elapsed = startElapsed + dur;
+        i = (i+1) % scenes.length;
+        if(i===0){ elapsed = 0; }
+        playNext();
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+</script>
+</body>
+</html>

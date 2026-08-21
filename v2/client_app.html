@@ -135,7 +135,7 @@
 
   /* ===== Espace / Compte ===== */
   .type-tabs{ display:flex; gap:8px; margin:16px 20px; background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:4px; }
-  .type-tab{ flex:1; text-align:center; padding:9px; border-radius:9px; font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; }
+  .type-tab{ flex:1; min-width:0; text-align:center; padding:9px 2px; border-radius:9px; font-size:10.5px; font-weight:700; color:var(--muted); cursor:pointer; }
   .type-tab.active{ background:var(--navy); color:#fff; }
 
   .account-card{ margin:0 20px 6px; background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:16px; }
@@ -327,12 +327,14 @@
     <div class="appbar compact">
       <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Mon Espace</div>
       <h1 style="font-size:20px;">Compte &amp; membres</h1>
-      <div class="sub">Démonstration : basculez entre un compte famille et un compte entreprise</div>
+      <div class="sub">Démonstration : basculez entre compte Famille, Société, Promoteur et Grand Compte</div>
     </div>
 
     <div class="type-tabs">
       <div class="type-tab active" data-type="family" onclick="switchAccountType('family')">👪 Famille</div>
-      <div class="type-tab" data-type="business" onclick="switchAccountType('business')">🏢 Entreprise</div>
+      <div class="type-tab" data-type="business" onclick="switchAccountType('business')">🏢 Société</div>
+      <div class="type-tab" data-type="promoter" onclick="switchAccountType('promoter')">🏗️ Promoteur</div>
+      <div class="type-tab" data-type="enterprise" onclick="switchAccountType('enterprise')">🏙️ Grand</div>
     </div>
 
     <div class="account-card">
@@ -385,7 +387,7 @@
       <div class="row"><span class="back" onclick="showScreen('s-account')">←</span><div class="brand" style="margin:0;">Nouveau membre</div></div>
       <h1 style="font-size:20px;" id="am-title">Ajouter un membre de la famille</h1>
     </div>
-    <div class="form-field"><label>Prénom et nom</label><input type="text" id="am-fullname" placeholder="ex. Léa Dupont"></div>
+    <div class="form-field"><label id="am-fullname-label">Prénom et nom</label><input type="text" id="am-fullname" placeholder="ex. Léa Dupont"></div>
     <div class="form-field">
       <label id="am-relation-label">Lien avec le compte</label>
       <select id="am-relation">
@@ -554,6 +556,28 @@ const PAY_METHODS = [
   { key:'mpesa',      ic:'📱', name:'M-Pesa',             desc:'Paiement mobile M-Pesa' },
 ];
 
+const ENTERPRISE_ROLES = ['Direction régionale','Ressources humaines','Opérations','Ventes','Support client'];
+function buildEnterpriseMembers(count){
+  const members = [
+    { id:'ent-main', name:'Coraline Flobinus', role:'Administratrice du compte', main:true, pm:{cb:true, applepay:false, googlepay:false, androidpay:false, paypal:false, mpesa:false, default:'cb'} }
+  ];
+  for(let i=1;i<=count;i++){
+    const mod = i % 3;
+    members.push({
+      id:'ent-emp'+i,
+      name:'Employé n°'+i,
+      role:'Employé · ' + ENTERPRISE_ROLES[i % ENTERPRISE_ROLES.length],
+      main:false,
+      pm:{
+        cb: mod===0, applepay:false, googlepay:false, androidpay:false,
+        paypal: mod===1, mpesa: mod===2,
+        default: mod===0 ? 'cb' : (mod===1 ? 'paypal' : 'mpesa')
+      }
+    });
+  }
+  return members;
+}
+
 const ACCOUNTS = {
   family: {
     mark:'👪',
@@ -586,6 +610,35 @@ const ACCOUNTS = {
       { id:'e2', name:'James Otieno',      role:'Employé · Direction régionale', main:false, pm:{cb:true,  applepay:false, googlepay:false, androidpay:false, paypal:true,  mpesa:false, default:'paypal'} },
       { id:'e3', name:'Sarah Kimani',      role:'Employée · Ressources humaines', main:false, pm:{cb:false, applepay:false, googlepay:false, androidpay:true,  paypal:false, mpesa:true,  default:'mpesa'} },
     ]
+  },
+  promoter: {
+    mark:'🏗️',
+    name:'Kilimani Heights Développement',
+    typeLabel:'Compte principal · Promoteur',
+    address:'Kilimani Road, Nairobi',
+    email:'contact@kilimaniheights.com',
+    tier:'Business Gold',
+    relationLabel:'Statut',
+    addLabel:'+ Ajouter un appartement',
+    addTitle:'Ajouter un appartement',
+    members:[
+      { id:'a1', name:'Coraline Flobinus', role:'Administratrice du compte',       main:true,  pm:{cb:true,  applepay:false, googlepay:false, androidpay:false, paypal:false, mpesa:false, default:'cb'} },
+      { id:'a2', name:'Appartement 4B',    role:'Occupé · Julie Nkurunziza',       main:false, pm:{cb:false, applepay:false, googlepay:false, androidpay:false, paypal:false, mpesa:true,  default:'mpesa'} },
+      { id:'a3', name:'Appartement 12A',   role:'Occupé · Marc Otieno',            main:false, pm:{cb:true,  applepay:false, googlepay:false, androidpay:false, paypal:false, mpesa:false, default:'cb'} },
+      { id:'a4', name:'Appartement 7C',    role:'Vacant',                          main:false, pm:{cb:false, applepay:false, googlepay:false, androidpay:false, paypal:false, mpesa:false, default:null} },
+    ]
+  },
+  enterprise: {
+    mark:'🏙️',
+    name:'Kileleshwa Holdings Ltd — Grand Compte',
+    typeLabel:'Compte principal · Grand Compte',
+    address:'Kileleshwa Business Park, Nairobi',
+    email:'admin@kileleshwaholdings.com',
+    tier:'Business Enterprise',
+    relationLabel:"Poste dans l'entreprise",
+    addLabel:'+ Ajouter un employé',
+    addTitle:'Ajouter un employé',
+    members: buildEnterpriseMembers(104)
   }
 };
 
@@ -659,16 +712,17 @@ function renderBilling(){
         <div class="n">${t.name}</div><div class="p">€${t.monthly}<span style="font-size:11px;color:var(--muted);font-weight:500;"> /mois</span></div>
       </div>`).join('');
   } else {
-    plansTitle.textContent = 'Votre tarif Entreprise';
+    plansTitle.textContent = currentAccountType==='promoter' ? 'Votre tarif Promoteur' : 'Votre tarif Entreprise';
     const subCount = acc.members.filter(m=>!m.main).length;
     const tier = getBusinessTier(subCount);
+    const subNoun = currentAccountType==='promoter' ? 'appartement' : 'sous-compte';
     plansRoot.innerHTML = `
       <div class="plan-option selected" style="cursor:default;">
         <div><div class="n">Compte principal</div><div style="font-size:11px;color:var(--muted);">${tier.label}</div></div>
         <div class="p">€${tier.base}<span style="font-size:11px;color:var(--muted);font-weight:500;"> /mois</span></div>
       </div>
       <div class="plan-option selected" style="cursor:default;">
-        <div><div class="n">${subCount} sous-compte${subCount>1?'s':''}</div><div style="font-size:11px;color:var(--muted);">€${tier.perSub} / mois / sous-compte</div></div>
+        <div><div class="n">${subCount} ${subNoun}${subCount>1?'s':''}</div><div style="font-size:11px;color:var(--muted);">€${tier.perSub} / mois / ${subNoun}</div></div>
         <div class="p">€${subCount*tier.perSub}<span style="font-size:11px;color:var(--muted);font-weight:500;"> /mois</span></div>
       </div>`;
   }
@@ -705,7 +759,8 @@ function renderAccount(){
   document.getElementById('acc-address').textContent = acc.address;
   document.getElementById('acc-email').textContent = acc.email;
   document.getElementById('acc-tier').textContent = acc.tier;
-  document.getElementById('acc-member-count').textContent = acc.members.length + ' sous-comptes';
+  const memberNoun = currentAccountType==='promoter' ? 'appartements' : 'sous-comptes';
+  document.getElementById('acc-member-count').textContent = acc.members.length + ' ' + memberNoun;
   document.getElementById('add-member-label').textContent = acc.addLabel;
 
   const list = document.getElementById('member-list');
@@ -784,19 +839,25 @@ function sendInvite(){
   });
   nameInput.value = '';
   renderAccount();
-  showToast('Invitation envoyée à ' + name);
+  showToast(currentAccountType==='promoter' ? name + ' ajouté au parc immobilier' : 'Invitation envoyée à ' + name);
   showScreen('s-account');
 }
 
+const ADD_MEMBER_FORM_CONFIG = {
+  family:   { nameLabel:'Prénom et nom',         namePlaceholder:'ex. Léa Dupont',       options:['Fils','Fille','Conjoint(e)','Autre membre du foyer'] },
+  business: { nameLabel:'Prénom et nom',         namePlaceholder:'ex. Brian Otieno',     options:['Employé(e) · Direction','Employé(e) · Opérations','Employé(e) · RH','Autre collaborateur'] },
+  promoter: { nameLabel:"Numéro d'appartement",  namePlaceholder:'ex. Appartement 9D',   options:['Occupé','Vacant','En travaux'] },
+  enterprise:{ nameLabel:'Prénom et nom',        namePlaceholder:'ex. Jane Wanjala',     options:['Employé(e) · Direction','Employé(e) · Opérations','Employé(e) · RH','Autre collaborateur'] },
+};
+
 function updateAddMemberForm(){
   const acc = ACCOUNTS[currentAccountType];
+  const cfg = ADD_MEMBER_FORM_CONFIG[currentAccountType];
   document.getElementById('am-title').textContent = acc.addTitle;
+  document.getElementById('am-fullname-label').textContent = cfg.nameLabel;
+  document.getElementById('am-fullname').placeholder = cfg.namePlaceholder;
   document.getElementById('am-relation-label').textContent = acc.relationLabel;
-  const sel = document.getElementById('am-relation');
-  const options = currentAccountType==='family'
-    ? ['Fils','Fille','Conjoint(e)','Autre membre du foyer']
-    : ['Employé(e) · Direction','Employé(e) · Opérations','Employé(e) · RH','Autre collaborateur'];
-  sel.innerHTML = options.map(o=>`<option>${o}</option>`).join('');
+  document.getElementById('am-relation').innerHTML = cfg.options.map(o=>`<option>${o}</option>`).join('');
 }
 
 function showScreen(id){

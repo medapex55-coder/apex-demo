@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>APEX — Dossier Commercial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0C1124; --navy2:#171F3D; --gold:#B08D57; --gold-light:#E9D5A8;
+    --cream:#FAF7F2; --paper:#FFFFFF; --ink:#1B1B1B; --muted:#6B6860; --border:#E7E2D6;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:#3a3a3a;}
+  body{font-family:'Inter',sans-serif; color:var(--ink);}
+  h1,h2,h3,.serif{font-family:'Playfair Display',serif;}
+  img{display:block; max-width:100%;}
+
+  @page{ size:13.333in 7.5in; margin:0; }
+  @media print{
+    body{background:#fff;}
+    .slide{page-break-after:always; box-shadow:none !important; margin:0 !important;}
+  }
+
+  .slide{
+    width:13.333in; height:7.5in; position:relative; overflow:hidden;
+    background:var(--paper); margin:0 auto 24px; box-shadow:0 10px 40px rgba(0,0,0,.35);
+  }
+  .pad{ padding:.75in 1in; height:100%; }
+
+  .eyebrow{ display:inline-flex; align-items:center; gap:10px; font-size:12.5px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); font-weight:700; }
+  .eyebrow::before{ content:""; width:26px; height:1px; background:var(--gold); display:inline-block; }
+
+  .pagenum{ position:absolute; bottom:.4in; right:.6in; font-size:10.5px; letter-spacing:2px; color:rgba(255,255,255,.55); }
+  .pagenum.dark{ color:rgba(20,20,20,.4); }
+  .brandmark{ position:absolute; top:.45in; left:.6in; display:flex; align-items:center; gap:9px; z-index:5; }
+  .brandmark .dot{ width:9px; height:9px; border-radius:50%; background:var(--gold); }
+  .brandmark span{ font-family:'Playfair Display',serif; font-weight:700; letter-spacing:2px; color:#fff; font-size:14px; }
+  .brandmark.dark span{ color:var(--navy); }
+
+  /* ===== SLIDE 1 — COVER ===== */
+  .s-cover{ color:#fff; }
+  .s-cover .bg{ position:absolute; inset:0; background:url('assets/img/hero-elegance.jpg') center 15%/cover; }
+  .s-cover .bg::after{ content:""; position:absolute; inset:0; background:linear-gradient(100deg, rgba(12,17,36,.97) 0%, rgba(12,17,36,.9) 34%, rgba(12,17,36,.55) 62%, rgba(12,17,36,.25) 100%); }
+  .s-cover .content{ position:relative; z-index:2; height:100%; display:flex; flex-direction:column; justify-content:center; padding:0 1in; max-width:7.6in; }
+  .s-cover .kicker{ font-size:13px; letter-spacing:4px; text-transform:uppercase; color:var(--gold-light); margin-bottom:22px; }
+  .s-cover h1{ font-size:64px; line-height:1.05; font-weight:700; }
+  .s-cover h1 em{ font-style:normal; color:var(--gold-light); }
+  .s-cover .sub{ margin-top:26px; font-size:18px; line-height:1.6; color:#D8D9E4; max-width:5.6in; }
+  .s-cover .foot{ margin-top:56px; display:flex; gap:36px; font-size:12.5px; letter-spacing:1px; color:#B9BBD0; }
+  .s-cover .foot b{ color:#fff; display:block; font-family:'Playfair Display',serif; font-size:15px; margin-bottom:4px; letter-spacing:0; }
+
+  /* ===== SLIDE 2 — VISION ===== */
+  .s-vision{ background:var(--navy); color:#fff; }
+  .s-vision .grid{ height:100%; display:grid; grid-template-columns:1fr 1fr; }
+  .s-vision .txt{ padding:.9in 1in .9in .9in; display:flex; flex-direction:column; justify-content:center; }
+  .s-vision h2{ font-size:38px; line-height:1.22; font-weight:600; margin-top:20px; }
+  .s-vision h2 em{ font-style:normal; color:var(--gold-light); }
+  .s-vision p{ margin-top:22px; font-size:15.5px; line-height:1.75; color:#C8C9DA; max-width:5in; }
+  .s-vision .imgwrap{ position:relative; }
+  .s-vision .imgwrap img{ width:100%; height:100%; object-fit:cover; object-position:20% center; }
+  .s-vision .imgwrap::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, var(--navy) 0%, rgba(12,17,36,0) 18%); }
+  .s-vision .stat-row{ margin-top:40px; display:flex; gap:38px; }
+  .s-vision .stat b{ font-family:'Playfair Display',serif; font-size:30px; color:var(--gold-light); display:block; }
+  .s-vision .stat span{ font-size:11.5px; letter-spacing:1px; color:#9698B5; text-transform:uppercase; }
+
+  /* ===== SLIDE 3 — CLIENTELE / MARKET ===== */
+  .s-market{ background:var(--cream); }
+  .s-market .pad{ padding-top:1.05in; }
+  .s-market h2{ font-size:32px; color:var(--navy); font-weight:600; margin-top:18px; max-width:8in; }
+  .s-market .lead{ margin-top:16px; font-size:15px; color:var(--muted); max-width:7.3in; line-height:1.7; }
+  .s-market .cards{ margin-top:38px; display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
+  .s-market .card{ background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:22px 20px; }
+  .s-market .card .n{ font-family:'Playfair Display',serif; font-size:26px; color:var(--gold); font-weight:700; }
+  .s-market .card h4{ font-size:14.5px; color:var(--navy); margin-top:10px; font-weight:700; }
+  .s-market .card p{ font-size:12.5px; color:var(--muted); margin-top:8px; line-height:1.55; }
+
+  /* ===== SLIDE 4 — SERVICES ===== */
+  .s-services{ background:var(--paper); }
+  .s-services .pad{ padding:.6in .7in; height:100%; display:flex; flex-direction:column; }
+  .s-services h2{ font-size:30px; color:var(--navy); font-weight:600; margin-top:16px; }
+  .s-services .lead{ margin-top:8px; font-size:14px; color:var(--muted); max-width:8in; }
+  .s-services .grid{ margin-top:22px; flex:1; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(2,1fr); gap:14px; }
+  .s-services .svc{ position:relative; border-radius:12px; overflow:hidden; }
+  .s-services .svc img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .s-services .svc::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(12,17,36,0) 40%, rgba(12,17,36,.92) 100%); }
+  .s-services .svc .lbl{ position:absolute; left:14px; right:14px; bottom:12px; z-index:2; color:#fff; }
+  .s-services .svc .lbl b{ font-family:'Playfair Display',serif; font-size:15px; display:block; }
+  .s-services .svc .lbl span{ font-size:10.5px; color:var(--gold-light); letter-spacing:.5px; }
+  .s-services .svc.text{ background:var(--navy); display:flex; align-items:center; justify-content:center; text-align:center; padding:14px; }
+  .s-services .svc.text b{ color:#fff; font-family:'Playfair Display',serif; font-size:16px; }
+  .s-services .svc.text span{ color:var(--gold-light); font-size:11px; margin-top:8px; display:block; }
+
+  /* ===== SLIDE 5 — HOW IT WORKS ===== */
+  .s-how{ background:var(--navy); color:#fff; }
+  .s-how .pad{ display:flex; flex-direction:column; justify-content:center; }
+  .s-how h2{ font-size:34px; font-weight:600; margin-top:18px; }
+  .s-how .steps{ margin-top:48px; display:grid; grid-template-columns:repeat(4,1fr); gap:28px; position:relative; }
+  .s-how .steps::before{ content:""; position:absolute; top:26px; left:6%; right:6%; height:1px; background:rgba(255,255,255,.15); }
+  .s-how .step b{ width:52px; height:52px; border-radius:50%; border:1.5px solid var(--gold); color:var(--gold-light); font-family:'Playfair Display',serif; font-size:20px; display:flex; align-items:center; justify-content:center; background:var(--navy); position:relative; z-index:2; }
+  .s-how .step h4{ margin-top:22px; font-family:'Playfair Display',serif; font-size:17px; font-weight:600; }
+  .s-how .step p{ margin-top:10px; font-size:13px; color:#B9BBD0; line-height:1.6; }
+  .s-how .quote{ margin-top:56px; border-top:1px solid rgba(255,255,255,.15); padding-top:26px; font-family:'Playfair Display',serif; font-style:italic; font-size:18px; color:var(--gold-light); max-width:9in; }
+
+  /* ===== SLIDE 6 — MEMBERSHIP ===== */
+  .s-tiers{ background:var(--cream); }
+  .s-tiers h2{ font-size:32px; color:var(--navy); font-weight:600; margin-top:16px; }
+  .s-tiers .lead{ margin-top:8px; font-size:14px; color:var(--muted); }
+  .s-tiers .grid{ margin-top:30px; display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .s-tiers .tier{ background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:26px 24px; position:relative; }
+  .s-tiers .tier.f{ background:var(--navy); border-color:var(--navy); color:#fff; transform:translateY(-10px); box-shadow:0 20px 40px rgba(12,17,36,.25); }
+  .s-tiers .badge{ position:absolute; top:-12px; right:22px; background:var(--gold); color:#fff; font-size:10.5px; letter-spacing:1px; padding:5px 12px; border-radius:100px; font-weight:700; }
+  .s-tiers .tname{ font-family:'Playfair Display',serif; font-size:20px; font-weight:700; color:var(--navy); }
+  .s-tiers .tier.f .tname{ color:#fff; }
+  .s-tiers .ttag{ font-size:12px; color:var(--muted); margin-top:4px; }
+  .s-tiers .tier.f .ttag{ color:var(--gold-light); }
+  .s-tiers .price{ margin-top:16px; font-family:'Playfair Display',serif; font-size:34px; color:var(--gold); font-weight:700; }
+  .s-tiers .price span{ font-family:'Inter',sans-serif; font-size:13px; color:var(--muted); font-weight:400; }
+  .s-tiers .tier.f .price span{ color:#9698B5; }
+  .s-tiers ul{ margin-top:18px; list-style:none; }
+  .s-tiers li{ font-size:12.5px; padding:7px 0; border-top:1px solid var(--border); color:var(--ink); }
+  .s-tiers .tier.f li{ border-color:rgba(255,255,255,.12); color:#D8D9E4; }
+  .s-tiers li:first-child{ border-top:none; }
+  .s-tiers li::before{ content:"— "; color:var(--gold); }
+
+  /* ===== SLIDE 7 — BUSINESS ===== */
+  .s-biz{ background:var(--navy); color:#fff; }
+  .s-biz .grid{ height:100%; display:grid; grid-template-columns:1.05fr 1fr; }
+  .s-biz .imgwrap{ position:relative; }
+  .s-biz .imgwrap img{ width:100%; height:100%; object-fit:cover; }
+  .s-biz .imgwrap::after{ content:""; position:absolute; inset:0; background:linear-gradient(270deg, var(--navy) 0%, rgba(12,17,36,0) 22%); }
+  .s-biz .txt{ padding:.85in .9in .85in .55in; display:flex; flex-direction:column; justify-content:center; }
+  .s-biz h2{ font-size:32px; font-weight:600; margin-top:16px; }
+  .s-biz p{ margin-top:18px; font-size:14px; color:#C8C9DA; line-height:1.7; }
+  .s-biz .biztable{ margin-top:26px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .s-biz .bt{ border:1px solid rgba(255,255,255,.15); border-radius:12px; padding:14px; }
+  .s-biz .bt .r{ font-size:10.5px; color:var(--gold-light); text-transform:uppercase; letter-spacing:.5px; }
+  .s-biz .bt .p{ font-family:'Playfair Display',serif; font-size:21px; margin-top:8px; }
+  .s-biz .bt .s{ font-size:10.5px; color:#9698B5; margin-top:4px; }
+
+  /* ===== SLIDE 8 — TESTIMONIALS ===== */
+  .s-test{ background:var(--paper); }
+  .s-test h2{ font-size:32px; color:var(--navy); font-weight:600; margin-top:16px; text-align:center; }
+  .s-test .grid{ margin-top:44px; display:grid; grid-template-columns:1fr 1fr; gap:40px; }
+  .s-test .card{ background:var(--cream); border-radius:16px; padding:32px 30px; position:relative; }
+  .s-test .card .mark{ font-family:'Playfair Display',serif; font-size:60px; color:var(--gold-light); line-height:0; position:absolute; top:26px; right:28px; }
+  .s-test .quote{ font-family:'Playfair Display',serif; font-size:17px; font-style:italic; color:var(--navy); line-height:1.55; }
+  .s-test .person{ margin-top:22px; display:flex; align-items:center; gap:12px; }
+  .s-test .person img{ width:48px; height:48px; border-radius:50%; object-fit:cover; }
+  .s-test .person b{ font-size:13.5px; color:var(--navy); display:block; }
+  .s-test .person span{ font-size:11.5px; color:var(--gold); }
+
+  /* ===== SLIDE 9 — WHY APEX ===== */
+  .s-why{ background:var(--cream); }
+  .s-why .grid{ height:100%; display:grid; grid-template-columns:1fr 1fr; }
+  .s-why .txt{ padding:.85in .6in .85in .9in; display:flex; flex-direction:column; justify-content:center; }
+  .s-why h2{ font-size:32px; color:var(--navy); font-weight:600; margin-top:16px; }
+  .s-why .list{ margin-top:26px; display:flex; flex-direction:column; gap:18px; }
+  .s-why .item{ display:flex; gap:16px; }
+  .s-why .item .ic{ width:38px; height:38px; border-radius:10px; background:var(--navy); color:var(--gold-light); display:flex; align-items:center; justify-content:center; font-family:'Playfair Display',serif; font-weight:700; flex:0 0 auto; }
+  .s-why .item h4{ font-size:14.5px; color:var(--navy); font-weight:700; }
+  .s-why .item p{ font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.5; }
+  .s-why .imgwrap{ position:relative; }
+  .s-why .imgwrap img{ width:100%; height:100%; object-fit:cover; object-position:center 20%; }
+
+  /* ===== SLIDE 10 — CONTACT ===== */
+  .s-contact{ color:#fff; }
+  .s-contact .bg{ position:absolute; inset:0; background:url('assets/img/nairobi-night.jpg') center/cover; }
+  .s-contact .bg::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(12,17,36,.88) 0%, rgba(12,17,36,.94) 100%); }
+  .s-contact .content{ position:relative; z-index:2; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+  .s-contact .eyebrow{ justify-content:center; }
+  .s-contact h2{ font-size:44px; font-weight:700; margin-top:22px; max-width:9in; }
+  .s-contact h2 em{ font-style:normal; color:var(--gold-light); }
+  .s-contact p{ margin-top:20px; font-size:15px; color:#C8C9DA; max-width:6in; line-height:1.7; }
+  .s-contact .cta{ margin-top:38px; display:inline-flex; gap:14px; }
+  .s-contact .btn{ padding:15px 32px; border-radius:100px; font-weight:700; font-size:13.5px; letter-spacing:.5px; }
+  .s-contact .btn.primary{ background:var(--gold); color:#fff; }
+  .s-contact .btn.outline{ border:1px solid rgba(255,255,255,.4); color:#fff; }
+  .s-contact .contacts{ margin-top:54px; display:flex; gap:48px; font-size:13px; color:#D8D9E4; }
+  .s-contact .contacts b{ display:block; color:var(--gold-light); font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:6px; }
+</style>
+</head>
+<body>
+
+<!-- 1 — COVER -->
+<section class="slide s-cover">
+  <div class="bg"></div>
+  <div class="content">
+    <div class="kicker">Dossier Commercial — Nairobi, Kenya</div>
+    <h1>Conciergerie privée<br><em>d'exception</em></h1>
+    <p class="sub">APEX orchestre chaque aspect de la vie de ses membres — voyages, sécurité, santé, réceptions, immobilier — avec la rigueur et la discrétion d'un service véritablement haut de gamme.</p>
+    <div class="foot">
+      <div><b>APEX</b>Africa Personal Experience</div>
+      <div><b>Disponibilité</b>24/7, toute l'année</div>
+      <div><b>Positionnement</b>Premium &amp; confidentiel</div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 — VISION -->
+<section class="slide s-vision">
+  <div class="grid">
+    <div class="txt">
+      <div class="eyebrow">Notre philosophie</div>
+      <h2>Le luxe véritable, c'est <em>l'attention</em> portée à chaque détail.</h2>
+      <p>Nos membres ne cherchent pas seulement un service rapide : ils attendent une exécution irréprochable, une discrétion absolue et un interlocuteur unique en qui ils peuvent avoir une confiance totale, à toute heure.</p>
+      <p>APEX a été conçu comme un cabinet de conciergerie personnelle — pas comme une application de plus. Chaque demande est prise en charge par un concierge dédié, jusqu'à sa parfaite exécution.</p>
+      <div class="stat-row">
+        <div class="stat"><b>24/7</b><span>Disponibilité</span></div>
+        <div class="stat"><b>8</b><span>Domaines couverts</span></div>
+        <div class="stat"><b>100%</b><span>Suivi personnalisé</span></div>
+      </div>
+    </div>
+    <div class="imgwrap"><img src="assets/img/lifestyle-detail.jpg" alt=""></div>
+  </div>
+</section>
+
+<!-- 3 — MARKET -->
+<section class="slide s-market">
+  <div class="pad">
+    <div class="eyebrow" style="color:#8a6c3e;">Notre clientèle</div>
+    <h2>Une clientèle exigeante, qui n'a ni le temps ni l'envie de gérer l'accessoire.</h2>
+    <p class="lead">Dirigeants d'entreprise, diplomates, familles expatriées, family offices : nos membres évoluent dans un quotidien à forte pression, où chaque minute compte et où l'erreur n'est pas permise.</p>
+    <div class="cards">
+      <div class="card"><div class="n">01</div><h4>Dirigeants &amp; cadres</h4><p>Agendas denses, déplacements fréquents, exigence de fiabilité absolue.</p></div>
+      <div class="card"><div class="n">02</div><h4>Diplomates</h4><p>Protocole, sécurité et discrétion au cœur de chaque demande.</p></div>
+      <div class="card"><div class="n">03</div><h4>Familles expatriées</h4><p>Installation, école, santé, logement — un accompagnement complet.</p></div>
+      <div class="card"><div class="n">04</div><h4>Family offices</h4><p>Gestion déléguée du quotidien pour des familles à haut patrimoine.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 — SERVICES -->
+<section class="slide s-services">
+  <div class="pad">
+    <div class="eyebrow" style="color:#8a6c3e;">Notre offre</div>
+    <h2>Une seule plateforme, toutes les demandes.</h2>
+    <p class="lead">Du dîner de dernière minute au transfert privé, de la sécurité rapprochée à la scolarisation des enfants — un seul numéro, une exécution sans faille.</p>
+    <div class="grid">
+      <div class="svc"><img src="assets/img/svc-executive.jpg" alt=""><div class="lbl"><b>Support Exécutif</b><span>Logistique &amp; relocation</span></div></div>
+      <div class="svc"><img src="assets/img/svc-dining.jpg" alt=""><div class="lbl"><b>Dining &amp; Hospitalité</b><span>Tables exclusives</span></div></div>
+      <div class="svc"><img src="assets/img/svc-security.jpg" alt=""><div class="lbl"><b>Sécurité &amp; Protection</b><span>Discrétion assurée</span></div></div>
+      <div class="svc"><img src="assets/img/svc-events.jpg" alt=""><div class="lbl"><b>Événements &amp; Lifestyle</b><span>Accès VIP</span></div></div>
+      <div class="svc"><img src="assets/img/svc-home.jpg" alt=""><div class="lbl"><b>Immobilier &amp; Maison</b><span>Installation, staff</span></div></div>
+      <div class="svc"><img src="assets/img/svc-wellness.jpg" alt=""><div class="lbl"><b>Santé &amp; Bien-être</b><span>Cliniques privées</span></div></div>
+      <div class="svc"><img src="assets/img/svc-family.jpg" alt=""><div class="lbl"><b>Famille &amp; Éducation</b><span>Écoles, tuteurs</span></div></div>
+      <div class="svc text"><b>+ Voyages &amp; Logistique</b><span>Jets privés, transferts VIP, visas fast-track</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 — HOW -->
+<section class="slide s-how">
+  <div class="pad">
+    <div class="eyebrow">Simplicité d'exécution</div>
+    <h2>Quatre étapes, aucune friction.</h2>
+    <div class="steps">
+      <div class="step"><b>1</b><h4>La demande</h4><p>Un message, un appel ou l'application — quel que soit le canal, la demande est prise en compte immédiatement.</p></div>
+      <div class="step"><b>2</b><h4>La prise en charge</h4><p>Un concierge dédié devient responsable de la demande, du premier contact jusqu'à la clôture.</p></div>
+      <div class="step"><b>3</b><h4>Le suivi</h4><p>Chaque étape est communiquée en temps réel — aucune zone d'ombre, aucune relance nécessaire.</p></div>
+      <div class="step"><b>4</b><h4>Le règlement</h4><p>Facturation claire, paiement M-Pesa ou carte, consolidation possible pour les comptes entreprise.</p></div>
+    </div>
+    <div class="quote">« Une évacuation médicale organisée en une matinée, sans que je n'aie eu à passer un seul appel. »</div>
+  </div>
+</section>
+
+<!-- 6 — MEMBERSHIP -->
+<section class="slide s-tiers">
+  <div class="pad">
+    <div class="eyebrow" style="color:#8a6c3e;">Adhésion</div>
+    <h2>Trois niveaux d'accès, un même standard d'exigence.</h2>
+    <p class="lead">Chaque formule inclut un concierge dédié et l'accès prioritaire à notre réseau de partenaires sélectionnés.</p>
+    <div class="grid">
+      <div class="tier">
+        <div class="tname">Silver</div><div class="ttag">Pour bien commencer</div>
+        <div class="price">€15<span> / mois</span></div>
+        <ul><li>10 demandes / mois</li><li>Temps de réponse standard</li><li>Accès au réseau partenaire</li></ul>
+      </div>
+      <div class="tier f">
+        <div class="badge">Le plus choisi</div>
+        <div class="tname">Gold</div><div class="ttag">Le plus populaire</div>
+        <div class="price">€55<span> / mois</span></div>
+        <ul><li>30 demandes / mois</li><li>Réponse prioritaire</li><li>Concierge dédié</li></ul>
+      </div>
+      <div class="tier">
+        <div class="tname">Platinum</div><div class="ttag">Illimité &amp; personnel</div>
+        <div class="price">€120<span> / mois</span></div>
+        <ul><li>Demandes illimitées</li><li>Réponse immédiate, 24/7</li><li>Concierge senior personnel</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 — BUSINESS -->
+<section class="slide s-biz">
+  <div class="grid">
+    <div class="imgwrap"><img src="assets/img/business-cta.jpg" alt=""></div>
+    <div class="txt">
+      <div class="eyebrow">Offre entreprise</div>
+      <h2>La mobilité de vos cadres, simplifiée.</h2>
+      <p>APEX accompagne entreprises, ambassades et family offices dans la gestion des déplacements, de la relocation et du quotidien de leurs équipes au Kenya — avec facturation consolidée et compte dédié.</p>
+      <div class="biztable">
+        <div class="bt"><div class="r">0–10 comptes</div><div class="p">€89</div><div class="s">+ €29 / sous-compte</div></div>
+        <div class="bt"><div class="r">11–99 comptes</div><div class="p">€150</div><div class="s">+ €9 / sous-compte</div></div>
+        <div class="bt"><div class="r">100+ comptes</div><div class="p">€450</div><div class="s">+ €29 / sous-compte</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 — TESTIMONIALS -->
+<section class="slide s-test">
+  <div class="pad" style="padding-top:.95in;">
+    <h2>Ce qu'en disent nos membres.</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="mark">”</div>
+        <p class="quote">« APEX a organisé une évacuation médicale le jour même pour mon père. Le suivi a été irréprochable, du premier appel à la dernière mise à jour. »</p>
+        <div class="person"><img src="assets/img/avatar1.jpg" alt="Amina W."><div><b>Amina W.</b><span>Membre Platinum, Nairobi</span></div></div>
+      </div>
+      <div class="card">
+        <div class="mark">”</div>
+        <p class="quote">« Notre directeur régional s'est installé à Nairobi en deux semaines — logement, école, tout. C'était d'une simplicité déconcertante. »</p>
+        <div class="person"><img src="assets/img/avatar2.jpg" alt="James O."><div><b>James O.</b><span>Directeur RH, Compte Entreprise</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 — WHY APEX -->
+<section class="slide s-why">
+  <div class="grid">
+    <div class="txt">
+      <div class="eyebrow" style="color:#8a6c3e;">Nos différenciateurs</div>
+      <h2>Pourquoi APEX, et pas un autre.</h2>
+      <div class="list">
+        <div class="item"><div class="ic">01</div><div><h4>Discrétion absolue</h4><p>Confidentialité contractuelle sur chaque dossier, chaque partenaire, chaque membre.</p></div></div>
+        <div class="item"><div class="ic">02</div><div><h4>Expertise locale</h4><p>Une équipe basée à Nairobi, qui connaît les meilleurs partenaires et sait éviter les mauvaises surprises.</p></div></div>
+        <div class="item"><div class="ic">03</div><div><h4>Disponibilité réelle</h4><p>24 heures sur 24, 7 jours sur 7 — sans standard automatisé ni file d'attente.</p></div></div>
+        <div class="item"><div class="ic">04</div><div><h4>Exigence de qualité</h4><p>Un réseau de partenaires sélectionné et audité, pas une liste d'annuaire.</p></div></div>
+      </div>
+    </div>
+    <div class="imgwrap"><img src="assets/img/family-portrait.jpg" alt=""></div>
+  </div>
+</section>
+
+<!-- 10 — CONTACT -->
+<section class="slide s-contact">
+  <div class="bg"></div>
+  <div class="content">
+    <div class="eyebrow">Prochaine étape</div>
+    <h2>Offrez à vos équipes et à vos proches <em>l'exigence APEX.</em></h2>
+    <p>Discutons de vos besoins et construisons ensemble la formule la plus adaptée à votre organisation ou à votre foyer.</p>
+    <div class="cta">
+      <div class="btn primary">Demander une démonstration</div>
+      <div class="btn outline">Parler à notre équipe</div>
+    </div>
+    <div class="contacts">
+      <div><b>Email</b>hello@apex-concierge.com</div>
+      <div><b>Téléphone</b>+254 700 000 000</div>
+      <div><b>Bureau</b>Nairobi, Kenya</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

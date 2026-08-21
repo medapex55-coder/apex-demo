@@ -31,11 +31,57 @@
     </nav>
     <div class="nav-right">
       <select class="lang-select" aria-label="Language"></select>
+      <button class="btn btn-outline btn-auth" onclick="openAuthModal('login')" data-i18n="nav.login">Se connecter</button>
       <a href="#contact" class="btn btn-primary" data-i18n="nav.cta">Request Access</a>
       <button class="navbtn-menu" aria-label="Menu">☰</button>
     </div>
   </div>
 </header>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="auth-modal" onclick="if(event.target===this) closeAuthModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAuthModal()" aria-label="Fermer">✕</button>
+    <img class="modal-logo" src="assets/img/apex-logo-full.svg" alt="APEX — Africa Personal Experience">
+
+    <div class="modal-tabs" id="auth-tabs">
+      <div class="modal-tab active" data-tab="login" onclick="switchAuthTab('login')">Se connecter</div>
+      <div class="modal-tab" data-tab="signup" onclick="switchAuthTab('signup')">Créer un compte</div>
+    </div>
+
+    <div class="modal-pane active" id="pane-login">
+      <div class="form-field"><label>Email</label><input type="email" id="login-email" placeholder="vous@email.com"></div>
+      <div class="form-field"><label>Mot de passe</label><input type="password" placeholder="••••••••"></div>
+      <div class="btn btn-primary btn-block" onclick="submitLogin()">Se connecter</div>
+      <p class="modal-switch-note">Pas encore de compte ? <a href="#" onclick="event.preventDefault(); switchAuthTab('signup')">Créer un compte</a></p>
+    </div>
+
+    <div class="modal-pane" id="pane-signup">
+      <div class="account-type-toggle">
+        <div class="atype active" data-atype="particulier" onclick="selectAccountType(this,'particulier')">👤 Particulier</div>
+        <div class="atype" data-atype="societe" onclick="selectAccountType(this,'societe')">🏢 Société</div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label id="lbl-firstname">Prénom</label><input type="text" id="su-firstname" placeholder="Claire"></div>
+        <div class="form-field"><label id="lbl-lastname">Nom</label><input type="text" id="su-lastname" placeholder="Dupont"></div>
+      </div>
+      <div class="form-field"><label>Numéro de téléphone</label><input type="tel" id="su-phone" placeholder="+254 7•• •• ••••"></div>
+      <div class="form-field"><label>Email</label><input type="email" id="su-email" placeholder="vous@email.com"></div>
+      <div class="form-field"><label>Adresse</label><input type="text" id="su-address" placeholder="12 Riverside Drive, Nairobi"></div>
+      <div class="btn btn-primary btn-block" id="signup-submit-btn" onclick="submitSignup()">Créer mon compte</div>
+      <p class="modal-switch-note">Déjà membre ? <a href="#" onclick="event.preventDefault(); switchAuthTab('login')">Se connecter</a></p>
+    </div>
+
+    <div class="modal-pane" id="pane-success">
+      <div class="modal-success">
+        <div class="success-ic">✓</div>
+        <h3 id="success-title">Bienvenue chez APEX</h3>
+        <p id="success-text">Votre compte a été créé avec succès.</p>
+        <a class="btn btn-primary btn-block" href="client_app.html" target="_blank" rel="noopener">Accéder à mon espace membre →</a>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- HERO -->
 <section class="hero">
@@ -283,10 +329,7 @@
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a href="#" class="brand">
-          <img class="mark" src="assets/img/logo-mark.svg" alt="APEX" width="38" height="38">
-          <div class="txt"><div class="name">APEX</div><div class="tag" data-i18n="brand.tagline">Africa Personal Experience</div></div>
-        </a>
+        <a href="#"><img class="footer-logo-full" src="assets/img/apex-logo-full.svg" alt="APEX — Africa Personal Experience"></a>
         <p class="footer-desc" data-i18n="footer.desc">A private concierge platform built for life in Kenya.</p>
       </div>
       <div class="footer-col">
@@ -318,5 +361,56 @@
 </footer>
 
 <script src="assets/js/i18n.js"></script>
+<script>
+let signupAccountType = 'particulier';
+
+function openAuthModal(tab){
+  document.getElementById('auth-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  switchAuthTab(tab || 'login');
+}
+function closeAuthModal(){
+  document.getElementById('auth-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function switchAuthTab(tab){
+  document.querySelectorAll('.modal-tab').forEach(t=> t.classList.toggle('active', t.dataset.tab===tab));
+  document.getElementById('auth-tabs').style.display = tab==='success' ? 'none' : 'flex';
+  document.querySelectorAll('.modal-pane').forEach(p=> p.classList.remove('active'));
+  document.getElementById('pane-' + tab).classList.add('active');
+}
+function selectAccountType(el, type){
+  signupAccountType = type;
+  document.querySelectorAll('.atype').forEach(a=> a.classList.toggle('active', a===el));
+  const firstLbl = document.getElementById('lbl-firstname');
+  const lastLbl = document.getElementById('lbl-lastname');
+  if(type==='societe'){
+    firstLbl.textContent = 'Prénom du contact';
+    lastLbl.textContent = 'Nom de la société';
+  } else {
+    firstLbl.textContent = 'Prénom';
+    lastLbl.textContent = 'Nom';
+  }
+}
+function submitLogin(){
+  closeAuthModal();
+}
+function submitSignup(){
+  const firstname = document.getElementById('su-firstname').value.trim();
+  const lastname = document.getElementById('su-lastname').value.trim();
+  if(!firstname || !lastname){
+    document.getElementById('signup-submit-btn').textContent = 'Merci de renseigner votre nom';
+    setTimeout(()=>{ document.getElementById('signup-submit-btn').textContent = 'Créer mon compte'; }, 1800);
+    return;
+  }
+  const title = signupAccountType==='societe' ? 'Bienvenue, ' + lastname : 'Bienvenue, ' + firstname;
+  const text = signupAccountType==='societe'
+    ? 'Votre compte Société a été créé. Vous pourrez ajouter vos employés en tant que sous-comptes depuis votre espace membre.'
+    : 'Votre compte Particulier a été créé. Vous pourrez ajouter les membres de votre famille en tant que sous-comptes depuis votre espace membre.';
+  document.getElementById('success-title').textContent = title;
+  document.getElementById('success-text').textContent = text;
+  switchAuthTab('success');
+}
+</script>
 </body>
 </html>
