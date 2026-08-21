@@ -746,6 +746,8 @@ function checkQuoteChanges(){
     if(liveBridgeInitialized && prev !== quote.status){
       if(!prev && quote.status === 'sent'){
         showToast('📄 Un devis de €' + quote.totalTTC.toFixed(2) + ' vous a été envoyé — ' + r.service);
+        const onThisChat = document.querySelector('.screen.active')?.id === 's-request' && currentChatRequestId === r.id;
+        if(onThisChat) switchChatTab('quote');
       }
     }
     knownQuoteStatuses[r.id] = quote.status;
