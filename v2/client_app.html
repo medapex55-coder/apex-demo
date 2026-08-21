@@ -83,6 +83,13 @@
   .badge.pending{ background:var(--info-bg); color:var(--info); }
   .list-item.live{ border-color:var(--gold); }
 
+  .chat-tabs{ display:flex; gap:8px; margin:14px 20px; background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:4px; }
+  .chat-tab{ flex:1; text-align:center; padding:9px; border-radius:9px; font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; }
+  .chat-tab.active{ background:var(--navy); color:#fff; }
+  .tab-badge{ display:inline-block; min-width:16px; height:16px; padding:0 4px; border-radius:20px; background:var(--danger); color:#fff; font-size:10px; font-weight:700; line-height:16px; margin-left:5px; vertical-align:middle; }
+  .chat-pane{ display:none; }
+  .chat-pane.active{ display:block; }
+
   .quote-card{ margin:0 20px 16px; background:var(--paper); border:1.5px solid var(--gold); border-radius:16px; padding:16px; }
   .quote-card .qhead{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; }
   .quote-card .qhead .t{ font-weight:700; font-size:14px; }
@@ -306,13 +313,24 @@
       <div><div class="name">David Kamau</div><div class="role">Concierge assigné</div></div>
       <div class="iconbtn">📞</div>
     </div>
-    <div id="quote-card"></div>
-    <div class="chat" id="chat-messages"></div>
-    <div style="margin:0 20px; display:flex; gap:8px;">
-      <input id="chat-input" type="text" placeholder="Écrire un message…" autocomplete="off"
-             style="flex:1; background:var(--paper); border:1px solid var(--border); border-radius:20px; padding:10px 16px; color:var(--ink); font-size:13px; font-family:'Inter',sans-serif;"
-             onkeydown="if(event.key==='Enter'){ event.preventDefault(); sendClientMessage(); }">
-      <div style="width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="sendClientMessage()">➤</div>
+
+    <div class="chat-tabs">
+      <div class="chat-tab active" data-ctab="messages" onclick="switchChatTab('messages')">💬 Messages</div>
+      <div class="chat-tab" data-ctab="quote" onclick="switchChatTab('quote')">📄 Devis<span class="tab-badge" id="quote-tab-badge" style="display:none;"></span></div>
+    </div>
+
+    <div class="chat-pane active" id="chat-pane-messages">
+      <div class="chat" id="chat-messages"></div>
+      <div style="margin:0 20px; display:flex; gap:8px;">
+        <input id="chat-input" type="text" placeholder="Écrire un message…" autocomplete="off"
+               style="flex:1; background:var(--paper); border:1px solid var(--border); border-radius:20px; padding:10px 16px; color:var(--ink); font-size:13px; font-family:'Inter',sans-serif;"
+               onkeydown="if(event.key==='Enter'){ event.preventDefault(); sendClientMessage(); }">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="sendClientMessage()">➤</div>
+      </div>
+    </div>
+
+    <div class="chat-pane" id="chat-pane-quote">
+      <div id="quote-card"></div>
     </div>
     <div style="height:20px"></div>
   </div>
@@ -602,7 +620,7 @@ function openRequestChat(serviceName){
   showScreen('s-request');
 }
 
-function renderChat(){
+function renderChat(isFreshEntry){
   const titleEl = document.getElementById('chat-title');
   const root = document.getElementById('chat-messages');
   if(!root) return;
@@ -625,6 +643,12 @@ function renderChat(){
   }
   root.scrollTop = root.scrollHeight;
   renderQuoteCard();
+
+  if(isFreshEntry){
+    const quote = apexBridgeLoadQuote(currentChatRequestId);
+    const hasUnseenQuote = quote && !quoteTabViewed[currentChatRequestId];
+    switchChatTab(hasUnseenQuote ? 'quote' : 'messages');
+  }
 }
 
 /* ===== Devis reçu du concierge ===== */
@@ -668,6 +692,28 @@ function renderQuoteCard(){
     <div class="qtotal"><span>Total TTC</span><span>€${quote.totalTTC.toFixed(2)}</span></div>
     ${actionsHTML}
   </div>`;
+  updateQuoteTabBadge();
+}
+
+let quoteTabViewed = {};
+
+function switchChatTab(tab){
+  document.querySelectorAll('.chat-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === tab));
+  document.getElementById('chat-pane-messages').classList.toggle('active', tab === 'messages');
+  document.getElementById('chat-pane-quote').classList.toggle('active', tab === 'quote');
+  if(tab === 'quote' && currentChatRequestId){
+    quoteTabViewed[currentChatRequestId] = true;
+    updateQuoteTabBadge();
+  }
+}
+
+function updateQuoteTabBadge(){
+  const badge = document.getElementById('quote-tab-badge');
+  if(!badge) return;
+  const quote = currentChatRequestId ? apexBridgeLoadQuote(currentChatRequestId) : null;
+  const unseen = quote && !quoteTabViewed[currentChatRequestId];
+  badge.style.display = unseen ? 'inline-block' : 'none';
+  badge.textContent = '1';
 }
 
 function respondToQuote(accepted){
@@ -737,7 +783,10 @@ function renderLiveRequests(){
     const seen = clientSeenMsgCount[r.id] || 0;
     const chatScreenOpenFor = document.querySelector('.screen.active')?.id === 's-request' && r.id === currentChatRequestId;
     const hasUnread = msgCount > seen && !chatScreenOpenFor;
-    const sub = (hasUnread ? '💬 Nouveau message · ' : '') + (r.concierge ? 'Concierge : ' + r.concierge : 'En attente d\'un concierge');
+    const quote = apexBridgeLoadQuote(r.id);
+    const hasUnseenQuote = quote && !quoteTabViewed[r.id];
+    const flag = hasUnseenQuote ? '📄 Devis reçu · ' : (hasUnread ? '💬 Nouveau message · ' : '');
+    const sub = flag + (r.concierge ? 'Concierge : ' + r.concierge : 'En attente d\'un concierge');
     return `<div class="list-item live" onclick="resumeChat('${r.id}')">
       <div class="ic">🔴</div>
       <div class="txt"><div class="t1">${r.service}</div><div class="t2">${sub}</div></div>
@@ -1098,7 +1147,7 @@ function showScreen(id){
   document.querySelectorAll('.navbtn').forEach(n=>n.classList.toggle('active', n.dataset.nav===navMap[id]));
   if(id === 's-add-member') updateAddMemberForm();
   if(id === 's-billing') renderBilling();
-  if(id === 's-request') renderChat();
+  if(id === 's-request') renderChat(true);
   if(id === 's-home') renderLiveRequests();
 }
 function nav(el,id){ showScreen(id); }
