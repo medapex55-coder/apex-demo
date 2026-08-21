@@ -557,6 +557,12 @@ function requestService(name){
 let knownLiveStatuses = {};
 let liveBridgeInitialized = false;
 let currentChatRequestId = null;
+let clientSeenMsgCount = {};
+
+function resumeChat(requestId){
+  currentChatRequestId = requestId;
+  showScreen('s-request');
+}
 
 function submitLiveRequest(serviceName){
   const acc = ACCOUNTS[currentAccountType];
@@ -590,6 +596,7 @@ function renderChat(){
   const req = apexBridgeLoad().find(r => r.id === currentChatRequestId);
   if(titleEl) titleEl.textContent = req ? req.service : 'Nouvelle demande';
   const messages = apexBridgeLoadMessages(currentChatRequestId);
+  clientSeenMsgCount[currentChatRequestId] = messages.length;
   if(!messages.length){
     root.innerHTML = '<div class="bubble them">Bonsoir, votre demande a bien été transmise. Un concierge va la prendre en charge sous peu — vous pouvez déjà m\'écrire ici.</div>';
   } else {
@@ -627,8 +634,12 @@ function renderLiveRequests(){
   };
   root.innerHTML = list.slice(0, 6).map(r=>{
     const meta = statusMeta[r.status] || { label:r.status, cls:'pending' };
-    const sub = r.concierge ? 'Concierge : ' + r.concierge : 'En attente d\'un concierge';
-    return `<div class="list-item live" style="cursor:default;">
+    const msgCount = apexBridgeLoadMessages(r.id).length;
+    const seen = clientSeenMsgCount[r.id] || 0;
+    const chatScreenOpenFor = document.querySelector('.screen.active')?.id === 's-request' && r.id === currentChatRequestId;
+    const hasUnread = msgCount > seen && !chatScreenOpenFor;
+    const sub = (hasUnread ? '💬 Nouveau message · ' : '') + (r.concierge ? 'Concierge : ' + r.concierge : 'En attente d\'un concierge');
+    return `<div class="list-item live" onclick="resumeChat('${r.id}')">
       <div class="ic">🔴</div>
       <div class="txt"><div class="t1">${r.service}</div><div class="t2">${sub}</div></div>
       <span class="badge ${meta.cls}">${meta.label}</span>
@@ -987,6 +998,7 @@ function showScreen(id){
   if(id === 's-add-member') updateAddMemberForm();
   if(id === 's-billing') renderBilling();
   if(id === 's-request') renderChat();
+  if(id === 's-home') renderLiveRequests();
 }
 function nav(el,id){ showScreen(id); }
 

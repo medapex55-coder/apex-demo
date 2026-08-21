@@ -408,6 +408,13 @@ const BASE_MONTH_REVENUE = 3400;
 let currentRequestKey = null;
 let LIVE_KEYS = [];
 let liveSyncInitialized = false;
+let seenMsgCount = {};
+let lastNotifiedMsgCount = {};
+
+function currentChatOpenKey(){
+  const activeScreen = document.querySelector('.screen.active');
+  return (activeScreen && activeScreen.id === 's-chat') ? currentRequestKey : null;
+}
 
 function syncLiveRequests(){
   if(typeof apexBridgeLoad !== 'function') return;
@@ -424,11 +431,28 @@ function syncLiveRequests(){
         status: r.status,
         amount: 0,
         live: true,
+        hasUnread: false,
       };
       LIVE_KEYS.unshift(r.id);
+      seenMsgCount[r.id] = 0;
+      lastNotifiedMsgCount[r.id] = 0;
       if(liveSyncInitialized) showToast('🔴 New live request: ' + r.service + ' (' + r.client + ')');
     } else if(REQUESTS[r.id].live && REQUESTS[r.id].status !== r.status){
       REQUESTS[r.id].status = r.status;
+    }
+
+    if(REQUESTS[r.id] && REQUESTS[r.id].live){
+      const msgs = apexBridgeLoadMessages(r.id);
+      const seen = seenMsgCount[r.id] || 0;
+      REQUESTS[r.id].hasUnread = msgs.length > seen && currentChatOpenKey() !== r.id;
+      const lastNotified = lastNotifiedMsgCount[r.id] || 0;
+      if(liveSyncInitialized && msgs.length > lastNotified){
+        const lastMsg = msgs[msgs.length - 1];
+        if(lastMsg.sender === 'client' && currentChatOpenKey() !== r.id){
+          showToast('💬 New message from ' + REQUESTS[r.id].client + ' — ' + REQUESTS[r.id].service);
+        }
+      }
+      lastNotifiedMsgCount[r.id] = msgs.length;
     }
   });
   liveSyncInitialized = true;
@@ -444,7 +468,9 @@ function taskBadgesHTML(r){
 function taskRowHTML(key){
   const r = REQUESTS[key];
   const cls = 'task' + (r.status==='new' && r.slaClass==='red' ? ' urgent' : '') + (r.status==='done' ? ' done' : '') + (r.live ? ' live' : '');
-  const clientLine = (r.live ? '<span class="live-tag">🔴 LIVE</span> ' : '') + r.client + (r.tier ? ' · ' + r.tier : '');
+  const liveTag = r.live ? '<span class="live-tag">🔴 LIVE</span> ' : '';
+  const unreadTag = r.hasUnread ? '<span class="live-tag" style="color:var(--danger);">💬 New message</span> ' : '';
+  const clientLine = liveTag + unreadTag + r.client + (r.tier ? ' · ' + r.tier : '');
   return `<div class="${cls}" onclick="openDetail('${key}')">
     <div class="top"><div><div class="cl">${clientLine}</div><div class="svc">${r.service}</div></div>${taskBadgesHTML(r)}</div>
     <div class="meta">${r.received}</div>
@@ -510,7 +536,10 @@ function renderChat(){
 
   let messages;
   if(r.live){
-    messages = apexBridgeLoadMessages(currentRequestKey).map(m=>({ sender: m.sender, text: m.text }));
+    const rawMessages = apexBridgeLoadMessages(currentRequestKey);
+    seenMsgCount[currentRequestKey] = rawMessages.length;
+    r.hasUnread = false;
+    messages = rawMessages.map(m=>({ sender: m.sender, text: m.text }));
     if(!messages.length) messages = [{ sender:'concierge', text:'(En attente du premier message du client…)' }];
   } else {
     if(!LOCAL_DEMO_MESSAGES[currentRequestKey]){
