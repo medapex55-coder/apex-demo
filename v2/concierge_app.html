@@ -76,6 +76,9 @@
   .chat-pane{ display:none; }
   .chat-pane.active{ display:block; }
   .live-tag{ font-size:10.5px; font-weight:700; color:var(--gold); }
+  .flagbtn{ display:inline-block; font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; margin-left:6px; cursor:pointer; background:var(--cream); color:var(--muted); border:1px solid var(--border); }
+  .flagbtn.urgent.on{ background:var(--danger-bg); color:var(--danger); border-color:transparent; }
+  .flagbtn.special.on{ background:var(--warn-bg); color:var(--warn); border-color:transparent; }
   .task .meta{ font-size:11.5px; color:var(--muted); margin-top:8px; }
 
   .detail-card{ margin:16px 20px; background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:16px; }
@@ -191,8 +194,12 @@
       <div class="stat"><div class="n">18 min</div><div class="l">Avg. time</div></div>
       <div class="stat"><div class="n">98%</div><div class="l">SLA met</div></div>
     </div>
-    <div class="section-title">Needs attention now</div>
-    <div id="dash-attention"></div>
+    <div class="section-title">🔴 Demandes urgentes</div>
+    <div id="dash-urgent"></div>
+    <div class="section-title">Demandes en cours</div>
+    <div id="dash-active"></div>
+    <div class="section-title">Demandes traitées</div>
+    <div id="dash-done"></div>
     <div class="section-title">Awaiting payment <span class="more" onclick="showScreen('s-revenue')">See revenue →</span></div>
     <div class="task" onclick="openInvoice('jkia')">
       <div class="top"><div><div class="cl">Amina Wanjiru</div><div class="svc">Invoice #APX-INV-2214</div></div><span class="sla blue">Pending</span></div>
@@ -201,12 +208,19 @@
     <div style="height:20px"></div>
   </div>
 
-  <!-- QUEUE -->
+  <!-- MY REQUESTS -->
   <div class="screen" id="s-queue">
     <div class="appbar" style="padding-bottom:14px;">
-      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">Task Queue</div><h1 style="font-size:19px;" id="queue-count">5 active requests</h1></div></div>
+      <div class="left"><img class="logo" src="assets/img/logo-mark.svg" alt="APEX"><div><div class="brand">My Requests</div><h1 style="font-size:19px;" id="queue-count">5 requests</h1></div></div>
     </div>
-    <div id="queue-list"></div>
+    <div class="section-title">🔴 Urgent</div>
+    <div id="q-urgent"></div>
+    <div class="section-title">À traiter</div>
+    <div id="q-pending"></div>
+    <div class="section-title">⭐ Spécial</div>
+    <div id="q-special"></div>
+    <div class="section-title">✓ Fait</div>
+    <div id="q-done"></div>
     <div style="height:20px"></div>
   </div>
 
@@ -216,8 +230,12 @@
       <div class="left"><span class="back" onclick="showScreen('s-queue')">←</span><div><div class="brand">Request detail</div><h1 style="font-size:19px;" id="detail-title">VIP Airport Transfer</h1></div></div>
     </div>
     <div class="detail-card">
-      <h3 id="detail-client-name">Amina Wanjiru</h3>
+      <h3 id="detail-client-name" onclick="openClientProfile(currentRequestKey)" style="cursor:pointer;">Amina Wanjiru <span style="font-size:11.5px; color:var(--gold); font-weight:700;">👤 Fiche client ›</span></h3>
       <div class="kv"><span>Status</span><span class="v strong" id="detail-status">New request</span></div>
+      <div class="kv"><span>Priorité</span><span class="v">
+        <span class="flagbtn urgent" id="flag-urgent" onclick="toggleRequestFlag('urgent')">🔴 Urgent</span>
+        <span class="flagbtn special" id="flag-special" onclick="toggleRequestFlag('special')">⭐ Spécial</span>
+      </span></div>
       <div class="kv"><span>Member since</span><span class="v">2024 · Platinum</span></div>
       <div class="kv" id="detail-flight-row"><span>Flight</span><span class="v">KQ102, arriving 18:40</span></div>
       <div class="kv" id="detail-vehicle-row"><span>Vehicle</span><span class="v">Armoured sedan + driver</span></div>
@@ -237,6 +255,26 @@
       <div class="kv"><span>19 Jul</span><span class="v">Restaurant booking — completed</span></div>
       <div class="kv"><span>14 Jul</span><span class="v">Health check-up — completed</span></div>
     </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- CLIENT PROFILE -->
+  <div class="screen" id="s-client-profile">
+    <div class="appbar" style="padding-bottom:6px;">
+      <div class="left"><span class="back" onclick="showScreen('s-detail')">←</span><div class="brand">Client Profile</div></div>
+    </div>
+    <div class="profile-head">
+      <div class="avatar" id="cp-avatar">A</div>
+      <h2 style="margin:0; font-size:18px;" id="cp-name">Amina Wanjiru</h2>
+      <div style="color:var(--muted); font-size:13px;" id="cp-tier">Platinum · Membre depuis 2024</div>
+    </div>
+    <div class="section-title">Coordonnées</div>
+    <div class="detail-card">
+      <div class="kv"><span>Email</span><span class="v" id="cp-email">—</span></div>
+      <div class="kv"><span>Téléphone</span><span class="v" id="cp-phone">—</span></div>
+    </div>
+    <div class="section-title">Historique des demandes <span class="hint" id="cp-history-count" style="color:var(--muted); font-weight:500; text-transform:none; letter-spacing:0;"></span></div>
+    <div id="client-history-list"></div>
     <div style="height:20px"></div>
   </div>
 
@@ -368,6 +406,9 @@
       <div class="stat"><div class="n" id="rev-week">€950</div><div class="l">This week</div></div>
       <div class="stat"><div class="n" id="rev-month">€3,400</div><div class="l">This month</div></div>
     </div>
+    <div class="section-title">📊 Comparaison avec l'équipe</div>
+    <div class="perf-grid" id="team-rank-summary"></div>
+    <div class="detail-card" id="team-rank-list"></div>
     <div class="section-title">Missions billed this month</div>
     <div id="rev-missions"></div>
     <div style="height:20px"></div>
@@ -441,7 +482,7 @@
 
   <div class="bottomnav">
     <div class="navbtn active" data-nav="s-dash" onclick="showScreen('s-dash')"><span class="ic">⌂</span>Home</div>
-    <div class="navbtn" data-nav="s-queue" onclick="showScreen('s-queue')"><span class="ic">☰</span>Queue</div>
+    <div class="navbtn" data-nav="s-queue" onclick="showScreen('s-queue')"><span class="ic">☰</span>My Requests</div>
     <div class="navbtn" data-nav="s-revenue" onclick="showScreen('s-revenue')"><span class="ic">📈</span>Revenue</div>
     <div class="navbtn" data-nav="s-partners" onclick="showScreen('s-partners')"><span class="ic">◈</span>Partners</div>
     <div class="navbtn" data-nav="s-profile" onclick="showScreen('s-profile')"><span class="ic">◔</span>Profile</div>
@@ -453,13 +494,38 @@
 <script src="assets/js/request-bridge.js"></script>
 <script>
 const REQUESTS = {
-  jkia:    { title:"VIP Airport Transfer",   client:"Amina Wanjiru", tier:"Platinum", service:"VIP airport transfer, JKIA",           sla:"12 min", slaClass:"red",   received:"Received 08:12 · Friday, 24 July", status:"new", amount:530 },
-  cultiva: { title:"Table for 6, Cultiva",   client:"James Otieno",  tier:"Gold",     service:"Table for 6, Cultiva",                 sla:"2 h",    slaClass:"amber", received:"Received 09:40",                    status:"new", amount:290 },
-  medical: { title:"Second Medical Opinion", client:"Sarah Kimani",  tier:"Platinum", service:"Second medical opinion",               sla:"1 day",  slaClass:"green", received:"Received yesterday, 17:20",         status:"new", amount:1120 },
-  shopping:{ title:"Personal Shopping",      client:"Peter Mwangi",  tier:"",         service:"Personal shopping — birthday gift",    sla:"2 days", slaClass:"green", received:"Normal priority",                   status:"new", amount:310 },
-  nanny:   { title:"Nanny Background Check", client:"Grace Njeri",   tier:"",         service:"Nanny background check",               sla:"3 days", slaClass:"green", received:"Normal priority",                   status:"new", amount:95 },
+  jkia:    { title:"VIP Airport Transfer",   client:"Amina Wanjiru", tier:"Platinum", service:"VIP airport transfer, JKIA",           sla:"12 min", slaClass:"red",   received:"Received 08:12 · Friday, 24 July", status:"new", amount:530,  urgent:true,  special:false },
+  cultiva: { title:"Table for 6, Cultiva",   client:"James Otieno",  tier:"Gold",     service:"Table for 6, Cultiva",                 sla:"2 h",    slaClass:"amber", received:"Received 09:40",                    status:"new", amount:290,  urgent:false, special:false },
+  medical: { title:"Second Medical Opinion", client:"Sarah Kimani",  tier:"Platinum", service:"Second medical opinion",               sla:"1 day",  slaClass:"green", received:"Received yesterday, 17:20",         status:"new", amount:1120, urgent:false, special:true },
+  shopping:{ title:"Personal Shopping",      client:"Peter Mwangi",  tier:"",         service:"Personal shopping — birthday gift",    sla:"2 days", slaClass:"green", received:"Normal priority",                   status:"new", amount:310,  urgent:false, special:false },
+  nanny:   { title:"Nanny Background Check", client:"Grace Njeri",   tier:"",         service:"Nanny background check",               sla:"3 days", slaClass:"green", received:"Normal priority",                   status:"new", amount:95,   urgent:false, special:false },
 };
-const DASH_KEYS = ['jkia','cultiva','medical'];
+
+const CLIENT_PROFILES = {
+  'Amina Wanjiru': { email:'amina.wanjiru@email.com', phone:'+254 722 111 222', since:'2024' },
+  'James Otieno':  { email:'james.otieno@email.com',  phone:'+254 733 222 333', since:'2025' },
+  'Sarah Kimani':  { email:'sarah.kimani@email.com',  phone:'+254 744 333 444', since:'2023' },
+  'Peter Mwangi':  { email:'peter.mwangi@email.com',  phone:'+254 755 444 555', since:'2025' },
+  'Grace Njeri':   { email:'grace.njeri@email.com',   phone:'+254 766 555 666', since:'2024' },
+};
+
+const TEAM_CONCIERGES = [
+  { name:'David Kamau',   avgResponse:14, successRate:97, isMe:true },
+  { name:'Faith Achieng', avgResponse:9,  successRate:95 },
+  { name:'Brian Otieno',  avgResponse:22, successRate:88 },
+  { name:'Lucy Wambui',   avgResponse:11, successRate:96 },
+];
+
+function requestCategory(r){
+  if(r.status === 'done') return 'done';
+  if(r.urgent || r.slaClass === 'red') return 'urgent';
+  if(r.special) return 'special';
+  return 'pending';
+}
+
+function emptyRow(text){
+  return `<div class="task" style="cursor:default;"><div class="meta">${text}</div></div>`;
+}
 const STATUS_LABEL = { new:"New request", in_progress:"In progress", done:"Completed" };
 const BASE_WEEK_REVENUE = 950;
 const BASE_MONTH_REVENUE = 3400;
@@ -490,6 +556,9 @@ function syncLiveRequests(){
         amount: 0,
         live: true,
         hasUnread: false,
+        urgent: false,
+        special: false,
+        accountType: r.accountType || '',
       };
       LIVE_KEYS.unshift(r.id);
       seenMsgCount[r.id] = 0;
@@ -525,14 +594,21 @@ function taskBadgesHTML(r){
 
 function taskRowHTML(key){
   const r = REQUESTS[key];
-  const cls = 'task' + (r.status==='new' && r.slaClass==='red' ? ' urgent' : '') + (r.status==='done' ? ' done' : '') + (r.live ? ' live' : '');
+  const cat = requestCategory(r);
+  const cls = 'task' + (cat==='urgent' ? ' urgent' : '') + (cat==='done' ? ' done' : '') + (r.live ? ' live' : '');
   const liveTag = r.live ? '<span class="live-tag">🔴 LIVE</span> ' : '';
   const unreadTag = r.hasUnread ? '<span class="live-tag" style="color:var(--danger);">💬 New message</span> ' : '';
-  const clientLine = liveTag + unreadTag + r.client + (r.tier ? ' · ' + r.tier : '');
+  const specialTag = cat==='special' ? '<span class="live-tag" style="color:var(--warn);">⭐ Special</span> ' : '';
+  const clientLine = liveTag + unreadTag + specialTag + r.client + (r.tier ? ' · ' + r.tier : '');
   return `<div class="${cls}" onclick="openDetail('${key}')">
     <div class="top"><div><div class="cl">${clientLine}</div><div class="svc">${r.service}</div></div>${taskBadgesHTML(r)}</div>
     <div class="meta">${r.received}</div>
   </div>`;
+}
+
+function allRequestKeys(){
+  const otherKeys = Object.keys(REQUESTS).filter(k=>!LIVE_KEYS.includes(k));
+  return [...LIVE_KEYS, ...otherKeys];
 }
 
 function renderAll(){
@@ -540,15 +616,38 @@ function renderAll(){
   syncQuotes();
   const activeCount = Object.values(REQUESTS).filter(r=>r.status!=='done').length;
   document.getElementById('stat-active').textContent = activeCount;
-  document.getElementById('queue-count').textContent = activeCount + ' active requests';
-  const attentionKeys = [
-    ...LIVE_KEYS.filter(k=>REQUESTS[k] && REQUESTS[k].status!=='done'),
-    ...DASH_KEYS.filter(k=>REQUESTS[k].status!=='done'),
-  ];
-  document.getElementById('dash-attention').innerHTML = attentionKeys.map(taskRowHTML).join('') || '<div class="task" style="cursor:default;"><div class="meta">Nothing needs attention right now 🎉</div></div>';
-  const otherKeys = Object.keys(REQUESTS).filter(k=>!LIVE_KEYS.includes(k));
-  document.getElementById('queue-list').innerHTML = [...LIVE_KEYS, ...otherKeys].map(taskRowHTML).join('');
+  renderDashboard();
+  renderQueueScreen();
   renderRevenue();
+}
+
+function renderDashboard(){
+  const keys = allRequestKeys();
+  const urgent = [], active = [], done = [];
+  keys.forEach(k=>{
+    const r = REQUESTS[k]; if(!r) return;
+    const cat = requestCategory(r);
+    if(cat === 'urgent') urgent.push(k);
+    else if(cat === 'done') done.push(k);
+    else active.push(k);
+  });
+  document.getElementById('dash-urgent').innerHTML = urgent.map(taskRowHTML).join('') || emptyRow('Aucune demande urgente 🎉');
+  document.getElementById('dash-active').innerHTML = active.map(taskRowHTML).join('') || emptyRow('Rien en cours pour le moment.');
+  document.getElementById('dash-done').innerHTML = done.map(taskRowHTML).join('') || emptyRow('Aucune demande traitée pour l\'instant.');
+}
+
+function renderQueueScreen(){
+  const keys = allRequestKeys();
+  const buckets = { urgent:[], pending:[], special:[], done:[] };
+  keys.forEach(k=>{
+    const r = REQUESTS[k]; if(!r) return;
+    buckets[requestCategory(r)].push(k);
+  });
+  document.getElementById('queue-count').textContent = keys.length + ' request' + (keys.length>1?'s':'');
+  document.getElementById('q-urgent').innerHTML = buckets.urgent.map(taskRowHTML).join('') || emptyRow('No urgent requests.');
+  document.getElementById('q-pending').innerHTML = buckets.pending.map(taskRowHTML).join('') || emptyRow('Nothing to process.');
+  document.getElementById('q-special').innerHTML = buckets.special.map(taskRowHTML).join('') || emptyRow('No special requests.');
+  document.getElementById('q-done').innerHTML = buckets.done.map(taskRowHTML).join('') || emptyRow('No completed requests yet.');
 }
 
 function renderRevenue(){
@@ -562,19 +661,86 @@ function renderRevenue(){
       <div class="top"><div><div class="cl">${r.client}</div><div class="svc">${r.service}</div></div><div class="amt">€${r.amount}</div></div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag paid">Completed</span></div>
     </div>`).join('') : '<div class="revenue-hint">No missions completed yet this period.</div>';
+  renderTeamComparison();
+}
+
+function renderTeamComparison(){
+  const summaryRoot = document.getElementById('team-rank-summary');
+  const listRoot = document.getElementById('team-rank-list');
+  if(!summaryRoot || !listRoot) return;
+
+  const bySpeed = [...TEAM_CONCIERGES].sort((a,b)=>a.avgResponse-b.avgResponse);
+  const bySuccess = [...TEAM_CONCIERGES].sort((a,b)=>b.successRate-a.successRate);
+  const speedRank = bySpeed.findIndex(c=>c.isMe) + 1;
+  const successRank = bySuccess.findIndex(c=>c.isMe) + 1;
+  const total = TEAM_CONCIERGES.length;
+
+  summaryRoot.innerHTML = `
+    <div class="perf"><div class="n">${speedRank}<span style="font-size:13px;">/${total}</span></div><div class="l">Reactivity rank</div></div>
+    <div class="perf"><div class="n">${successRank}<span style="font-size:13px;">/${total}</span></div><div class="l">Success rate rank</div></div>
+  `;
+
+  const medal = i => ['🥇','🥈','🥉'][i] || (i+1)+'.';
+  listRoot.innerHTML = `
+    <h3 style="font-size:13px; margin-bottom:4px;">⚡ Reactivity leaderboard</h3>
+    ${bySpeed.map((c,i)=>`<div class="kv"><span>${medal(i)} ${c.isMe?'You':c.name}</span><span class="v${c.isMe?' strong':''}">${c.avgResponse} min</span></div>`).join('')}
+    <h3 style="font-size:13px; margin:16px 0 4px;">🎯 Success rate leaderboard</h3>
+    ${bySuccess.map((c,i)=>`<div class="kv"><span>${medal(i)} ${c.isMe?'You':c.name}</span><span class="v${c.isMe?' strong':''}">${c.successRate}%</span></div>`).join('')}
+  `;
 }
 
 function renderDetailState(){
   if(!currentRequestKey) return;
   const r = REQUESTS[currentRequestKey];
-  document.getElementById('detail-client-name').textContent = r.client;
+  document.getElementById('detail-client-name').firstChild.textContent = r.client + ' ';
   document.getElementById('detail-status').textContent = STATUS_LABEL[r.status];
   document.getElementById('btn-accept').style.display = r.status==='new' ? '' : 'none';
   document.getElementById('btn-complete').style.display = r.status==='in_progress' ? '' : 'none';
+  document.getElementById('flag-urgent').classList.toggle('on', !!r.urgent || r.slaClass==='red');
+  document.getElementById('flag-special').classList.toggle('on', !!r.special);
   const isJkiaDemo = currentRequestKey === 'jkia';
   document.getElementById('detail-flight-row').style.display = isJkiaDemo ? '' : 'none';
   document.getElementById('detail-vehicle-row').style.display = isJkiaDemo ? '' : 'none';
   document.getElementById('detail-pref-note').style.display = isJkiaDemo ? '' : 'none';
+}
+
+function toggleRequestFlag(flag){
+  if(!currentRequestKey) return;
+  const r = REQUESTS[currentRequestKey];
+  r[flag] = !r[flag];
+  renderDetailState();
+  renderAll();
+  showToast((r[flag] ? 'Marked as ' : 'Removed from ') + (flag==='urgent' ? 'urgent' : 'special'));
+}
+
+/* ===== Fiche client ===== */
+function openClientProfile(key){
+  const r = REQUESTS[key];
+  if(!r) return;
+  currentRequestKey = key;
+  renderClientProfile();
+  showScreen('s-client-profile');
+}
+
+function renderClientProfile(){
+  const r = REQUESTS[currentRequestKey];
+  if(!r) return;
+  const name = r.client;
+  const profile = CLIENT_PROFILES[name] || {};
+  document.getElementById('cp-avatar').textContent = name.charAt(0);
+  document.getElementById('cp-name').textContent = name;
+  document.getElementById('cp-tier').textContent = (r.tier || 'No membership') + (profile.since ? ' · Member since ' + profile.since : (r.live ? ' · Live client' : ''));
+  document.getElementById('cp-email').textContent = profile.email || '—';
+  document.getElementById('cp-phone').textContent = profile.phone || '—';
+
+  const history = Object.values(REQUESTS).filter(x => x.client === name);
+  document.getElementById('cp-history-count').textContent = history.length + ' request' + (history.length>1?'s':'');
+  const statusCls = { new:'pending', in_progress:'sent', done:'paid' };
+  document.getElementById('client-history-list').innerHTML = history.length ? history.map(h=>`
+    <div class="finance-row" style="cursor:default;">
+      <div class="top"><div><div class="cl">${h.service}</div><div class="svc">${h.received}</div></div><div class="amt">€${h.amount || 0}</div></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag ${statusCls[h.status]}">${STATUS_LABEL[h.status]}</span></div>
+    </div>`).join('') : '<div class="revenue-hint">No history for this client yet.</div>';
 }
 
 /* ===== Messagerie liée à une demande ===== */
@@ -816,7 +982,8 @@ function showScreen(id){
   document.getElementById(id).classList.add('active');
   const navMap = {
     's-dash':'s-dash','s-queue':'s-queue','s-detail':'s-queue','s-chat':'s-queue',
-    's-match':'s-queue','s-quote':'s-queue','s-revenue':'s-revenue','s-invoice':'s-revenue',
+    's-match':'s-queue','s-quote':'s-queue','s-client-profile':'s-queue',
+    's-revenue':'s-revenue','s-invoice':'s-revenue',
     's-partners':'s-partners','s-profile':'s-profile'
   };
   document.querySelectorAll('.navbtn').forEach(n=>n.classList.toggle('active', n.dataset.nav===navMap[id]));
