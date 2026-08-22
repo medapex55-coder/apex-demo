@@ -273,6 +273,16 @@
       <div class="kv"><span>Email</span><span class="v" id="cp-email">—</span></div>
       <div class="kv"><span>Téléphone</span><span class="v" id="cp-phone">—</span></div>
     </div>
+
+    <div class="section-title">Notes &amp; préférences <span class="hint" id="cp-notes-count" style="color:var(--muted); font-weight:500; text-transform:none; letter-spacing:0;"></span></div>
+    <div id="cp-notes-list"></div>
+    <div style="margin:0 20px 16px; display:flex; gap:8px;">
+      <input id="cp-note-input" type="text" placeholder="Ajouter une note (préférence, allergie, consigne…)" autocomplete="off"
+             style="flex:1; background:var(--paper); border:1px solid var(--border); border-radius:20px; padding:10px 16px; color:var(--ink); font-size:13px; font-family:'Inter',sans-serif;"
+             onkeydown="if(event.key==='Enter'){ event.preventDefault(); addClientNote(); }">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="addClientNote()">➤</div>
+    </div>
+
     <div class="section-title">Historique des demandes <span class="hint" id="cp-history-count" style="color:var(--muted); font-weight:500; text-transform:none; letter-spacing:0;"></span></div>
     <div id="client-history-list"></div>
     <div style="height:20px"></div>
@@ -509,6 +519,21 @@ const CLIENT_PROFILES = {
   'Grace Njeri':   { email:'grace.njeri@email.com',   phone:'+254 766 555 666', since:'2024' },
 };
 
+let CLIENT_NOTES = {
+  'Amina Wanjiru': [
+    { text:'Préfère un chauffeur discret, sans branding visible sur le véhicule.', author:'David Kamau', time:'20 Jul' },
+    { text:'Toujours confirmer le fast-track douane pour les vols internationaux.', author:'David Kamau', time:'15 Jun' },
+  ],
+  'James Otieno': [
+    { text:'Aime les tables en terrasse chez Cultiva, jamais près de la cuisine.', author:'Faith Achieng', time:'10 Jul' },
+  ],
+  'Sarah Kimani': [
+    { text:'Ne pas appeler avant 9h — préfère les messages écrits le matin.', author:'Lucy Wambui', time:'2 Jul' },
+  ],
+  'Peter Mwangi': [],
+  'Grace Njeri':  [],
+};
+
 const TEAM_CONCIERGES = [
   { name:'David Kamau',   avgResponse:14, successRate:97, isMe:true },
   { name:'Faith Achieng', avgResponse:9,  successRate:95 },
@@ -733,6 +758,8 @@ function renderClientProfile(){
   document.getElementById('cp-email').textContent = profile.email || '—';
   document.getElementById('cp-phone').textContent = profile.phone || '—';
 
+  renderClientNotes();
+
   const history = Object.values(REQUESTS).filter(x => x.client === name);
   document.getElementById('cp-history-count').textContent = history.length + ' request' + (history.length>1?'s':'');
   const statusCls = { new:'pending', in_progress:'sent', done:'paid' };
@@ -741,6 +768,34 @@ function renderClientProfile(){
       <div class="top"><div><div class="cl">${h.service}</div><div class="svc">${h.received}</div></div><div class="amt">€${h.amount || 0}</div></div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span class="doctag ${statusCls[h.status]}">${STATUS_LABEL[h.status]}</span></div>
     </div>`).join('') : '<div class="revenue-hint">No history for this client yet.</div>';
+}
+
+function renderClientNotes(){
+  const r = REQUESTS[currentRequestKey];
+  if(!r) return;
+  const name = r.client;
+  if(!CLIENT_NOTES[name]) CLIENT_NOTES[name] = [];
+  const notes = CLIENT_NOTES[name];
+  document.getElementById('cp-notes-count').textContent = notes.length + ' note' + (notes.length>1?'s':'');
+  document.getElementById('cp-notes-list').innerHTML = notes.length ? notes.map(n=>`
+    <div class="detail-card" style="margin:0 20px 8px; padding:12px 14px;">
+      <div style="font-size:13px; line-height:1.4;">${n.text}</div>
+      <div style="font-size:11px; color:var(--muted); margin-top:6px;">— ${n.author} · ${n.time}</div>
+    </div>`).join('') : '<div class="revenue-hint">Aucune note pour ce client pour l\'instant.</div>';
+}
+
+function addClientNote(){
+  const r = REQUESTS[currentRequestKey];
+  if(!r) return;
+  const name = r.client;
+  const input = document.getElementById('cp-note-input');
+  const text = input.value.trim();
+  if(!text) return;
+  if(!CLIENT_NOTES[name]) CLIENT_NOTES[name] = [];
+  CLIENT_NOTES[name].unshift({ text, author:'David Kamau', time:'Just now' });
+  input.value = '';
+  renderClientNotes();
+  showToast('Note added to ' + name + '\'s profile');
 }
 
 /* ===== Messagerie liée à une demande ===== */
