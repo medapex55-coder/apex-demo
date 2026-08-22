@@ -29,6 +29,8 @@
   }
   .notch{ position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:var(--navy); border-radius:14px; z-index:50; }
   .statusbar{ height:44px; flex:0 0 auto; background:var(--paper); display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 6px; font-size:13px; font-weight:600; }
+  .apex-top-logo{ flex:0 0 auto; display:flex; justify-content:center; align-items:center; padding:8px 0; background:var(--navy); }
+  .apex-top-logo img{ width:24px; height:24px; }
   .screen{ flex:1; overflow-y:auto; display:none; background:var(--cream); }
   .screen.active{ display:block; }
   .screen::-webkit-scrollbar{display:none;}
@@ -208,6 +210,13 @@
   .toast.show{ opacity:1; transform:translateY(-4px); }
 
   /* ===== Packages ===== */
+  .msg-cta-btn{ margin:-14px 20px 0; background:linear-gradient(135deg,var(--navy2),var(--navy)); color:#fff; text-align:center; padding:15px; border-radius:14px; font-weight:700; font-size:14px; cursor:pointer; box-shadow:0 10px 24px rgba(16,22,43,.25); }
+  .cat-tabs{ display:flex; gap:8px; overflow-x:auto; margin:12px 20px 4px; padding-bottom:2px; }
+  .cat-tabs::-webkit-scrollbar{ display:none; }
+  .cat-tab-pill{ flex:0 0 auto; background:var(--paper); border:1px solid var(--border); border-radius:20px; padding:9px 14px; font-size:12.5px; font-weight:600; white-space:nowrap; cursor:pointer; }
+  .cat-tab-pill.active{ background:var(--navy); color:#fff; border-color:var(--navy); }
+  .cat-body-card{ margin:10px 20px 16px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:4px 16px; }
+
   .pkg-card{ margin:0 20px 10px; background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:14px 16px; display:flex; gap:12px; align-items:center; }
   .pkg-card .ic{ width:44px;height:44px;border-radius:12px;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:20px; flex:0 0 auto; }
   .pkg-card .info{ flex:1; min-width:0; }
@@ -245,6 +254,7 @@
 <div class="phone">
   <div class="notch"></div>
   <div class="statusbar"><span>9:41</span><span>●●●●  Wi‑Fi  100%</span></div>
+  <div class="apex-top-logo"><img src="assets/img/logo-mark.svg" alt="APEX"></div>
 
   <!-- SCREEN: HOME -->
   <div class="screen active" id="s-home">
@@ -257,13 +267,12 @@
       <div><div class="name">Membre</div><div class="plan">Platinum</div></div>
       <div class="quota">Demandes ce mois<b>7 / illimité</b></div>
     </div>
-    <div class="section-title">Accès rapide</div>
-    <div class="grid4">
-      <div class="cat-btn" onclick="showScreen('s-services')"><div class="ic">✈️</div><div class="lbl">Voyages</div></div>
-      <div class="cat-btn" onclick="showScreen('s-services')"><div class="ic">🍽️</div><div class="lbl">Dîner</div></div>
-      <div class="cat-btn" onclick="showScreen('s-services')"><div class="ic">🛡️</div><div class="lbl">Sécurité</div></div>
-      <div class="cat-btn" onclick="showScreen('s-account')"><div class="ic">👪</div><div class="lbl">Mon Espace</div></div>
-    </div>
+    <div class="msg-cta-btn" onclick="openRequestChat('Nouvelle demande')">✉️ Écrire à mon concierge</div>
+
+    <div class="section-title">Catégories de services</div>
+    <div class="cat-tabs" id="home-cat-tabs"></div>
+    <div id="home-cat-body"></div>
+
     <div class="section-title">Packages malins <span class="hint">Particulier &amp; Entreprise</span></div>
     <div id="home-packages"></div>
 
@@ -289,23 +298,10 @@
     <div style="height:20px"></div>
   </div>
 
-  <!-- SCREEN: SERVICES CATALOG -->
-  <div class="screen" id="s-services">
-    <div class="appbar compact">
-      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Catalogue</div>
-      <h1 style="font-size:20px;">Tous les services</h1>
-    </div>
-    <div class="section-title">Packages malins <span class="hint">Particulier &amp; Entreprise</span></div>
-    <div id="packages"></div>
-    <div class="section-title">Catégories</div>
-    <div id="catalog"></div>
-    <div style="height:20px"></div>
-  </div>
-
   <!-- SCREEN: REQUEST / CHAT -->
   <div class="screen" id="s-request">
     <div class="appbar compact">
-      <div class="row"><span class="back" onclick="showScreen('s-services')">←</span><div class="brand" style="margin:0;">Nouvelle demande</div></div>
+      <div class="row"><span class="back" onclick="showScreen('s-home')">←</span><div class="brand" style="margin:0;">Nouvelle demande</div></div>
       <h1 style="font-size:20px;" id="chat-title">Nouvelle demande</h1>
     </div>
     <div class="concierge-card">
@@ -335,15 +331,16 @@
     <div style="height:20px"></div>
   </div>
 
-  <!-- SCREEN: TRACKING -->
+  <!-- SCREEN: DEMANDES -->
   <div class="screen" id="s-tracking">
     <div class="appbar compact">
-      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Suivi de demande</div>
-      <h1 style="font-size:20px;">Vol privé — Diani</h1>
+      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Mes demandes</div>
+      <h1 style="font-size:20px;">Suivi des demandes</h1>
     </div>
+
     <div class="req-card">
       <div class="top">
-        <div><div class="svc">Jet privé, 4 passagers</div><div class="meta">Réf. #APX-4821 · Vendredi 24 juillet</div></div>
+        <div><div class="svc">Jet privé, 4 passagers — Diani</div><div class="meta">Réf. #APX-4821 · Vendredi 24 juillet</div></div>
         <span class="badge progress">En cours</span>
       </div>
       <div class="timeline">
@@ -353,18 +350,20 @@
         <div class="tl-item"><div class="tl-dot pending">4</div><div><div class="tl-line" style="color:var(--muted);">Transfert domicile → aérodrome</div><div class="tl-time">À venir</div></div></div>
       </div>
     </div>
-    <div class="concierge-card">
-      <div class="avatar">D</div>
-      <div><div class="name">David Kamau</div><div class="role">Concierge assigné</div></div>
-      <div class="iconbtn" onclick="openRequestChat('Vol privé — Nairobi → Diani')">💬</div>
-    </div>
+
+    <div class="section-title">Demandes en cours <span class="hint" id="demandes-cours-count"></span></div>
+    <div id="demandes-en-cours"></div>
+
+    <div class="section-title">Demandes passées <span class="hint" id="demandes-passees-count"></span></div>
+    <div id="demandes-passees"></div>
+
     <div style="height:20px"></div>
   </div>
 
-  <!-- SCREEN: MON ESPACE (compte principal + sous-comptes) -->
+  <!-- SCREEN: MY APEX (compte principal + sous-comptes) -->
   <div class="screen" id="s-account">
     <div class="appbar compact">
-      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">Mon Espace</div>
+      <div class="brand"><img src="assets/img/logo-mark.svg" alt="APEX">My APEX</div>
       <h1 style="font-size:20px;">Compte &amp; membres</h1>
       <div class="sub">Démonstration : basculez entre compte Famille, Société, Promoteur et Grand Compte</div>
     </div>
@@ -376,27 +375,21 @@
       <div class="type-tab" data-type="enterprise" onclick="switchAccountType('enterprise')">🏙️ Grand</div>
     </div>
 
-    <div class="account-card">
-      <div class="top">
-        <div class="mark" id="acc-mark">👪</div>
-        <div class="who">
-          <div class="n" id="acc-name">Famille Dupont</div>
-          <div class="t" id="acc-type-label">Compte principal · Famille</div>
-        </div>
-      </div>
-      <div class="account-kv"><span class="k">Adresse</span><span class="v" id="acc-address">12 Riverside Drive, Nairobi</span></div>
-      <div class="account-kv"><span class="k">Email du compte</span><span class="v" id="acc-email">famille.dupont@email.com</span></div>
-      <div class="account-kv"><span class="k">Formule</span><span class="v" id="acc-tier">Platinum</span></div>
-    </div>
-    <div class="shared-note">Le nom, l'adresse et l'email ci-dessus sont partagés par tous les sous-comptes liés à ce compte principal.</div>
-
-    <div class="billing-link" onclick="showScreen('s-billing')">
-      <span>💳 Abonnement &amp; paiement du compte principal</span><span class="chev">›</span>
+    <div class="chat-tabs">
+      <div class="chat-tab active" data-atab="members" onclick="switchApexTab('members')">👪 Membres</div>
+      <div class="chat-tab" data-atab="payments" onclick="switchApexTab('payments')">💳 Paiement</div>
     </div>
 
-    <div class="section-title">Membres <span class="hint" id="acc-member-count">3 sous-comptes</span></div>
-    <div id="member-list"></div>
-    <div class="add-member-btn" onclick="showScreen('s-add-member')" id="add-member-label">+ Ajouter un membre de la famille</div>
+    <div class="chat-pane active" id="apex-pane-members">
+      <div class="section-title">Membres <span class="hint" id="acc-member-count">3 sous-comptes</span></div>
+      <div id="member-list"></div>
+      <div class="add-member-btn" onclick="showScreen('s-add-member')" id="add-member-label">+ Ajouter un membre de la famille</div>
+    </div>
+
+    <div class="chat-pane" id="apex-pane-payments">
+      <div class="section-title">Moyens de paiement <span class="hint">Par membre</span></div>
+      <div id="apex-payment-list"></div>
+    </div>
 
     <div style="height:20px"></div>
   </div>
@@ -447,7 +440,7 @@
   <!-- SCREEN: ABONNEMENT & PAIEMENT -->
   <div class="screen" id="s-billing">
     <div class="appbar compact">
-      <div class="row"><span class="back" onclick="showScreen('s-account')">←</span><div class="brand" style="margin:0;">Abonnement</div></div>
+      <div class="row"><span class="back" onclick="showScreen('s-profile')">←</span><div class="brand" style="margin:0;">Abonnement</div></div>
       <h1 style="font-size:20px;">Facturation &amp; paiement</h1>
       <div class="sub" id="billing-context">Compte principal</div>
     </div>
@@ -479,12 +472,30 @@
       <h2 style="margin:0; font-size:19px;">Claire Dupont</h2>
       <div style="color:var(--muted); font-size:13px;">Titulaire du compte · Membre Platinum depuis 2024</div>
     </div>
+    <div class="section-title">Mon compte principal</div>
+    <div class="account-card">
+      <div class="top">
+        <div class="mark" id="acc-mark">👪</div>
+        <div class="who">
+          <div class="n" id="acc-name">Famille Dupont</div>
+          <div class="t" id="acc-type-label">Compte principal · Famille</div>
+        </div>
+      </div>
+      <div class="account-kv"><span class="k">Adresse</span><span class="v" id="acc-address">12 Riverside Drive, Nairobi</span></div>
+      <div class="account-kv"><span class="k">Email du compte</span><span class="v" id="acc-email">famille.dupont@email.com</span></div>
+      <div class="account-kv"><span class="k">Téléphone</span><span class="v" id="acc-phone">+254 712 345 678</span></div>
+      <div class="account-kv"><span class="k">Formule actuelle</span><span class="v" id="acc-tier">Platinum</span></div>
+    </div>
+    <div class="billing-link" onclick="showScreen('s-billing')">
+      <span>💳 Gérer l'abonnement &amp; paiement</span><span class="chev">›</span>
+    </div>
+
     <div class="section-title">Préférences</div>
     <div class="pref-row"><span>Compagnie aérienne favorite</span><span class="v">Kenya Airways</span></div>
     <div class="pref-row"><span>Régime alimentaire</span><span class="v">Sans gluten</span></div>
     <div class="pref-row"><span>Contact d'urgence</span><span class="v">+254 7•• •• 812</span></div>
     <div class="pref-row"><span>Langue</span><span class="v">Français</span></div>
-    <div class="section-title">Mon Espace</div>
+    <div class="section-title">My APEX</div>
     <div class="pref-row" style="cursor:pointer;" onclick="showScreen('s-account')"><span>Compte &amp; sous-comptes</span><span class="v">Gérer →</span></div>
     <div class="section-title">Fidélité</div>
     <div class="pref-row"><span>Points cumulés</span><span class="v">12,480 pts</span></div>
@@ -498,9 +509,8 @@
 
   <div class="bottomnav">
     <div class="navbtn active" data-nav="s-home" onclick="nav(this,'s-home')"><span class="ic">⌂</span>Accueil</div>
-    <div class="navbtn" data-nav="s-services" onclick="nav(this,'s-services')"><span class="ic">▤</span>Services</div>
     <div class="navbtn" data-nav="s-tracking" onclick="nav(this,'s-tracking')"><span class="ic">◷</span>Demandes</div>
-    <div class="navbtn" data-nav="s-account" onclick="nav(this,'s-account')"><span class="ic">👪</span>Espace</div>
+    <div class="navbtn" data-nav="s-account" onclick="nav(this,'s-account')"><span class="ic">👪</span>My APEX</div>
     <div class="navbtn" data-nav="s-profile" onclick="nav(this,'s-profile')"><span class="ic">◔</span>Profil</div>
   </div>
 </div>
@@ -537,25 +547,31 @@ const SERVICES = [
   ]},
 ];
 
-function buildCatalog(){
-  const root = document.getElementById('catalog');
-  SERVICES.forEach((cat, i)=>{
-    const block = document.createElement('div');
-    block.className = 'cat-block';
-    block.innerHTML = `
-      <div class="cat-head" onclick="this.parentElement.classList.toggle('open')">
-        <div class="ic">${cat.ic}</div>
-        <div class="t">${cat.name}</div>
-        <div class="chev">▾</div>
-      </div>
-      <div class="cat-body">
-        ${cat.items.map(it=>`<div class="svc-row"><span>${it}</span><span class="req" onclick="event.stopPropagation(); requestService('${it.replace(/'/g,"\\'")}')">Demander</span></div>`).join('')}
-      </div>`;
-    root.appendChild(block);
-  });
-  root.children[0].classList.add('open');
+let selectedHomeCategory = 0;
+
+function buildHomeCategoryTabs(){
+  const tabsRoot = document.getElementById('home-cat-tabs');
+  if(!tabsRoot) return;
+  tabsRoot.innerHTML = SERVICES.map((cat,i)=>
+    `<div class="cat-tab-pill ${i===selectedHomeCategory?'active':''}" onclick="selectHomeCategory(${i})">${cat.ic} ${cat.name}</div>`
+  ).join('');
+  renderHomeCategoryBody();
 }
-buildCatalog();
+
+function selectHomeCategory(i){
+  selectedHomeCategory = i;
+  buildHomeCategoryTabs();
+}
+
+function renderHomeCategoryBody(){
+  const root = document.getElementById('home-cat-body');
+  if(!root) return;
+  const cat = SERVICES[selectedHomeCategory];
+  root.innerHTML = `<div class="cat-body-card">
+    ${cat.items.map(it=>`<div class="svc-row"><span>${it}</span><span class="req" onclick="requestService('${it.replace(/'/g,"\\'")}')">Demander</span></div>`).join('')}
+  </div>`;
+}
+buildHomeCategoryTabs();
 
 /* ===== Packages malins (particulier & entreprise) ===== */
 const PACKAGES = [
@@ -579,7 +595,6 @@ function renderPackages(containerId){
     </div>`).join('');
 }
 renderPackages('home-packages');
-renderPackages('packages');
 
 function orderPackage(name){
   openRequestChat(name);
@@ -698,7 +713,7 @@ function renderQuoteCard(){
 let quoteTabViewed = {};
 
 function switchChatTab(tab){
-  document.querySelectorAll('.chat-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === tab));
+  document.querySelectorAll('.chat-tab[data-ctab]').forEach(t => t.classList.toggle('active', t.dataset.ctab === tab));
   document.getElementById('chat-pane-messages').classList.toggle('active', tab === 'messages');
   document.getElementById('chat-pane-quote').classList.toggle('active', tab === 'quote');
   if(tab === 'quote' && currentChatRequestId){
@@ -797,6 +812,38 @@ function renderLiveRequests(){
   }).join('');
 }
 
+/* ===== Demandes : en cours / passées ===== */
+const DEMO_DEMANDES = [
+  { ic:'🍽️', title:'Table pour 6 — Cultiva', sub:'Vendredi, 20h30', cours:false },
+  { ic:'🏥', title:'Bilan de santé — Nairobi Hospital', sub:'Terminé le 14 juillet', cours:false },
+];
+
+function renderDemandesScreen(){
+  const enCoursEl = document.getElementById('demandes-en-cours');
+  const passeesEl = document.getElementById('demandes-passees');
+  if(!enCoursEl || !passeesEl) return;
+
+  const enCours = [];
+  const passees = [];
+  const statusLabel = { new:'Envoyée · en attente', in_progress:'Prise en charge', done:'Terminée' };
+
+  DEMO_DEMANDES.forEach(d=>{
+    const row = `<div class="list-item"><div class="ic">${d.ic}</div><div class="txt"><div class="t1">${d.title}</div><div class="t2">${d.sub}</div></div><span class="badge ${d.cours?'progress':'done'}">${d.cours?'En cours':'Terminée'}</span></div>`;
+    (d.cours ? enCours : passees).push(row);
+  });
+
+  apexBridgeLoad().forEach(r=>{
+    const waitingLabel = 'En attente d\'un concierge';
+    const row = `<div class="list-item live" onclick="resumeChat('${r.id}')"><div class="ic">🔴</div><div class="txt"><div class="t1">${r.service}</div><div class="t2">${r.concierge ? 'Concierge : ' + r.concierge : waitingLabel}</div></div><span class="badge ${r.status==='done'?'done':'progress'}">${statusLabel[r.status]}</span></div>`;
+    (r.status === 'done' ? passees : enCours).push(row);
+  });
+
+  document.getElementById('demandes-cours-count').textContent = enCours.length + ' demande' + (enCours.length>1?'s':'');
+  document.getElementById('demandes-passees-count').textContent = passees.length + ' demande' + (passees.length>1?'s':'');
+  enCoursEl.innerHTML = enCours.join('') || '<div class="list-item" style="cursor:default;"><div class="txt"><div class="t2">Aucune demande en cours.</div></div></div>';
+  passeesEl.innerHTML = passees.join('') || '<div class="list-item" style="cursor:default;"><div class="txt"><div class="t2">Aucune demande passée.</div></div></div>';
+}
+
 function checkLiveStatusChanges(){
   const list = apexBridgeLoad();
   list.forEach(r=>{
@@ -820,6 +867,8 @@ if(typeof apexBridgeOnChange === 'function'){
     renderLiveRequests();
     const activeScreen = document.querySelector('.screen.active');
     if(activeScreen && activeScreen.id === 's-request') renderChat();
+    if(activeScreen && activeScreen.id === 's-tracking') renderDemandesScreen();
+    if(activeScreen && activeScreen.id === 's-account') { renderAccount(); renderApexPayments(); }
   });
 }
 
@@ -862,6 +911,7 @@ const ACCOUNTS = {
     typeLabel:'Compte principal · Famille',
     address:'12 Riverside Drive, Nairobi',
     email:'famille.dupont@email.com',
+    phone:'+254 712 345 678',
     tier:'Platinum',
     relationLabel:'Lien avec la famille',
     addLabel:'+ Ajouter un membre de la famille',
@@ -878,6 +928,7 @@ const ACCOUNTS = {
     typeLabel:'Compte principal · Entreprise',
     address:'Waiyaki Way, Nairobi',
     email:'admin@kileleshwaholdings.com',
+    phone:'+254 722 456 789',
     tier:'Business Gold',
     relationLabel:'Poste dans l\'entreprise',
     addLabel:'+ Ajouter un employé',
@@ -894,6 +945,7 @@ const ACCOUNTS = {
     typeLabel:'Compte principal · Promoteur',
     address:'Kilimani Road, Nairobi',
     email:'contact@kilimaniheights.com',
+    phone:'+254 733 567 890',
     tier:'Business Gold',
     relationLabel:'Statut',
     addLabel:'+ Ajouter un appartement',
@@ -911,6 +963,7 @@ const ACCOUNTS = {
     typeLabel:'Compte principal · Grand Compte',
     address:'Kileleshwa Business Park, Nairobi',
     email:'admin@kileleshwaholdings.com',
+    phone:'+254 744 678 901',
     tier:'Business Enterprise',
     relationLabel:"Poste dans l'entreprise",
     addLabel:'+ Ajouter un employé',
@@ -927,6 +980,33 @@ function switchAccountType(type){
   document.querySelectorAll('.type-tab').forEach(t=> t.classList.toggle('active', t.dataset.type===type));
   renderAccount();
   renderBilling();
+  renderApexPayments();
+}
+
+function switchApexTab(tab){
+  document.querySelectorAll('.chat-tab[data-atab]').forEach(t => t.classList.toggle('active', t.dataset.atab === tab));
+  document.getElementById('apex-pane-members').classList.toggle('active', tab === 'members');
+  document.getElementById('apex-pane-payments').classList.toggle('active', tab === 'payments');
+  if(tab === 'payments') renderApexPayments();
+}
+
+function renderApexPayments(){
+  const root = document.getElementById('apex-payment-list');
+  if(!root) return;
+  const acc = ACCOUNTS[currentAccountType];
+  root.innerHTML = acc.members.map(m=>{
+    const activeMethod = PAY_METHODS.find(p=>p.key===m.pm.default);
+    return `
+    <div class="member-row" onclick="openMember('${m.id}')">
+      <div class="avatar">${m.name.charAt(0)}</div>
+      <div class="info">
+        <div class="n">${m.name}</div>
+        <div class="r">${activeMethod ? activeMethod.name : 'Aucun moyen configuré'}</div>
+      </div>
+      <div class="pm" title="Moyen de paiement par défaut">${activeMethod ? activeMethod.ic : '—'}</div>
+      <span class="chev">›</span>
+    </div>`;
+  }).join('');
 }
 
 /* ===== Abonnement & paiement du compte principal ===== */
@@ -1035,6 +1115,7 @@ function renderAccount(){
   document.getElementById('acc-type-label').textContent = acc.typeLabel;
   document.getElementById('acc-address').textContent = acc.address;
   document.getElementById('acc-email').textContent = acc.email;
+  document.getElementById('acc-phone').textContent = acc.phone || '—';
   document.getElementById('acc-tier').textContent = acc.tier;
   const memberNoun = currentAccountType==='promoter' ? 'appartements' : 'sous-comptes';
   document.getElementById('acc-member-count').textContent = acc.members.length + ' ' + memberNoun;
@@ -1141,16 +1222,18 @@ function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   const navMap = {
-    's-home':'s-home', 's-services':'s-services', 's-request':'s-services',
+    's-home':'s-home', 's-request':'s-home',
     's-tracking':'s-tracking',
-    's-account':'s-account', 's-member-detail':'s-account', 's-add-member':'s-account', 's-billing':'s-account',
-    's-profile':'s-profile'
+    's-account':'s-account', 's-member-detail':'s-account', 's-add-member':'s-account',
+    's-profile':'s-profile', 's-billing':'s-profile'
   };
   document.querySelectorAll('.navbtn').forEach(n=>n.classList.toggle('active', n.dataset.nav===navMap[id]));
   if(id === 's-add-member') updateAddMemberForm();
   if(id === 's-billing') renderBilling();
   if(id === 's-request') renderChat(true);
   if(id === 's-home') renderLiveRequests();
+  if(id === 's-tracking') renderDemandesScreen();
+  if(id === 's-profile') renderAccount();
 }
 function nav(el,id){ showScreen(id); }
 
@@ -1165,6 +1248,8 @@ function showToast(msg){
 
 renderAccount();
 renderBilling();
+renderApexPayments();
+renderDemandesScreen();
 </script>
 </body>
 </html>
