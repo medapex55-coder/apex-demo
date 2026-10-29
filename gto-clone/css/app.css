@@ -258,3 +258,7 @@ table.data.compact td { padding: 2px var(--s2); }
 .chart-rows li { display: flex; align-items: center; gap: var(--s2); padding: 2px 0; }
 .chart-rows .mono { margin-left: auto; }
 .tag-note { color: var(--text); }
+.spot-format { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1); }
+.spot-format .pill { margin-left: 0; }
+.pick-field { display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.pick-field select { height: 26px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-input); border-radius: var(--r-md); padding: 0 var(--s2); font: 600 var(--fs-sm) var(--font-sans); text-transform: none; letter-spacing: 0; }

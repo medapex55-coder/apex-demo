@@ -9,7 +9,7 @@ import { rangeEquity, weightedMean } from './equity.js';
 import { hashStr } from './rng.js';
 import { OPEN_CHARTS } from '../data/open-charts.js';
 import {
-  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf,
+  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining,
 } from './game.js';
 
 const clamp = (x, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, x));
@@ -93,24 +93,35 @@ function preflopClassFreqs(st, actions) {
   const out = CLASSES.map(() => new Array(actions.length).fill(0));
   const idx = (t) => actions.findIndex((a) => (t === 'raise' ? a.type === 'raise' || a.type === 'allin' : a.type === t));
   const iF = idx('fold'), iC = idx('call'), iR = idx('raise');
-  const sbLimped = st.history.some((h) => h.kind === 'act' && h.p === 4 && h.street === 0 && h.act.type === 'call' && h.act.amount === 0.5);
+  const limped = st.limpers.includes(p);
+  const facingLimp = rl === 0 && st.limpers.length > 0;
+  // Facing an all-in with no raise left: call with the top of the range,
+  // wider as stacks get shorter (better price relative to the stack).
+  const shoveCall = Math.min(0.45, 0.025 + 2 / st.cfg.stack);
+  const facingShove = rl >= 1 && iR < 0 && st.lastAggr >= 0 && remaining(st, st.lastAggr) <= 0;
   for (const c of CLASSES) {
     const pc = PERCENTILE[c.id];
     let raise = 0, call = 0;
-    if (rl === 0 && p <= 4) {
+    if (rl === 0 && p <= 4 && !facingLimp) {
+      // First in: the user's chart. With the "limp" open size, the raising range limps.
       const f = codeFreqs(chartCode(p, c));
-      raise = f.raise;
-      call = f.limp;
+      if (st.cfg.open === 'limp') call = f.raise + f.limp;
+      else { raise = f.raise; call = f.limp; }
+    } else if (facingLimp && p !== 5) {
+      raise = within(pc, 0.12); // isolate the top
+      call = Math.max(0, within(pc, 0.2) - raise); // over-limp the next band
     } else if (rl === 0) {
       raise = within(pc, 0.18); // BB vs a limp: isolate the top, check the rest
+    } else if (facingShove) {
+      call = within(pc, shoveCall, 0.01);
     } else if (rl === 1) {
       const o = openWidth(st.lastAggr);
       let V, C;
-      if (p === 4 && sbLimped) { V = 0.03; C = 0.6; } // limp-call wide, limp-raise the nuts
+      if (limped) { V = 0.03; C = 0.6; } // limp-call wide, limp-raise the nuts
       else if (p === 5) { V = o * 0.22; C = Math.min(0.62, 0.12 + o * 1.05); }
       else if (p === 4) { V = o * 0.32; C = V + o * 0.1; }
       else { V = o * 0.2; C = o * 0.55; }
-      const bluff = !(p === 4 && sbLimped) && c.suited && pc > C && pc < C + 0.12 ? 0.4 : 0;
+      const bluff = !limped && c.suited && pc > C && pc < C + 0.12 ? 0.4 : 0;
       raise = within(pc, V) + bluff;
       call = Math.max(0, within(pc, C) - within(pc, V));
     } else if (rl === 2) {
@@ -250,7 +261,7 @@ export function analyze(st) {
     ranges = POS.map(() => new Float32Array(1326).fill(1));
   } else {
     const last = st.history[st.history.length - 1];
-    const parent = analyze(replay(st.history.slice(0, -1)));
+    const parent = analyze(replay(st.history.slice(0, -1), st.cfg));
     ranges = parent.ranges.map((r) => r.slice());
     if (last.kind === 'act') {
       const ai = parent.actions.findIndex((a) => actionKey(a) === actionKey(last.act));

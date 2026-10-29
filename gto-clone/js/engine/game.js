@@ -1,17 +1,22 @@
-// 6-max NLHE game tree, 100bb, blinds 0.5/1. Preflop becomes heads-up as soon
-// as a second player voluntarily enters (everyone else folds), so every
-// postflop spot is heads-up.
+// 6-max NLHE game tree, blinds 0.5/1. The effective stack and the first-in open
+// size come from the spot config (cfg). Preflop becomes heads-up as soon as a
+// second player voluntarily enters (everyone else folds), so every postflop
+// spot is heads-up.
 import { cardStr } from './cards.js';
 
 export const POS = ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
-export const STACK = 100;
+export const STACKS = [200, 100, 80, 70, 50, 40, 30, 25, 20, 15, 10];
+export const OPEN_SIZES = ['limp', '2', '2.5', '4.5']; // '2.5' means the SB opens 3.5
+export const DEFAULT_CFG = Object.freeze({ stack: 100, open: '2.5' });
 export const STREETS = ['Preflop', 'Flop', 'Turn', 'River'];
 const POSTFLOP_ORDER = [4, 5, 0, 1, 2, 3]; // SB first
 
 const round = (x) => Math.round(x * 10) / 10;
 
-export function initialState() {
+export function initialState(cfg = DEFAULT_CFG) {
   return {
+    cfg,
+    limpers: [],
     street: 0,
     board: [],
     invested: [0, 0, 0, 0, 0.5, 1],
@@ -39,11 +44,12 @@ const clone = (st) => ({
   streetBet: st.streetBet.slice(),
   folded: st.folded.slice(),
   acted: st.acted.slice(),
+  limpers: st.limpers.slice(),
   history: st.history.slice(),
 });
 
 export const pot = (st) => st.invested.reduce((a, b) => a + b, 0);
-export const remaining = (st, p) => STACK - st.invested[p];
+export const remaining = (st, p) => st.cfg.stack - st.invested[p];
 export const alive = (st) => POS.map((_, i) => i).filter((i) => !st.folded[i]);
 export const toCallOf = (st, p) => Math.max(0, Math.min(st.currentBet - st.streetBet[p], remaining(st, p)));
 
@@ -63,14 +69,18 @@ export function isIP(st, p) {
 
 function preflopSizes(st, p) {
   const opener = st.lastAggr;
-  if (st.raiseLevel === 0) return p === 4 ? 3.5 : p === 5 ? 4 : 2.5; // SB opens 3.5, BB isolates a limp to 4
+  if (st.raiseLevel === 0) {
+    if (st.limpers.length) return p === 5 && st.limpers.join() === '4' ? 4 : 5; // iso-raise over a limp
+    if (st.cfg.open === '2.5' && p === 4) return 3.5;
+    return st.cfg.open === 'limp' ? 2.5 : +st.cfg.open;
+  }
   if (st.raiseLevel === 1) {
     const open = st.currentBet;
     const ip = POSTFLOP_ORDER.indexOf(p) > POSTFLOP_ORDER.indexOf(opener);
     return round(open * (ip ? 3 : 4));
   }
   if (st.raiseLevel === 2) return round(Math.round(st.currentBet * 2.3 * 2) / 2);
-  return STACK;
+  return st.cfg.stack;
 }
 
 export function legalActions(st) {
@@ -83,9 +93,13 @@ export function legalActions(st) {
   if (st.street === 0) {
     if (call > 0) acts.push({ type: 'fold' });
     if (call === 0) acts.push({ type: 'check' });
-    else if (st.raiseLevel > 0 || p === 4) acts.push({ type: 'call', amount: call }); // only the SB may limp
-    if (st.raiseLevel <= 3 && rem > call) {
-      const to = Math.min(preflopSizes(st, p), st.streetBet[p] + rem);
+    // Limping first in: always allowed for the SB, for every seat when the open size is "limp".
+    else if (st.raiseLevel > 0 || st.limpers.length || p === 4 || st.cfg.open === 'limp') acts.push({ type: 'call', amount: call });
+    const firstIn = st.raiseLevel === 0 && !st.limpers.length;
+    if (st.raiseLevel <= 3 && rem > call && !(firstIn && st.cfg.open === 'limp')) {
+      let to = Math.min(preflopSizes(st, p), st.streetBet[p] + rem);
+      // A re-raise that commits almost half the stack goes all-in instead.
+      if (st.raiseLevel >= 1 && to >= (st.streetBet[p] + rem) * 0.45) to = st.streetBet[p] + rem;
       const allin = to >= st.streetBet[p] + rem;
       acts.push({ type: allin ? 'allin' : 'raise', to, level: st.raiseLevel + 1 });
     }
@@ -146,6 +160,8 @@ export function applyAction(st0, act) {
   const label = actionLabel(st0, act);
   const wasOpen = st.raiseLevel >= 1;
   const prevAggr = st.lastAggr;
+  const prevLimper = st.limpers[0] ?? -1;
+  if (st.street === 0 && act.type === 'call' && st.raiseLevel === 0) st.limpers.push(p);
   if (act.type === 'fold') st.folded[p] = true;
   else if (act.type === 'call') {
     const put = toCallOf(st, p);
@@ -164,8 +180,9 @@ export function applyAction(st0, act) {
   st.acted[p] = true;
   st.history.push({ kind: 'act', p, street: st.street, act, label });
 
-  if (st.street === 0 && !st.locked && wasOpen && act.type !== 'fold') {
-    POS.forEach((_, i) => { if (i !== p && i !== prevAggr) st.folded[i] = true; });
+  if (st.street === 0 && !st.locked && (wasOpen || prevLimper >= 0) && act.type !== 'fold') {
+    const anchor = prevAggr >= 0 ? prevAggr : prevLimper;
+    POS.forEach((_, i) => { if (i !== p && i !== anchor) st.folded[i] = true; });
     st.locked = true;
   }
   const live = alive(st);
@@ -202,8 +219,8 @@ export function foldTo(st0, target) {
   return st;
 }
 
-export function replay(history) {
-  let st = initialState();
+export function replay(history, cfg = DEFAULT_CFG) {
+  let st = initialState(cfg);
   for (const h of history) st = h.kind === 'deal' ? dealBoard(st, h.cards) : applyAction(st, h.act);
   return st;
 }
@@ -216,7 +233,7 @@ export function actionKey(act) {
 }
 
 export function stateKey(st) {
-  return st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
+  return `${st.cfg.stack}bb/${st.cfg.open}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
 }
 
 export function actionLabel(st, act, units = 'bb') {

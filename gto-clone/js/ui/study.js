@@ -5,8 +5,10 @@ import { MADE, DRAWS } from '../engine/evaluator.js';
 import { weightedMean } from '../engine/equity.js';
 import {
   POS, STREETS, replay, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
-  aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey,
+  aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey, STACKS, OPEN_SIZES, DEFAULT_CFG,
 } from '../engine/game.js';
+
+const OPEN_LABELS = { limp: 'Limp 1bb', 2: '2bb', 2.5: '2.5bb (SB 3.5)', 4.5: '4.5bb' };
 import {
   analyze, isCached, classSummary, overallFreqs, comboFreqs, comboEVs, classAverage, rangeCombos,
   chartCode, codeFreqs, getOpenStyle, setOpenStyle,
@@ -15,6 +17,7 @@ import { getSettings, setSetting } from '../store.js';
 import { TAG_NAMES } from '../data/open-charts.js';
 
 const ui = {
+  cfg: DEFAULT_CFG,
   history: [],
   tab: 'strategy',
   metric: 'strategy',
@@ -29,8 +32,12 @@ let root = null;
 
 export function renderStudy(el) {
   root = el;
-  const m = location.hash.match(/[?&]l=([^&]*)/);
-  if (m) ui.history = decodeLine(m[1]);
+  const q = (k) => (location.hash.match(new RegExp(`[?&]${k}=([^&]*)`)) || [])[1];
+  const stack = +q('s'), open = q('o');
+  if (STACKS.includes(stack) || OPEN_SIZES.includes(open)) {
+    ui.cfg = { stack: STACKS.includes(stack) ? stack : ui.cfg.stack, open: OPEN_SIZES.includes(open) ? open : ui.cfg.open };
+  }
+  if (q('l')) ui.history = decodeLine(q('l'));
   render();
 }
 
@@ -39,8 +46,19 @@ function setHistory(hist) {
   ui.filterAction = -1;
   ui.filterCat = null;
   ui.bucket = null;
-  history.replaceState(null, '', '#/study' + (hist.length ? '?l=' + encodeLine(hist) : ''));
+  const params = [];
+  if (ui.cfg.stack !== DEFAULT_CFG.stack) params.push('s=' + ui.cfg.stack);
+  if (ui.cfg.open !== DEFAULT_CFG.open) params.push('o=' + ui.cfg.open);
+  if (hist.length) params.push('l=' + encodeLine(hist));
+  history.replaceState(null, '', '#/study' + (params.length ? '?' + params.join('&') : ''));
   render();
+}
+
+// Changing the stack or open size keeps as much of the line as still exists.
+function setCfg(patch) {
+  const line = encodeLine(ui.history);
+  ui.cfg = { ...ui.cfg, ...patch };
+  setHistory(line ? decodeLine(line) : []);
 }
 
 // The line lives in the URL so a refresh or a shared link reopens the spot.
@@ -50,7 +68,7 @@ function encodeLine(hist) {
 }
 
 function decodeLine(str) {
-  let st = replay([]);
+  let st = replay([], ui.cfg);
   for (const tok of str.split('_')) {
     if (tok[0] === 'd') {
       const cards = (tok.slice(1).match(/../g) || []).map(parseCard);
@@ -67,7 +85,7 @@ function decodeLine(str) {
 
 function render() {
   if (!root) return;
-  const st = replay(ui.history);
+  const st = replay(ui.history, ui.cfg);
   const decision = !st.terminal && !st.needBoard && st.toAct >= 0;
   const head = spotBar(st);
   if (decision && !isCached(st)) {
@@ -90,7 +108,7 @@ const stateKeyNow = () => ui.history.length;
 function spotBar(st) {
   const units = getSettings().units;
   const chips = [];
-  let replaySt = replay([]);
+  let replaySt = replay([], ui.cfg);
   ui.history.forEach((e, i) => {
     if (e.kind === 'deal') {
       chips.push(h('button.chip.board', { type: 'button', title: 'Change board', on: { click: () => setHistory(ui.history.slice(0, i)) } },
@@ -124,7 +142,14 @@ function spotBar(st) {
     }
   }
   return h('header.spotbar',
-    h('div.spot-format', h('span.pill', 'Cash'), h('span.pill', '6-max'), h('span.pill', '100bb'), h('span.pill.muted', 'demo strategies')),
+    h('div.spot-format', h('span.pill', 'Cash'), h('span.pill', '6-max'),
+      h('label.pick-field', 'Stack',
+        h('select', { 'aria-label': 'Effective stack', on: { change: (e) => setCfg({ stack: +e.target.value }) } },
+          STACKS.map((s) => h('option', { value: String(s), selected: s === ui.cfg.stack }, s + 'bb')))),
+      h('label.pick-field', 'Open',
+        h('select', { 'aria-label': 'Open size', on: { change: (e) => setCfg({ open: e.target.value }) } },
+          OPEN_SIZES.map((o) => h('option', { value: o, selected: o === ui.cfg.open }, OPEN_LABELS[o])))),
+      h('span.pill.muted', 'demo strategies')),
     h('nav.line', { 'aria-label': 'Action line' },
       h('button.chip.root', { type: 'button', title: 'Reset to the start', on: { click: () => setHistory([]) } }, '⟲'),
       chips));
@@ -355,12 +380,15 @@ function chartPanel(node) {
     const k = chartCode(p, c);
     share[k] = (share[k] || 0) + c.combos.length / 1326;
   }
+  const open = node.actions.find((a) => a.type === 'raise' || a.type === 'allin');
+  const raiseLabel = open ? `Raise ${open.to}` : 'Limp (open size)';
   const rows = p === 4
-    ? [['Raise 3.5', 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Fold', 'F', 'var(--act-fold)']]
-    : [['Raise 2.5', 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']];
+    ? [[raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Fold', 'F', 'var(--act-fold)']]
+    : [[raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']];
   const style = getOpenStyle();
   return h('section.panel.chart-panel', { 'aria-label': 'Your open chart' },
     h('div.panel-title', `Your chart · ${POS[p]} first in`),
+    node.st.cfg.stack !== 100 ? h('p.small.muted', `Your charts are built for 100bb; at ${node.st.cfg.stack}bb they're applied as they are.`) : null,
     h('ul.chart-rows', rows.filter(([, k]) => share[k]).map(([label, k, color]) => h('li',
       color ? h('span.swatch', { style: { background: color } }) : h('span.swatch.mark-' + k),
       label, h('span.mono', pct(share[k], 1))))),

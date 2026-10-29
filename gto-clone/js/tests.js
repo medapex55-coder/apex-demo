@@ -167,6 +167,32 @@ await test('U20', 'SB limp: BB gets check or iso-raise, then a flop', () => {
   assert(st.needBoard === 3, 'limped pot goes to the flop');
 });
 
+await test('U21', 'stack: 20bb spots use 20bb and big re-raises go all-in', () => {
+  const cfg = { stack: 20, open: '2.5' };
+  let st = act(foldTo(initialState(cfg), 3), 'raise'); // BTN opens 2.5
+  st = foldTo(st, 5);
+  const threeBet = legalActions(st).find((a) => a.type === 'raise' || a.type === 'allin');
+  assert(threeBet.type === 'allin' && threeBet.to === 20, '3-bet becomes a 20bb shove');
+  st = applyAction(st, threeBet);
+  const n = analyze(st);
+  assert(n.actions.map((a) => a.type).join() === 'fold,call', 'BTN can only fold or call');
+  const callK = n.actions.findIndex((a) => a.type === 'call');
+  assert(comboFreqs(n, CLASS_BY_NAME.AA.combos[0])[callK] === 1, 'AA calls the shove');
+  assert(analyze(initialState(cfg)).key !== analyze(initialState()).key, 'different stack, different node');
+});
+await test('U22', 'open sizes: 2bb, 4.5bb and limp first in', () => {
+  const opener = (open) => legalActions(initialState({ stack: 100, open })).map((a) => a.type + (a.to || '')).join();
+  assert(opener('2') === 'fold,raise2', '2bb open');
+  assert(opener('4.5') === 'fold,raise4.5', '4.5bb open');
+  assert(opener('limp') === 'fold,call', 'limp only');
+  const limpCfg = { stack: 100, open: 'limp' };
+  const n = analyze(initialState(limpCfg));
+  assert(comboFreqs(n, CLASS_BY_NAME.AA.combos[0])[1] === 1, 'LJ limps its raising range');
+  let st = act(initialState(limpCfg), 'call'); // LJ limps
+  st = act(foldTo(st, 2), 'raise'); // CO isolates
+  assert(st.folded.filter((f) => !f).length === 2 && POS[st.toAct] === 'LJ', 'heads-up LJ vs CO after the iso');
+});
+
 // ---------- flows in the real app ----------
 const frame = document.getElementById('frame');
 const load = (hash) => new Promise((res) => { frame.onload = () => setTimeout(res, 300); frame.src = 'index.html?t=' + Date.now() + hash; });
