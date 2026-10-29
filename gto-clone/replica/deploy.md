@@ -16,7 +16,7 @@
 ## Host
 The static files run anywhere that serves files.
 - **Local (current):** `powershell -File serve.ps1 -Port 8844 -Root gto-clone`, then open http://localhost:8844
-- **Public (proposed, needs your go):** this repo already publishes to GitHub Pages from `master` (root). Committing `gto-clone/` and pushing would serve it at `https://medapex55-coder.github.io/apex-demo/gto-clone/`, which is **public** and sits next to the APEX demo. Alternative: a separate repo of its own.
+- **Public (live since 2026-10-29):** https://medapex55-coder.github.io/apex-demo/gto-clone/ (GitHub Pages, branch `master`, repo apex-demo). Tests on the live URL: 30/30.
 
 ## Watch
 No server, so there's nothing to monitor. After any change, open `tests.html` on the live URL and check that it says 30/30.
