@@ -1,0 +1,43 @@
+/* Generated from replica/design/tokens.json. Change values there, keep names. */
+:root {
+  --bg: #0f1218;
+  --surface: #171b23;
+  --surface-2: #1f2430;
+  --border: #2a303c;
+  --border-input: #6b7486;
+  --text: #e8ebf0;
+  --text-muted: #9aa3b2;
+  --accent: #3fb8a4;
+  --on-accent: #0b0e13;
+  --danger: #ef6b6b;
+  --success: #4cc38a;
+  --warning: #e8b44a;
+  --act-fold: #3f6fb5;
+  --act-call: #3c9a5c;
+  --act-bet-s: #e0913f;
+  --act-bet-m: #d65a3c;
+  --act-bet-l: #b5343c;
+  --act-allin: #7d2346;
+  --on-act: #ffffff;
+  --cell-empty: #06080b;
+  --card-face: #f4f5f7;
+  --suit-s: #15181d;
+  --suit-h: #c22a2a;
+  --suit-d: #2257b8;
+  --suit-c: #1d7a3a;
+  --felt: #1d3b33;
+  --felt-edge: #142a25;
+  --felt-rim: #2a2016;
+
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --fs-xs: 11px; --fs-sm: 13px; --fs-base: 14px; --fs-lg: 16px; --fs-xl: 22px; --fs-display: 32px;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+  --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px;
+  --shadow-card: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-pop: 0 16px 40px rgba(0,0,0,.55);
+  --t-fast: 100ms; --t-base: 180ms; --ease: cubic-bezier(.2,.8,.2,1);
+  --header-h: 52px; --sidebar-w: 360px;
+}

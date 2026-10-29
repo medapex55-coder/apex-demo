@@ -1,0 +1,44 @@
+feature,area,priority,original,clone,notes
+13x13 range grid colored by action frequencies,study,must,yes,yes,
+Preflop action sequence navigation (positions + actions),study,must,yes,yes,click a later seat to auto-fold to it
+Actions table with overall frequencies,study,must,yes,yes,
+Hover/select hand shows per-hand action mix,study,must,yes,yes,per-combo rows postflop
+Info box: pot / to call / pot odds / active player,study,must,yes,yes,plus SPR and effective stack
+Board picker for flop turn river,study,must,yes,yes,picker + random
+Postflop strategy per node,study,must,yes,yes,generated heuristics (not solver output)
+Click action row to filter grid,study,must,yes,yes,
+Trainer setup: spot + positions,practice,must,yes,yes,5 preset drills
+Trainer table with hero cards and action buttons,practice,must,yes,yes,
+Opponent acts by strategy frequencies,practice,must,yes,yes,
+Grade each decision (best/correct/inaccuracy/wrong/blunder),practice,must,yes,yes,
+EV loss per decision and session total,practice,must,yes,yes,estimated EV model
+Running GTOW-style score,practice,must,yes,yes,
+Spot mode (repeat one decision),practice,must,yes,yes,
+Hand evaluator and equity,engine,must,yes,yes,own evaluator + shared-runout range equity
+Ranges tab OOP vs IP side by side,study,should,yes,yes,with equity buckets
+Metric switch Strategy / EV / Equity,study,should,yes,yes,
+Hand category filters,study,should,yes,yes,postflop only
+Bet units toggle pct pot / bb,study,should,yes,yes,space bar or settings
+Summary table sortable (strategy weight EV EQ),study,should,yes,yes,
+Full hand mode,practice,should,yes,yes,
+Difficulty simple vs standard,practice,should,yes,yes,
+RNG mode,practice,should,yes,yes,high and low
+Timebank,practice,should,yes,yes,7/15/25s; auto check or fold
+Session history with hands list,stats,should,yes,yes,
+Keyboard shortcuts (1-4 tabs; J; P; space),study,should,yes,partial,1-3 tabs; P; space; backspace; 1-9 in trainer. No spot-selector popup (J)
+Breakdown tab,study,could,yes,no,
+Equity graph,study,could,yes,no,
+Copy range in Pio format,study,could,yes,partial,comma list with weights
+Color theme settings,settings,could,yes,partial,settings drawer with units/grid options; no theme editor
+Hand replayer,stats,could,yes,no,
+Multi-table trainer (up to 4),practice,could,yes,no,
+Solution library from real solver,data,skip,yes,skip,their proprietary data
+AI custom solving and nodelocking,study,skip,yes,skip,requires a real-time solver
+Aggregate reports on 1755 flops,study,skip,yes,skip,requires solved dataset
+Analyze hand histories,analyze,skip,yes,skip,deferred to later phase
+PokerArena network,arena,skip,yes,skip,the network and its users
+Table Wizard desktop overlay,tools,skip,yes,skip,separate desktop product
+Plain-language why on every graded decision (hand class / equity / price),practice,should,no,yes,from fixes.md #1 (beginners)
+Free and offline with no hand limit,practice,should,no,yes,from fixes.md #2 (cost); localStorage only
+Drill your own custom ranges,practice,could,no,no,from fixes.md #3 (HN request)
+Exploit mode: opponent profiles (calling station / nit),practice,could,no,no,from fixes.md #4 (low-stakes exploit play)

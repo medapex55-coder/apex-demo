@@ -1,0 +1,6 @@
+{
+  "name": "Spotwise",
+  "avoid": ["GTO Wizard", "GTOWizard", "gtowizard", "GTOW", "Wizard", "Rangecraft"],
+  "domains": ["gtowizard.com", "app.gtowizard.com", "help.gtowizard.com"],
+  "colors": []
+}

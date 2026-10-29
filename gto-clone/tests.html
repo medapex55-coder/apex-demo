@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spotwise tests</title>
+  <link rel="stylesheet" href="css/tokens.css">
+  <style>
+    body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--font-mono); padding: 16px; }
+    .pass { color: var(--success); } .fail { color: var(--danger); }
+    #frame { width: 1280px; height: 800px; border: 1px solid var(--border); margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Spotwise tests</h1>
+  <div id="summary">running…</div>
+  <ol id="out"></ol>
+  <iframe id="frame" title="App under test"></iframe>
+  <script type="module" src="js/tests.js"></script>
+</body>
+</html>
