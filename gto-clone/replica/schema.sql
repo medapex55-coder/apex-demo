@@ -40,7 +40,7 @@ create table trainer_hands (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references trainer_sessions(id) on delete cascade,
   user_id uuid not null references users(id) on delete cascade,
-  hero_pos text not null check (hero_pos in ('UTG','HJ','CO','BTN','SB','BB')),
+  hero_pos text not null check (hero_pos in ('LJ','HJ','CO','BTN','SB','BB')),
   hero_cards text not null,               -- e.g. 'AsKd'
   board text not null default '',
   actions jsonb not null default '[]',

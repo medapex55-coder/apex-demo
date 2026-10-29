@@ -5,7 +5,7 @@ import { parseCard, COMBOS, CLASS_BY_NAME, comboIndex } from './engine/cards.js'
 import { evalHand, classify } from './engine/evaluator.js';
 import { rangeEquity } from './engine/equity.js';
 import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS } from './engine/game.js';
-import { analyze, comboFreqs, overallFreqs, rangeCombos } from './engine/strategy.js';
+import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle } from './engine/strategy.js';
 import { gradeDecision } from './ui/practice.js';
 
 const results = [];
@@ -70,9 +70,9 @@ await test('U10', 'game: BTN open, BB call needs a flop, BB acts first', () => {
   assert(POS[st.toAct] === 'BB', 'BB first postflop');
 });
 await test('U11', 'game: a 3-bet makes the pot heads-up', () => {
-  let st = act(initialState(), 'raise'); // UTG opens
+  let st = act(initialState(), 'raise'); // LJ opens
   st = act(foldTo(st, 2), 'raise'); // CO 3-bets
-  assert(st.folded.filter((f) => !f).length === 2 && POS[st.toAct] === 'UTG', 'UTG vs CO only');
+  assert(st.folded.filter((f) => !f).length === 2 && POS[st.toAct] === 'LJ', 'LJ vs CO only');
 });
 await test('U12', 'game: all-in runs out to showdown', () => {
   let st = act(initialState(), 'raise');
@@ -98,7 +98,7 @@ await test('U13', 'strategy: every combo sums to 1 at preflop and flop nodes', (
     }
   }
 });
-await test('U14', 'strategy: AA always opens, 72o never opens UTG; BTN opens wider than UTG', () => {
+await test('U14', 'strategy: AA always opens, 72o never opens LJ; BTN opens wider than LJ', () => {
   const utg = analyze(initialState());
   const r = utg.actions.findIndex((a) => a.type === 'raise');
   assert(comboFreqs(utg, CLASS_BY_NAME.AA.combos[0])[r] === 1, 'AA');
@@ -128,6 +128,43 @@ await test('U17', 'replay is deterministic: same line, same strategy', () => {
   const st = act(foldTo(initialState(), 2), 'raise');
   const again = replay(st.history);
   assert(analyze(st) === analyze(again), 'cached node reused');
+});
+
+await test('U18', 'open charts: first-in spots follow the user charts', () => {
+  const at = (p, name) => {
+    const n = analyze(foldTo(initialState(), p));
+    const f = comboFreqs(n, CLASS_BY_NAME[name].combos[0]);
+    return Object.fromEntries(n.actions.map((a, k) => [a.type === 'call' ? 'limp' : a.type, f[k]]));
+  };
+  assert(at(0, 'K5s').fold === 1, 'LJ folds K5s');
+  assert(at(1, 'K6s').raise === 1, 'HJ raises K6s');
+  assert(at(3, 'K2s').raise === 1 && at(3, 'K2o').fold === 1, 'BTN raises K2s, folds K2o');
+  assert(at(2, 'A5o').raise > 0 && at(2, 'A5o').raise < 0.5, 'CO A5o is Loosifie: mostly fold in standard');
+  const sbAA = at(4, 'AA');
+  assert(sbAA.raise === 0.5 && sbAA.limp === 0.5, 'SB AA raise/limp 50/50');
+  assert(at(4, 'T5o').fold === 1 && at(4, '72s').limp === 1, 'SB folds T5o, limps 72s');
+});
+await test('U19', 'open style: tight folds Tightfie, loose opens Loosifie', () => {
+  const raiseOf = (p, name) => {
+    const n = analyze(foldTo(initialState(), p));
+    return comboFreqs(n, CLASS_BY_NAME[name].combos[0])[n.actions.findIndex((a) => a.type === 'raise')];
+  };
+  setOpenStyle('tight');
+  const tight = raiseOf(1, 'QTo'); // HJ QTo is a Raise/Tightfie split
+  setOpenStyle('standard');
+  const std = raiseOf(0, 'K6s'); // LJ K6s is Loosifie
+  setOpenStyle('loose');
+  const loose = raiseOf(0, 'K6s');
+  setOpenStyle('standard');
+  assert(tight < 0.7, 'tight cuts the split cell');
+  assert(std < 0.5 && loose > 0.8, 'loose opens Loosifie');
+});
+await test('U20', 'SB limp: BB gets check or iso-raise, then a flop', () => {
+  let st = foldTo(initialState(), 4);
+  st = act(st, 'call');
+  assert(legalActions(st).map((a) => a.type).join() === 'check,raise', 'BB options');
+  st = act(st, 'check');
+  assert(st.needBoard === 3, 'limped pot goes to the flop');
 });
 
 // ---------- flows in the real app ----------

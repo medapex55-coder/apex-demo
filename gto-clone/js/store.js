@@ -3,7 +3,7 @@ const KEY = 'gtoc.v1';
 const MAX_DECISIONS = 2000;
 
 const DEFAULT = {
-  settings: { units: 'bb', gridMode: 'full', cellNumbers: false, fourColor: true },
+  settings: { units: 'bb', gridMode: 'full', cellNumbers: false, fourColor: true, openStyle: 'standard' },
   sessions: [],
   drills: [],
 };

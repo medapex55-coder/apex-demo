@@ -28,6 +28,8 @@
   --felt: #1d3b33;
   --felt-edge: #142a25;
   --felt-rim: #2a2016;
+  --tag-loose: #4cc38a;
+  --tag-tight: #5aa9ff;
 
   --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

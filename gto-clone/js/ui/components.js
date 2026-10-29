@@ -25,7 +25,7 @@ const heatColor = (t) => {
 };
 
 // cells: array(169) of { weight, freqs, heat, text }
-export function RangeGrid({ cells, roles, order, mode = 'strategy', gridMode = 'full', selected, hover, filterAction = -1, dim, showNumbers, onHover, onSelect, label = 'Range grid', size = '' }) {
+export function RangeGrid({ cells, roles, order, mode = 'strategy', gridMode = 'full', selected, hover, filterAction = -1, dim, marks, showNumbers, onHover, onSelect, label = 'Range grid', size = '' }) {
   const grid = h('div.rgrid' + (size ? '.' + size : ''), { role: 'grid', 'aria-label': label });
   CLASSES.forEach((c, idx) => {
     const cell = cells[idx];
@@ -61,6 +61,8 @@ export function RangeGrid({ cells, roles, order, mode = 'strategy', gridMode = '
       }
     }
     el.append(h('span.lbl', c.name));
+    const mk = marks?.(idx);
+    if (mk) el.append(h('span.mark.mark-' + mk, { title: mk }));
     if (!empty && (showNumbers || mode !== 'strategy') && cell.text) el.append(h('span.val', cell.text));
     grid.append(el);
   });

@@ -9,8 +9,10 @@ import {
 } from '../engine/game.js';
 import {
   analyze, isCached, classSummary, overallFreqs, comboFreqs, comboEVs, classAverage, rangeCombos,
+  chartCode, codeFreqs, getOpenStyle, setOpenStyle,
 } from '../engine/strategy.js';
 import { getSettings, setSetting } from '../store.js';
+import { TAG_NAMES } from '../data/open-charts.js';
 
 const ui = {
   history: [],
@@ -80,7 +82,7 @@ function render() {
   const node = analyze(st);
   mount(root, head, h('div.study-main',
     h('section.study-left', { 'aria-label': 'Strategy view' }, toolbar(node), mainView(node)),
-    h('aside.study-side', infoBox(node), actionsTable(node), handDetail(node), categoryFilters(node))));
+    h('aside.study-side', infoBox(node), chartPanel(node), actionsTable(node), handDetail(node), categoryFilters(node))));
 }
 const stateKeyNow = () => ui.history.length;
 
@@ -204,6 +206,7 @@ function mainView(node) {
     cells, roles: roles(node), order: orderOf(node), mode, gridMode: s.gridMode, showNumbers: s.cellNumbers,
     selected: ui.selected, hover: ui.hover, filterAction: ui.filterAction, dim: dimCat,
     label: `${POS[node.actor]} strategy`,
+    marks: isFirstIn(node) ? (i) => { const k = chartCode(node.actor, CLASSES[i]); return 'LTXH'.includes(k) ? k : null; } : null,
     onHover: (i) => { if (ui.hover !== i) { ui.hover = i; refreshDetail(node); } },
     onSelect: (i) => { ui.selected = ui.selected === i ? null : i; render(); },
   }));
@@ -324,7 +327,8 @@ function handDetail(node) {
     const f = comboFreqs(node, i), ev = comboEVs(node, i);
     box.append(FreqBar(order.map((k) => ({ ...rs[k], freq: f[k] })), { height: 16, labels: true }),
       h('table.mini', h('tbody', order.map((k) => h('tr', h('td', h('span.swatch', { style: { background: `var(--act-${rs[k].role})` } }), ' ', rs[k].label), h('td.mono', pct(f[k], 1)), h('td.mono.muted', 'EV ' + num(ev[k], 2)))))),
-      h('p.muted.small', `Equity ${pct(classAverage(eq, node, node.actor, cls), 1)} · weight ${pct(w[i], 0)}`));
+      h('p.muted.small', `Equity ${pct(classAverage(eq, node, node.actor, cls), 1)} · weight ${pct(w[i], 0)}`),
+      isFirstIn(node) && TAG_NAMES[chartCode(node.actor, cls)] ? h('p.small.tag-note', 'In your chart: ', h('strong', TAG_NAMES[chartCode(node.actor, cls)])) : null);
   } else {
     box.append(h('div.combo-list', inRange.slice(0, 16).map((i) => {
       const f = comboFreqs(node, i);
@@ -337,6 +341,33 @@ function handDetail(node) {
     })));
   }
   return box;
+}
+
+const isFirstIn = (node) => node.st.street === 0 && node.st.raiseLevel === 0 && node.actor <= 4;
+
+// The user's open chart for this seat: its zones and the style that decides
+// how the flex zones (Loosifie / Tightfie) are played.
+function chartPanel(node) {
+  if (!isFirstIn(node)) return null;
+  const p = node.actor;
+  const share = {};
+  for (const c of CLASSES) {
+    const k = chartCode(p, c);
+    share[k] = (share[k] || 0) + c.combos.length / 1326;
+  }
+  const rows = p === 4
+    ? [['Raise 3.5', 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Fold', 'F', 'var(--act-fold)']]
+    : [['Raise 2.5', 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']];
+  const style = getOpenStyle();
+  return h('section.panel.chart-panel', { 'aria-label': 'Your open chart' },
+    h('div.panel-title', `Your chart · ${POS[p]} first in`),
+    h('ul.chart-rows', rows.filter(([, k]) => share[k]).map(([label, k, color]) => h('li',
+      color ? h('span.swatch', { style: { background: color } }) : h('span.swatch.mark-' + k),
+      label, h('span.mono', pct(share[k], 1))))),
+    p === 4 ? null : Segmented('Open style', [
+      { value: 'tight', label: 'Tight' }, { value: 'standard', label: 'Standard' }, { value: 'loose', label: 'Loose' },
+    ], style, (v) => { setSetting('openStyle', v); setOpenStyle(v); render(); }),
+    p === 4 ? null : h('p.small.muted', style === 'tight' ? 'Tight: Tightfie hands fold.' : style === 'loose' ? 'Loose: Loosifie hands open too.' : 'Standard: Tightfie hands open, Loosifie hands fold.'));
 }
 
 function categoryFilters(node) {
@@ -362,13 +393,13 @@ function categoryFilters(node) {
 
 // ---------- hotkeys ----------
 export function studyKey(e) {
-  if (e.target.matches('input, select, textarea')) return false;
+  if (e.target.matches?.('input, select, textarea')) return false;
   if (e.key === '1') { ui.tab = 'strategy'; render(); return true; }
   if (e.key === '2') { ui.tab = 'ranges'; render(); return true; }
   if (e.key === '3') { ui.tab = 'summary'; render(); return true; }
   if (e.key === 'p' || e.key === 'P') { clearFilters(); return true; }
   if (e.key === 'Backspace' && ui.history.length) { setHistory(ui.history.slice(0, -1)); return true; }
-  if (e.key === ' ' && !e.target.matches('button')) { setSetting('units', getSettings().units === 'bb' ? 'pct' : 'bb'); render(); return true; }
+  if (e.key === ' ' && !e.target.matches?.('button')) { setSetting('units', getSettings().units === 'bb' ? 'pct' : 'bb'); render(); return true; }
   return false;
 }
 

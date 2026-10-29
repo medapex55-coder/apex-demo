@@ -1,13 +1,13 @@
 import { h, mount, pct, num } from './dom.js';
 import { PlayingCard, FreqBar, RangeGrid, Segmented, StatTile } from './components.js';
-import { COMBOS, comboIndex, comboStr, cardStr } from '../engine/cards.js';
+import { COMBOS, CLASSES, CLASS_OF_COMBO, comboIndex, comboStr, cardStr } from '../engine/cards.js';
 import { evalHand } from '../engine/evaluator.js';
 import { pickWeighted } from '../engine/rng.js';
 import {
   POS, STREETS, initialState, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
   aggression, pot, remaining, alive, toCallOf,
 } from '../engine/game.js';
-import { analyze, comboFreqs, comboEVs, classSummary } from '../engine/strategy.js';
+import { analyze, comboFreqs, comboEVs, classSummary, chartCode, getOpenStyle } from '../engine/strategy.js';
 import { saveSession, uid, getSettings } from '../store.js';
 
 export const DRILLS = [
@@ -268,7 +268,16 @@ function explain(node, i) {
   const info = node.info?.[i];
   if (info) parts.push(`You have ${info.made.toLowerCase()}${info.draw ? ' with a ' + info.draw.toLowerCase() : ''}.`);
   if (Number.isFinite(eq)) parts.push(`Your equity against their range is ${pct(eq)}.`);
-  if (call > 0) parts.push(`Calling costs ${num(call)}bb into ${num(pot(st))}bb, so you need about ${pct(call / (pot(st) + call))} to break even before position and future bets.`);
+  if (call > 0 && st.raiseLevel > 0) parts.push(`Calling costs ${num(call)}bb into ${num(pot(st))}bb, so you need about ${pct(call / (pot(st) + call))} to break even before position and future bets.`);
+  if (st.street === 0 && st.raiseLevel === 0 && st.toAct <= 4) {
+    const code = chartCode(st.toAct, CLASSES[CLASS_OF_COMBO[i]]);
+    const flex = {
+      L: 'Loosifie (open it when you play looser)', T: 'Tightfie (drop it when you play tighter)',
+      X: 'half Raise, half Tightfie', H: 'raise or limp, 50/50',
+    }[code];
+    const plain = { R: 'always raise', M: 'limp', F: 'fold' }[code];
+    parts.push(flex ? `Your chart: ${flex}. Style: ${getOpenStyle()}.` : `Your chart: ${plain}.`);
+  }
   return parts.join(' ');
 }
 
@@ -408,7 +417,7 @@ function learnGrid(fb) {
 }
 
 export function practiceKey(e) {
-  if (!P.session || e.target.matches('input, select, textarea')) return false;
+  if (!P.session || e.target.matches?.('input, select, textarea')) return false;
   const hand = P.hand;
   if (e.key === ' ' || e.key === 'Enter') {
     if (P.feedback?.pausing || hand?.over) { e.preventDefault(); continueAfterFeedback(); return true; }

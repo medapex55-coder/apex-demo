@@ -1,11 +1,13 @@
-// Strategy generator. Not a solver: preflop charts come from a hand-strength
-// ordering and position thresholds, postflop from equity vs. the opponent's
+// Strategy generator. Not a solver: first-in opens come from the user's charts
+// (data/open-charts.js), other preflop spots from a hand-strength ordering and
+// position thresholds, postflop from equity vs. the opponent's
 // range, draws and range advantage. Every node's ranges are the parent's
 // ranges times the frequency of the action taken, so the tree is consistent.
 import { CLASSES, COMBOS, CLASS_OF_COMBO, deadMask } from './cards.js';
 import { classify } from './evaluator.js';
 import { rangeEquity, weightedMean } from './equity.js';
 import { hashStr } from './rng.js';
+import { OPEN_CHARTS } from '../data/open-charts.js';
 import {
   POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf,
 } from './game.js';
@@ -37,7 +39,53 @@ export const PERCENTILE = new Float32Array(169);
   }
 }
 
-const OPEN = [0.17, 0.21, 0.28, 0.46, 0.42];
+// --- the user's open charts (first in, LJ..SB) ---
+// Style: 'standard' opens Raise + Tightfie, 'tight' drops Tightfie,
+// 'loose' adds Loosifie. The off-style action on a flex hand keeps a small
+// frequency so the trainer grades it as acceptable, not a mistake.
+let openStyle = 'standard';
+const FLEX = 0.15;
+export const getOpenStyle = () => openStyle;
+export function setOpenStyle(s) {
+  if (s === openStyle) return;
+  openStyle = s;
+  cache.clear();
+}
+
+export function chartCode(p, cls) {
+  const ch = OPEN_CHARTS[POS[p]];
+  return ch ? ch[cls.row][cls.col] : null;
+}
+
+export function codeFreqs(code) {
+  switch (code) {
+    case 'R': return { raise: 1, limp: 0, fold: 0 };
+    case 'M': return { raise: 0, limp: 1, fold: 0 };
+    case 'H': return { raise: 0.5, limp: 0.5, fold: 0 };
+    case 'L':
+      if (openStyle === 'loose') return { raise: 1 - FLEX, limp: 0, fold: FLEX };
+      if (openStyle === 'tight') return { raise: 0, limp: 0, fold: 1 };
+      return { raise: FLEX, limp: 0, fold: 1 - FLEX };
+    case 'T':
+      if (openStyle === 'loose') return { raise: 1, limp: 0, fold: 0 };
+      if (openStyle === 'tight') return { raise: FLEX, limp: 0, fold: 1 - FLEX };
+      return { raise: 1 - FLEX, limp: 0, fold: FLEX };
+    case 'X': {
+      const t = codeFreqs('T');
+      return { raise: 0.5 + 0.5 * t.raise, limp: 0, fold: 0.5 * t.fold };
+    }
+    default: return { raise: 0, limp: 0, fold: 1 };
+  }
+}
+
+// Share of all combos a seat opens (raise only), used to size the defence.
+function openWidth(p) {
+  if (p === 5) return 0.18; // BB isolating a limp
+  if (!OPEN_CHARTS[POS[p]]) return 0.4;
+  let s = 0;
+  for (const c of CLASSES) s += codeFreqs(chartCode(p, c)).raise * c.combos.length;
+  return s / 1326;
+}
 
 function preflopClassFreqs(st, actions) {
   const p = st.toAct;
@@ -45,22 +93,28 @@ function preflopClassFreqs(st, actions) {
   const out = CLASSES.map(() => new Array(actions.length).fill(0));
   const idx = (t) => actions.findIndex((a) => (t === 'raise' ? a.type === 'raise' || a.type === 'allin' : a.type === t));
   const iF = idx('fold'), iC = idx('call'), iR = idx('raise');
+  const sbLimped = st.history.some((h) => h.kind === 'act' && h.p === 4 && h.street === 0 && h.act.type === 'call' && h.act.amount === 0.5);
   for (const c of CLASSES) {
     const pc = PERCENTILE[c.id];
     let raise = 0, call = 0;
-    if (rl === 0) {
-      raise = within(pc, OPEN[p] ?? 0.5);
+    if (rl === 0 && p <= 4) {
+      const f = codeFreqs(chartCode(p, c));
+      raise = f.raise;
+      call = f.limp;
+    } else if (rl === 0) {
+      raise = within(pc, 0.18); // BB vs a limp: isolate the top, check the rest
     } else if (rl === 1) {
-      const o = OPEN[st.lastAggr] ?? 0.4;
+      const o = openWidth(st.lastAggr);
       let V, C;
-      if (p === 5) { V = o * 0.22; C = Math.min(0.62, 0.12 + o * 1.05); }
+      if (p === 4 && sbLimped) { V = 0.03; C = 0.6; } // limp-call wide, limp-raise the nuts
+      else if (p === 5) { V = o * 0.22; C = Math.min(0.62, 0.12 + o * 1.05); }
       else if (p === 4) { V = o * 0.32; C = V + o * 0.1; }
       else { V = o * 0.2; C = o * 0.55; }
-      const bluff = c.suited && pc > C && pc < C + 0.12 ? 0.4 : 0;
+      const bluff = !(p === 4 && sbLimped) && c.suited && pc > C && pc < C + 0.12 ? 0.4 : 0;
       raise = within(pc, V) + bluff;
       call = Math.max(0, within(pc, C) - within(pc, V));
     } else if (rl === 2) {
-      const o = OPEN[p] ?? 0.4;
+      const o = openWidth(p);
       const C = o * (isIP(st, p) ? 0.55 : 0.42);
       const bluff = c.suited && c.hi === 12 && pc > C && pc < o ? 0.5 : 0;
       raise = within(pc, 0.03, 0.008) + bluff;

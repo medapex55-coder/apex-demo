@@ -3,7 +3,7 @@
 // postflop spot is heads-up.
 import { cardStr } from './cards.js';
 
-export const POS = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+export const POS = ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
 export const STACK = 100;
 export const STREETS = ['Preflop', 'Flop', 'Turn', 'River'];
 const POSTFLOP_ORDER = [4, 5, 0, 1, 2, 3]; // SB first
@@ -63,7 +63,7 @@ export function isIP(st, p) {
 
 function preflopSizes(st, p) {
   const opener = st.lastAggr;
-  if (st.raiseLevel === 0) return p === 4 ? 3 : 2.5;
+  if (st.raiseLevel === 0) return p === 4 ? 3.5 : p === 5 ? 4 : 2.5; // SB opens 3.5, BB isolates a limp to 4
   if (st.raiseLevel === 1) {
     const open = st.currentBet;
     const ip = POSTFLOP_ORDER.indexOf(p) > POSTFLOP_ORDER.indexOf(opener);
@@ -83,7 +83,7 @@ export function legalActions(st) {
   if (st.street === 0) {
     if (call > 0) acts.push({ type: 'fold' });
     if (call === 0) acts.push({ type: 'check' });
-    else if (st.raiseLevel > 0) acts.push({ type: 'call', amount: call }); // no open-limping
+    else if (st.raiseLevel > 0 || p === 4) acts.push({ type: 'call', amount: call }); // only the SB may limp
     if (st.raiseLevel <= 3 && rem > call) {
       const to = Math.min(preflopSizes(st, p), st.streetBet[p] + rem);
       const allin = to >= st.streetBet[p] + rem;
@@ -231,7 +231,7 @@ export function actionLabel(st, act, units = 'bb') {
   switch (act.type) {
     case 'fold': return 'Fold';
     case 'check': return 'Check';
-    case 'call': return 'Call ' + +act.amount.toFixed(1);
+    case 'call': return st.street === 0 && st.raiseLevel === 0 ? 'Limp' : 'Call ' + +act.amount.toFixed(1);
     case 'allin': return 'All-in ' + +act.to.toFixed(1);
     case 'bet': return 'Bet ' + fmt(act.to);
     case 'raise':
