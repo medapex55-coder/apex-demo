@@ -5,10 +5,11 @@ import { evalHand } from '../engine/evaluator.js';
 import { pickWeighted } from '../engine/rng.js';
 import {
   POS, STREETS, initialState, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
-  aggression, pot, remaining, alive, toCallOf,
+  aggression, pot, remaining, alive, toCallOf, STACKS,
 } from '../engine/game.js';
 import { analyze, comboFreqs, comboEVs, classSummary, chartCode, getOpenStyle } from '../engine/strategy.js';
 import { saveSession, uid, getSettings } from '../store.js';
+import { practiceSpotKey } from '../data/leaks.js';
 
 export const DRILLS = [
   { id: 'rfi', name: 'Open raising', desc: 'Folded to you before the flop. Open or fold.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
@@ -18,7 +19,7 @@ export const DRILLS = [
   { id: 'full', name: 'Full hands', desc: 'Six-handed from the deal to showdown.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
 ];
 
-const DEFAULT_CFG = { drill: 'rfi', hero: 'any', difficulty: 'standard', rng: 'off', timebank: 0, pause: 'always', autoNext: true, closeOnly: true };
+const DEFAULT_CFG = { drill: 'rfi', hero: 'any', stack: 100, open: '2.5', difficulty: 'standard', rng: 'off', timebank: 0, pause: 'always', autoNext: true, closeOnly: true };
 
 const P = {
   cfg: { ...DEFAULT_CFG },
@@ -55,6 +56,9 @@ function setupView() {
     }, h('strong', d.name), h('span.muted.small', d.desc), h('span.pill', d.mode === 'full' ? 'Full hand' : 'Single spot')))),
     h('div.panel.setup-opts',
       field('Your position', Segmented('Position', [{ value: 'any', label: 'Any' }, ...drill.heroes.map((p) => ({ value: p, label: POS[p] }))], c.hero, set('hero'))),
+      field('Effective stack', h('label.pick-field', h('select', { 'aria-label': 'Effective stack', on: { change: (e) => { c.stack = +e.target.value; } } },
+        STACKS.map((s) => h('option', { value: String(s), selected: s === c.stack }, s + 'bb'))))),
+      field('Open size', Segmented('Open size', [{ value: '2', label: '2bb' }, { value: '2.5', label: '2.5bb' }, { value: '4.5', label: '4.5bb' }], c.open, set('open'))),
       field('Difficulty', Segmented('Difficulty', [{ value: 'standard', label: 'Exact sizes' }, { value: 'simple', label: 'Simple' }], c.difficulty, set('difficulty'))),
       field('RNG', Segmented('RNG', [{ value: 'off', label: 'Off' }, { value: 'high', label: 'High' }, { value: 'low', label: 'Low' }], c.rng, set('rng'))),
       field('Time per decision', Segmented('Timebank', [{ value: 0, label: 'No limit' }, { value: 7, label: '7s' }, { value: 15, label: '15s' }, { value: 25, label: '25s' }], c.timebank, set('timebank'))),
@@ -115,10 +119,11 @@ function dealHand() {
   stopTimer();
   const drill = DRILLS.find((d) => d.id === P.cfg.drill);
   const hero = P.cfg.hero === 'any' ? rand(drill.heroes) : P.cfg.hero;
-  const hand = { hero, hands: Array(6).fill(null), boardCards: [], st: initialState(), decisions: [], over: false, mode: drill.mode, result: null };
+  const game = { stack: P.cfg.stack, open: P.cfg.open };
+  const hand = { hero, hands: Array(6).fill(null), boardCards: [], st: initialState(game), decisions: [], over: false, mode: drill.mode, result: null };
   P.feedback = null;
   P.hand = hand;
-  let st = initialState();
+  let st = initialState(game);
   if (drill.id === 'full') {
     const deck = shuffledDeck();
     for (let p = 0; p < 6; p++) hand.hands[p] = [deck.pop(), deck.pop()].sort((a, b) => b - a);
@@ -304,7 +309,7 @@ function heroAct(k, timedOut = false) {
   const labels = node.actions.map((a) => actionLabel(st, a, units));
   const rec = {
     t: new Date().toISOString(), drill: P.cfg.drill, pos: POS[hand.hero], hand: comboStr(i), board: st.board.map(cardStr).join(''),
-    street: STREETS[st.street], chosen: labels[k], best: labels[g.bestK], grade: g.grade, score: g.score, evLoss: g.loss, pot: pot(st),
+    street: STREETS[st.street], stack: st.cfg.stack, spot: practiceSpotKey(st), chosen: labels[k], best: labels[g.bestK], grade: g.grade, score: g.score, evLoss: g.loss, pot: pot(st),
     freqs: node.actions.map((a, j) => ({ label: labels[j], role: actionRole(st, a), f: g.f[j] })), timedOut,
     why: explain(node, i),
   };
@@ -373,7 +378,7 @@ function tableView() {
   } else bar = [h('span.muted', 'Waiting for the other players…')];
 
   return h('section.table-area', { 'aria-label': 'Poker table' },
-    h('div.table-top', h('span.pill', DRILLS.find((d) => d.id === P.cfg.drill).name), h('span.pill', STREETS[st.street]),
+    h('div.table-top', h('span.pill', DRILLS.find((d) => d.id === P.cfg.drill).name), h('span.pill', STREETS[st.street]), h('span.pill', st.cfg.stack + 'bb'),
       hand.rng ? h('span.dice', { title: 'RNG roll' }, '🎲 ' + hand.rng) : null,
       P.cfg.timebank && myTurn ? h('span.timer', P.timeLeft + 's') : null,
       h('span.grow'), h('button.btn.ghost.sm', { type: 'button', on: { click: endSession } }, 'End session')),

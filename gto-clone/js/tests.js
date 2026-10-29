@@ -9,7 +9,7 @@ import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle } from './
 import { gradeDecision } from './ui/practice.js';
 import { parseFile } from './data/parsers.js';
 import { extractDecisions } from './data/decisions.js';
-import { analyzeDecisions } from './data/leaks.js';
+import { analyzeDecisions, keyMetric, practiceSpotKey, spotKey, liveAction } from './data/leaks.js';
 
 // Synthetic PokerStars files (made up for the tests, same layout as the real ones).
 const PS_SUMMARY = `PokerStars Tournament #111, No Limit Hold'em
@@ -311,6 +311,34 @@ await test('D04', 'leakfinder grades rebuilt spots', () => {
   assert(vs.hands[0].grade === 'best', 'QQ calling a 10bb shove is best');
 });
 
+await test('D05', 'hands keep their time; plain-language metric compares you with the target', () => {
+  const hands = parseFile(PS_HANDS).hands.hands;
+  assert(hands[1].at === '2026-10-19T01:40:00', `hand time ${hands[1].at}`);
+  const ds = hands.flatMap((x) => extractDecisions(x).decisions);
+  const vs = analyzeDecisions(ds).spots.find((s) => s.sc === 'VS');
+  const m = keyMetric(vs);
+  assert(m.label === 'Call the shove' && m.you === 1 && m.target > 0.95 && m.dir === 'ok', `metric ${JSON.stringify(m)}`);
+  const fake = { sc: 'VO', hero: 'BB', vill: 'BTN', n: 10, you: { fold: 7, call: 3, raise: 0, allin: 0 }, gto: { fold: 4.5, call: 4.5, raise: 1, allin: 0 } };
+  const m2 = keyMetric(fake);
+  assert(m2.label === 'Defend' && Math.abs(m2.you - 0.3) < 1e-9 && Math.abs(m2.target - 0.55) < 1e-9 && m2.dir === 'low' && /fold too often/.test(m2.tip), 'BB defends 30% vs 55% target: not enough');
+});
+await test('D06', 'a Practice spot gets the same key as the tournament spot', () => {
+  let st = foldTo(initialState({ stack: 50, open: '2.5' }), 3);
+  assert(practiceSpotKey(st) === spotKey('RFI', 'BTN', '', 50), 'BTN first in at 50bb');
+  st = foldTo(act(st, 'raise'), 5);
+  assert(practiceSpotKey(st) === spotKey('VO', 'BB', 'BTN', 50), `BB vs BTN open: ${practiceSpotKey(st)}`);
+  assert(practiceSpotKey(st) === 'VO|BB|BTN|50–80bb', 'key format');
+});
+await test('D07', 'live action: only tournament hands played after the training count', () => {
+  const ds = parseFile(PS_HANDS).hands.hands.flatMap((x) => extractDecisions(x).decisions);
+  const key = spotKey('VS', 'BB', 'BTN', 10);
+  const sess = (t) => [{ id: 's1', startedAt: t, decisions: [{ t, spot: key, score: 1, grade: 'best', street: 'Preflop' }] }];
+  const before = liveAction(sess('2026-10-19T00:30:00'), ds, [])[0];
+  assert(before.after.n === 1 && before.before.n === 0 && before.status === 'thin', `trained before the hand: ${before.status}`);
+  const later = liveAction(sess('2026-10-19T02:00:00'), ds, [])[0];
+  assert(later.after.n === 0 && later.before.n === 1 && later.status === 'waiting', `trained after the hand: ${later.status}`);
+});
+
 // ---------- flows in the real app ----------
 const frame = document.getElementById('frame');
 const load = (hash) => new Promise((res) => { frame.onload = () => setTimeout(res, 300); frame.src = 'index.html?test=1&t=' + Date.now() + hash; });
@@ -413,6 +441,25 @@ await test('F07-H1', 'stats list saved sessions and expand', async () => {
   const head = await waitFor(() => doc().querySelector('.session-head'));
   head.click(); await sleep(100);
   assert(doc().querySelector('.session.open table'), 'expanded table');
+});
+await test('F08-H1', 'practice at 50bb: the stack choice reaches the table', async () => {
+  await load('#/practice');
+  const sel = await waitFor(() => doc().querySelector('select[aria-label="Effective stack"]'));
+  sel.value = '50'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+  byRole('button', 'Start session').click();
+  const btn = await waitFor(() => doc().querySelector('[aria-label="Your actions"] button.act'));
+  assert([...doc().querySelectorAll('.table-top .pill')].some((p) => p.textContent === '50bb'), '50bb pill');
+  btn.click();
+  await waitFor(() => doc().querySelector('.feedback .grade'));
+  byRole('button', 'End session').click();
+  await sleep(300);
+});
+await test('F09-H1', 'leakfinder live action lists the trained spot', async () => {
+  await load('#/leaks');
+  const tab = await waitFor(() => [...doc().querySelectorAll('button')].find((b) => b.textContent === 'Live action'));
+  tab.click();
+  const card = await waitFor(() => [...doc().querySelectorAll('.la-card .la-title')].find((t) => /first in · 50–80bb/.test(t.textContent)));
+  assert(card, 'card for the 50bb first-in spot');
 });
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {

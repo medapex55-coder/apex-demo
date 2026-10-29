@@ -20,6 +20,12 @@ export function detect(text) {
   return null;
 }
 
+// First "2026/10/19 1:00:00" in the text, as local time "2026-10-19T01:00:00".
+export function stamp(text) {
+  const m = text && text.match(/(\d{4})\/(\d{2})\/(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4].padStart(2, '0')}:${m[5]}:${m[6] || '00'}` : null;
+}
+
 export function guessType(text, buyinParts) {
   if (/myst/i.test(text)) return 'mystery';
   if (/knock-?out|bounty|\bKO\b|progressive/i.test(text) || buyinParts >= 3) return 'ko';
@@ -52,6 +58,7 @@ function parseStarsSummary(text) {
     place: place ? +place[1] : null,
     prize: received ? money(received[1]) : null,
     date: started ? `${started[1]}-${started[2]}-${started[3]}` : null,
+    startedAt: stamp((text.match(/Tournament started [^\n]+/) || [])[0]),
     finished: /You finished/.test(text),
     rows: lines.filter((l) => /^\s*\d+: /.test(l)),
     type: guessType(nameLines.join(' '), parts.length),
@@ -79,7 +86,7 @@ function parseStarsHands(text) {
       }
     }
     hands.push({
-      id: head[1], tid: head[2], bb: +head[4].replace(/,/g, ''), max: table ? +table[1] : 9, button: table ? +table[2] : 0,
+      id: head[1], tid: head[2], at: stamp(block.split('\n')[0]), bb: +head[4].replace(/,/g, ''), max: table ? +table[1] : 9, button: table ? +table[2] : 0,
       seats, hero, cards: dealt ? dealt[2] + dealt[3] : null, pre, bounty,
     });
   }
@@ -121,6 +128,7 @@ function parseWinamaxSummary(text) {
     prizePool: money((text.match(/Prizepool : ([^\n]+)/i) || [])[1]),
     place: place ? +place[1] : null, prize, bounty,
     date: started ? `${started[1]}-${started[2]}-${started[3]}` : null,
+    startedAt: stamp((text.match(/Tournament started [^\n]+/) || [])[0]),
     finished: !!place, rows: [],
     type: guessType(`${head ? head[1] : ''} ${type}`, parts.length),
   };
@@ -144,7 +152,7 @@ function parseWinamaxHands(text) {
       return m && { name, type: m[1].replace(/s$/, ''), amount: +(m[2] || 0), to: +(m[3] || m[2] || 0), allin: !!m[4] };
     }).filter(Boolean);
     hands.push({
-      id: head[2], tid: table ? table[1] : null, name: head[1], bb: blinds[blinds.length - 1], max: table ? +table[2] : 6, button: table ? +table[3] : 0,
+      id: head[2], tid: table ? table[1] : null, at: stamp(block.split('\n')[0]), name: head[1], bb: blinds[blinds.length - 1], max: table ? +table[2] : 6, button: table ? +table[3] : 0,
       seats, hero: dealt && dealt[1], cards: dealt ? dealt[2] + dealt[3] : null, pre, bounty: 0,
     });
   }

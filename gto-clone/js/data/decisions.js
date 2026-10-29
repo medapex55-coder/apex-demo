@@ -55,7 +55,7 @@ export function extractDecisions(hand) {
   const hp = pos(hero);
   const bb = hand.bb || 1;
   const others = hand.seats.filter((s) => s.name !== hero && s.chips > 0);
-  const base = { h: hand.id, t: hand.tid, c: hand.cards, hp };
+  const base = { h: hand.id, t: hand.tid, at: hand.at || null, c: hand.cards, hp };
 
   let raises = [], limpers = [], coldCallers = 0, heroActs = 0, skipped = 0;
   for (const a of hand.pre) {
