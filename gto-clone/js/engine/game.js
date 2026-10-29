@@ -8,6 +8,7 @@ export const POS = ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
 export const STACKS = [200, 100, 80, 70, 50, 40, 30, 25, 20, 15, 10];
 export const OPEN_SIZES = ['limp', '2', '2.5', '4.5']; // '2.5' means the SB opens 3.5
 export const DEFAULT_CFG = Object.freeze({ stack: 100, open: '2.5' });
+export const SHOVE_STACK = 20; // at or below this depth, preflop all-in becomes a strategy
 export const STREETS = ['Preflop', 'Flop', 'Turn', 'River'];
 const POSTFLOP_ORDER = [4, 5, 0, 1, 2, 3]; // SB first
 
@@ -70,7 +71,8 @@ export function isIP(st, p) {
 function preflopSizes(st, p) {
   const opener = st.lastAggr;
   if (st.raiseLevel === 0) {
-    if (st.limpers.length) return p === 5 && st.limpers.join() === '4' ? 4 : 5; // iso-raise over a limp
+    // Iso-raise: the base open size plus 1bb for each player who limped before.
+    if (st.limpers.length) return round((st.cfg.open === 'limp' ? 2 : +st.cfg.open) + st.limpers.length);
     if (st.cfg.open === '2.5' && p === 4) return 3.5;
     return st.cfg.open === 'limp' ? 2.5 : +st.cfg.open;
   }
@@ -102,6 +104,11 @@ export function legalActions(st) {
       if (st.raiseLevel >= 1 && to >= (st.streetBet[p] + rem) * 0.45) to = st.streetBet[p] + rem;
       const allin = to >= st.streetBet[p] + rem;
       acts.push({ type: allin ? 'allin' : 'raise', to, level: st.raiseLevel + 1 });
+    }
+    // 20bb and shorter: shoving is always an option, next to the raise or limp.
+    const jam = st.streetBet[p] + rem;
+    if (st.cfg.stack <= SHOVE_STACK && st.raiseLevel <= 3 && rem > call && !acts.some((a) => a.type === 'allin')) {
+      acts.push({ type: 'allin', to: jam, level: st.raiseLevel + 1 });
     }
     return acts;
   }
@@ -160,7 +167,6 @@ export function applyAction(st0, act) {
   const label = actionLabel(st0, act);
   const wasOpen = st.raiseLevel >= 1;
   const prevAggr = st.lastAggr;
-  const prevLimper = st.limpers[0] ?? -1;
   if (st.street === 0 && act.type === 'call' && st.raiseLevel === 0) st.limpers.push(p);
   if (act.type === 'fold') st.folded[p] = true;
   else if (act.type === 'call') {
@@ -180,9 +186,10 @@ export function applyAction(st0, act) {
   st.acted[p] = true;
   st.history.push({ kind: 'act', p, street: st.street, act, label });
 
-  if (st.street === 0 && !st.locked && (wasOpen || prevLimper >= 0) && act.type !== 'fold') {
-    const anchor = prevAggr >= 0 ? prevAggr : prevLimper;
-    POS.forEach((_, i) => { if (i !== p && i !== anchor) st.folded[i] = true; });
+  // Several players may limp; the pot goes heads-up once someone calls or
+  // re-raises a raise (the raiser and that player stay in).
+  if (st.street === 0 && !st.locked && wasOpen && act.type !== 'fold') {
+    POS.forEach((_, i) => { if (i !== p && i !== prevAggr) st.folded[i] = true; });
     st.locked = true;
   }
   const live = alive(st);

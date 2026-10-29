@@ -1,5 +1,6 @@
 // Local persistence (localStorage key gtoc.v1). Same shapes as replica/schema.sql.
-const KEY = 'gtoc.v1';
+// The test suite runs the app with ?test=1 so it never touches real data.
+const KEY = /[?&]test=1/.test(location.search) ? 'gtoc.test' : 'gtoc.v1';
 const MAX_DECISIONS = 2000;
 
 const DEFAULT = {

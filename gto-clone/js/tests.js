@@ -7,6 +7,69 @@ import { rangeEquity } from './engine/equity.js';
 import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS } from './engine/game.js';
 import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle } from './engine/strategy.js';
 import { gradeDecision } from './ui/practice.js';
+import { parseFile } from './data/parsers.js';
+import { extractDecisions } from './data/decisions.js';
+import { analyzeDecisions } from './data/leaks.js';
+
+// Synthetic PokerStars files (made up for the tests, same layout as the real ones).
+const PS_SUMMARY = `PokerStars Tournament #111, No Limit Hold'em
+Buy-In: €4.50/€0.50 EUR
+100 players
+Total Prize Pool: €450.00 EUR
+Tournament started 2026/10/19 1:00:00 CET [2026/10/18 19:00:00 ET]
+
+  1: Alice (France), €100.00 (22.22%)
+  2: Hero (France), €60.00 (13.33%)
+You finished in 2nd place and received €60.00.
+You made 1 re-entries for a total of €5.00.
+`;
+const PS_HANDS = `PokerStars Hand #1001: Tournament #111, €4.50+€0.50 EUR Hold'em No Limit - Level I (10/20) - 2026/10/19 1:00:00 CET [2026/10/18 19:00:00 ET]
+Table '111 1' 9-max Seat #6 is the button
+Seat 1: P1 (1500 in chips)
+Seat 2: P2 (1500 in chips)
+Seat 3: P3 (1500 in chips)
+Seat 4: P4 (1500 in chips)
+Seat 5: Hero (1500 in chips)
+Seat 6: P6 (1500 in chips)
+Seat 7: P7 (1500 in chips)
+Seat 8: P8 (1500 in chips)
+Seat 9: P9 (1500 in chips)
+P7: posts small blind 10
+P8: posts big blind 20
+*** HOLE CARDS ***
+Dealt to Hero [Ah Kd]
+P9: folds
+P1: folds
+P2: folds
+P3: folds
+P4: folds
+Hero: raises 30 to 50
+P6: folds
+P7: folds
+P8: raises 100 to 150
+Hero: raises 1350 to 1500 and is all-in
+P8: folds
+*** SUMMARY ***
+Total pot 320
+
+PokerStars Hand #1002: Tournament #111, €4.50+€0.50 EUR Hold'em No Limit - Level V (100/200) - 2026/10/19 1:40:00 CET [2026/10/18 19:40:00 ET]
+Table '111 1' 9-max Seat #6 is the button
+Seat 3: P3 (9000 in chips)
+Seat 6: P6 (2000 in chips)
+Seat 7: P7 (5000 in chips)
+Seat 8: Hero (2000 in chips)
+P7: posts small blind 100
+Hero: posts big blind 200
+*** HOLE CARDS ***
+Dealt to Hero [Qs Qh]
+P3: folds
+P6: raises 1800 to 2000 and is all-in
+P7: folds
+Hero: calls 1800 and is all-in
+*** FLOP *** [2c 7d 9h]
+*** SUMMARY ***
+Hero wins €1.25 for eliminating P6 and their own bounty increases by €1.25 to €3.75
+`;
 
 const results = [];
 async function test(id, name, fn) {
@@ -190,12 +253,67 @@ await test('U22', 'open sizes: 2bb, 4.5bb and limp first in', () => {
   assert(comboFreqs(n, CLASS_BY_NAME.AA.combos[0])[1] === 1, 'LJ limps its raising range');
   let st = act(initialState(limpCfg), 'call'); // LJ limps
   st = act(foldTo(st, 2), 'raise'); // CO isolates
-  assert(st.folded.filter((f) => !f).length === 2 && POS[st.toAct] === 'LJ', 'heads-up LJ vs CO after the iso');
+  st = foldTo(st, 0);
+  assert(POS[st.toAct] === 'LJ', 'back to the limper');
+  st = act(st, 'call');
+  assert(st.folded.filter((f) => !f).length === 2, 'heads-up LJ vs CO once the limper calls');
+});
+await test('U23', 'iso sizing: base open + 1bb per limper', () => {
+  const cfg = { stack: 100, open: '2' };
+  let st = foldTo(initialState(cfg), 1);
+  st = applyAction(st, { type: 'call', amount: 1 }); // HJ limps
+  st = foldTo(st, 3); // CO folds
+  assert(legalActions(st).find((a) => a.type === 'raise').to === 3, 'one limper: 2 + 1 = 3');
+  let st2 = applyAction(initialState(cfg), { type: 'call', amount: 1 }); // LJ limps
+  st2 = applyAction(st2, { type: 'call', amount: 1 }); // HJ over-limps
+  assert(legalActions(st2).find((a) => a.type === 'raise').to === 4, 'two limpers: 2 + 1 + 1 = 4');
+});
+await test('U24', 'all-in strategy at 20bb and less', () => {
+  const kinds = (stack) => legalActions(foldTo(initialState({ stack, open: '2.5' }), 3)).map((a) => a.type).join();
+  assert(kinds(25) === 'fold,raise', 'no shove option at 25bb');
+  assert(kinds(20) === 'fold,raise,allin', 'shove option at 20bb');
+  const n = analyze(foldTo(initialState({ stack: 12, open: '2.5' }), 3));
+  const iA = n.actions.findIndex((a) => a.type === 'allin');
+  const f = comboFreqs(n, CLASS_BY_NAME.A5o.combos[0]);
+  assert(f[iA] === 1, 'BTN 12bb shoves A5o');
+  const n20 = analyze(foldTo(initialState({ stack: 20, open: '2.5' }), 3));
+  const f20 = comboFreqs(n20, CLASS_BY_NAME.A5o.combos[0]);
+  assert(f20[n20.actions.findIndex((a) => a.type === 'allin')] < 0.3, 'at 20bb most of it still min-raises');
+});
+
+await test('D01', 'PokerStars summary: buy-in, players, prize pool, place, prize, re-entry', () => {
+  const s = parseFile(PS_SUMMARY).summary;
+  assert(s.tid === '111' && s.buyin === 5 && s.players === 100 && s.prizePool === 450, 'header fields');
+  assert(s.place === 2 && s.prize === 60 && s.reentries === 1 && s.reentryCost === 5, 'result fields');
+});
+await test('D02', 'PokerStars hands: seats, hero cards, preflop actions, bounty', () => {
+  const hh = parseFile(PS_HANDS).hands;
+  assert(hh.tid === '111' && hh.hands.length === 2 && hh.hero === 'Hero', 'two hands, hero found');
+  const [h1, h2] = hh.hands;
+  assert(h1.bb === 20 && h1.cards === 'AhKd' && h1.pre.length === 11, 'hand 1 parsed');
+  assert(h1.pre[9].allin === true && h1.pre[8].allin === false, 'all-in flag');
+  assert(h2.bounty === 1.25, 'bounty collected');
+});
+await test('D03', 'decisions: 9-max seats map to Study seats and scenarios', () => {
+  const [h1, h2] = parseFile(PS_HANDS).hands.hands;
+  const d1 = extractDecisions(h1).decisions;
+  assert(d1.length === 2, 'open then facing a 3-bet');
+  assert(d1[0].sc === 'RFI' && POS[d1[0].hp] === 'CO' && d1[0].a === 'raise' && d1[0].s === 80, 'CO opens at 75bb (80 bucket)');
+  assert(d1[1].sc === 'V3' && POS[d1[1].vp] === 'BB' && d1[1].a === 'allin', 'shoves over the BB 3-bet');
+  const d2 = extractDecisions(h2).decisions;
+  assert(d2.length === 1 && d2[0].sc === 'VS' && POS[d2[0].vp] === 'BTN' && d2[0].s === 10 && d2[0].a === 'call', 'BB calls a 10bb BTN shove');
+});
+await test('D04', 'leakfinder grades rebuilt spots', () => {
+  const ds = parseFile(PS_HANDS).hands.hands.flatMap((x) => extractDecisions(x).decisions);
+  const r = analyzeDecisions(ds);
+  assert(r.covered === 3 && r.notCovered === 0, `all 3 decisions rebuilt (${r.covered}/${r.notCovered})`);
+  const vs = r.spots.find((s) => s.sc === 'VS');
+  assert(vs.hands[0].grade === 'best', 'QQ calling a 10bb shove is best');
 });
 
 // ---------- flows in the real app ----------
 const frame = document.getElementById('frame');
-const load = (hash) => new Promise((res) => { frame.onload = () => setTimeout(res, 300); frame.src = 'index.html?t=' + Date.now() + hash; });
+const load = (hash) => new Promise((res) => { frame.onload = () => setTimeout(res, 300); frame.src = 'index.html?test=1&t=' + Date.now() + hash; });
 const doc = () => frame.contentDocument;
 const errors = [];
 const byRole = (role, name) => [...doc().querySelectorAll(role === 'button' ? 'button, a.btn' : `[role="${role}"]`)]

@@ -3,6 +3,8 @@ import { Logo, Segmented, RangeGrid, FreqBar, PlayingCard, StatTile, Tabs } from
 import { renderStudy, studyKey, rerenderStudy } from './ui/study.js';
 import { renderPractice, practiceKey, leavePractice } from './ui/practice.js';
 import { renderStats } from './ui/stats.js';
+import { renderMyData } from './ui/mydata.js';
+import { renderLeaks } from './ui/leakfinder.js';
 import { getSettings, setSetting } from './store.js';
 import { CLASSES } from './engine/cards.js';
 import { setOpenStyle } from './engine/strategy.js';
@@ -13,6 +15,8 @@ const ROUTES = {
   study: { label: 'Study', render: renderStudy, key: studyKey },
   practice: { label: 'Practice', render: renderPractice, key: practiceKey },
   stats: { label: 'Stats', render: renderStats },
+  data: { label: 'My Data', render: renderMyData },
+  leaks: { label: 'Leakfinder', render: renderLeaks },
   design: { label: 'Design', render: renderDesign, hidden: true },
 };
 

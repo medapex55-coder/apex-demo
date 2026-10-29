@@ -262,3 +262,34 @@ table.data.compact td { padding: 2px var(--s2); }
 .spot-format .pill { margin-left: 0; }
 .pick-field { display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
 .pick-field select { height: 26px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-input); border-radius: var(--r-md); padding: 0 var(--s2); font: 600 var(--fs-sm) var(--font-sans); text-transform: none; letter-spacing: 0; }
+
+/* ---- my data / leakfinder ---- */
+.data-page, .leaks-page { display: flex; flex-direction: column; gap: var(--s3); }
+.dropzone { display: flex; flex-direction: column; align-items: center; gap: var(--s1); padding: var(--s6) var(--s4); border: 2px dashed var(--border-input); border-radius: var(--r-lg); background: var(--surface); cursor: pointer; text-align: center; }
+.dropzone:hover, .dropzone.over { border-color: var(--accent); background: var(--surface-2); }
+.panel.warn { border-color: var(--warning); }
+.panel.warn ul { margin: var(--s1) 0 0; padding-left: var(--s4); }
+.help summary { cursor: pointer; color: var(--accent); font-size: var(--fs-sm); }
+.help ul { margin: var(--s2) 0 0; padding-left: var(--s4); color: var(--text-muted); }
+.field.names { grid-template-columns: 160px minmax(0, 360px); }
+input.text { height: 32px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-input); border-radius: var(--r-md); padding: 0 var(--s2); font: inherit; }
+select.inline { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); font: inherit; font-size: var(--fs-sm); padding: 2px var(--s1); }
+.pos { color: var(--success); }
+.neg { color: var(--danger); }
+.file-tag { display: inline-block; width: 18px; text-align: center; margin-right: 2px; border-radius: var(--r-sm); border: 1px solid var(--border); color: var(--text-muted); font-weight: 700; }
+.file-tag.on { border-color: var(--success); color: var(--success); }
+.mix { display: flex; min-width: 140px; height: 16px; border-radius: var(--r-sm); overflow: hidden; background: var(--bg); }
+.mix span { display: flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 700; color: var(--on-act); overflow: hidden; }
+table.leaks tr.spot-row { cursor: pointer; }
+table.leaks tr.v-weak td { background: color-mix(in srgb, var(--danger) 16%, transparent); }
+table.leaks tr.v-weak td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+table.leaks tr.v-strong td { background: color-mix(in srgb, var(--success) 14%, transparent); }
+table.leaks tr.v-strong td:first-child { box-shadow: inset 3px 0 0 var(--success); }
+table.leaks tr.v-thin td { color: var(--text-muted); }
+table.leaks tr.detail > td { background: var(--bg); padding: var(--s2); }
+.filters { margin-bottom: var(--s1); }
+@media (max-width: 640px) { .field.names { grid-template-columns: 1fr; } }
+.topnav nav { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.topnav nav::-webkit-scrollbar { display: none; }
+.navtab { white-space: nowrap; }
+.topnav .brand, .topnav .icon-btn { flex: none; }

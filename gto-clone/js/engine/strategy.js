@@ -9,7 +9,7 @@ import { rangeEquity, weightedMean } from './equity.js';
 import { hashStr } from './rng.js';
 import { OPEN_CHARTS } from '../data/open-charts.js';
 import {
-  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining,
+  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, SHOVE_STACK,
 } from './game.js';
 
 const clamp = (x, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, x));
@@ -87,12 +87,28 @@ function openWidth(p) {
   return s / 1326;
 }
 
+// At 20bb and shorter, part of the raising range moves all-in: 20% at 20bb,
+// all of it from 12bb. First in, premiums (TT+, AK, AQs) keep a small raise to
+// trap until about 10bb.
+function shoveShare(c, stack, firstIn) {
+  if (stack > SHOVE_STACK) return 0;
+  let s = clamp((22 - stack) / 10);
+  const premium = (c.pair && c.hi >= 8) || (c.hi === 12 && c.lo === 11) || (c.hi === 12 && c.lo === 10 && c.suited);
+  if (firstIn && premium) s *= clamp((16 - stack) / 6);
+  return s;
+}
+
 function preflopClassFreqs(st, actions) {
   const p = st.toAct;
   const rl = st.raiseLevel;
   const out = CLASSES.map(() => new Array(actions.length).fill(0));
-  const idx = (t) => actions.findIndex((a) => (t === 'raise' ? a.type === 'raise' || a.type === 'allin' : a.type === t));
-  const iF = idx('fold'), iC = idx('call'), iR = idx('raise');
+  const idx = (t) => actions.findIndex((a) => a.type === t);
+  const iF = idx('fold'), iC = idx('call');
+  // iR: the main aggressive action (raise, or all-in when that's the only one).
+  // iA: a separate all-in option next to a raise (20bb and shorter).
+  const iR = idx('raise') >= 0 ? idx('raise') : idx('allin');
+  const iA = idx('raise') >= 0 ? idx('allin') : -1;
+  const firstIn = rl === 0 && st.limpers.length === 0;
   const limped = st.limpers.includes(p);
   const facingLimp = rl === 0 && st.limpers.length > 0;
   // Facing an all-in with no raise left: call with the top of the range,
@@ -105,8 +121,11 @@ function preflopClassFreqs(st, actions) {
     if (rl === 0 && p <= 4 && !facingLimp) {
       // First in: the user's chart. With the "limp" open size, the raising range limps.
       const f = codeFreqs(chartCode(p, c));
-      if (st.cfg.open === 'limp') call = f.raise + f.limp;
-      else { raise = f.raise; call = f.limp; }
+      if (st.cfg.open === 'limp') {
+        // Limp mode: the raising range limps, except the part that shoves at 20bb and less.
+        raise = iR >= 0 ? f.raise * shoveShare(c, st.cfg.stack, true) : 0;
+        call = f.raise - raise + f.limp;
+      } else { raise = f.raise; call = f.limp; }
     } else if (facingLimp && p !== 5) {
       raise = within(pc, 0.12); // isolate the top
       call = Math.max(0, within(pc, 0.2) - raise); // over-limp the next band
@@ -141,6 +160,11 @@ function preflopClassFreqs(st, actions) {
     raise = clamp(raise); call = clamp(call, 0, 1 - raise);
     const f = out[c.id];
     if (iR >= 0) f[iR] = raise;
+    if (iA >= 0) {
+      const sh = raise * shoveShare(c, st.cfg.stack, firstIn);
+      f[iA] = sh;
+      f[iR] = raise - sh;
+    }
     if (iC >= 0) f[iC] = call;
     const rest = 1 - raise - call;
     if (iF >= 0) f[iF] = rest;
