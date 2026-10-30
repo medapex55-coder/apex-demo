@@ -2,7 +2,7 @@
 // hero's action with the strategy for that hand class, and aggregate by spot.
 import { initialState, applyAction, legalActions, foldTo, POS, actionKey } from '../engine/game.js';
 import { analyze } from '../engine/strategy.js';
-import { CLASS_OF_COMBO, CLASSES, comboIndex, parseCard } from '../engine/cards.js';
+import { CLASS_OF_COMBO, CLASSES, comboIndex, parseCard, cardStr } from '../engine/cards.js';
 
 export const SCEN = {
   RFI: 'First in (personne n\'a joué)',
@@ -257,6 +257,7 @@ export function biggestGap(sp) {
 }
 
 export function studyLink(st) {
-  const line = st.history.map((e) => e.p + actionKey(e.act)).join('_');
-  return `#/study?s=${st.cfg.stack}&o=${st.cfg.open}${st.cfg.ko ? '&f=ko' : ''}${line ? '&l=' + line : ''}`;
+  const line = st.history.map((e) => (e.kind === 'deal' ? 'd' + e.cards.map(cardStr).join('') : e.p + actionKey(e.act))).join('_');
+  const stage = st.cfg.stage && st.cfg.stage !== '100' ? '&fs=' + st.cfg.stage : '';
+  return `#/study?s=${st.cfg.stack}&o=${st.cfg.open}${st.cfg.ko ? '&f=ko' : ''}${stage}${line ? '&l=' + line : ''}`;
 }

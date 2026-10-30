@@ -1,17 +1,17 @@
 /* Generated from replica/design/tokens.json. Change values there, keep names. */
 :root {
-  --bg: #0f1218;
-  --surface: #171b23;
-  --surface-2: #1f2430;
-  --border: #2a303c;
-  --border-input: #6b7486;
-  --text: #e8ebf0;
-  --text-muted: #9aa3b2;
-  --accent: #3fb8a4;
-  --on-accent: #0b0e13;
-  --danger: #ef6b6b;
-  --success: #4cc38a;
-  --warning: #e8b44a;
+  --bg: #0e0b24;
+  --surface: #1a1540;
+  --surface-2: #251e57;
+  --border: #362c75;
+  --border-input: #7a6fc2;
+  --text: #f5f3ff;
+  --text-muted: #b8b0e3;
+  --accent: #a78bfa;
+  --on-accent: #14092e;
+  --danger: #fb7185;
+  --success: #34d399;
+  --warning: #fbbf24;
   --act-fold: #3f6fb5;
   --act-call: #3c9a5c;
   --act-bet-s: #e0913f;
@@ -19,34 +19,37 @@
   --act-bet-l: #b5343c;
   --act-allin: #7d2346;
   --on-act: #ffffff;
+  --accent-2: #f472b6;
+  --gold: #fbbf24;
+  --glow: 0 0 0 1px rgba(167, 139, 250, .35), 0 8px 30px rgba(124, 58, 237, .25);
   --cell-empty: #06080b;
   --card-face: #f4f5f7;
   --suit-s: #15181d;
   --suit-h: #c22a2a;
   --suit-d: #2257b8;
   --suit-c: #1d7a3a;
-  --felt: #1d3b33;
-  --felt-edge: #142a25;
-  --felt-rim: #2a2016;
-  --tag-loose: #4cc38a;
+  --felt: #1d5a4b;
+  --felt-edge: #113a30;
+  --felt-rim: #3b2a7a;
+  --tag-loose: #34d399;
   --tag-tight: #5aa9ff;
-  --series-net: #4cc38a;
-  --series-ev: #e8b44a;
+  --series-net: #34d399;
+  --series-ev: #fbbf24;
   --series-sd: #5aa9ff;
-  --series-nsd: #ef6b6b;
+  --series-nsd: #fb7185;
   --run-terrible: #9b1c1c;
   --run-bad: #e2552b;
-  --run-neutral: #e8b44a;
+  --run-neutral: #fbbf24;
   --run-good: #2fae5b;
   --run-sun: #1c7a3f;
 
-  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: Nunito, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --fs-xs: 11px; --fs-sm: 13px; --fs-base: 14px; --fs-lg: 16px; --fs-xl: 22px; --fs-display: 32px;
 
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
-  --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px;
+  --r-sm: 6px; --r-md: 12px; --r-lg: 18px; --r-pill: 999px;
   --shadow-card: 0 1px 2px rgba(0,0,0,.4);
   --shadow-pop: 0 16px 40px rgba(0,0,0,.55);
   --t-fast: 100ms; --t-base: 180ms; --ease: cubic-bezier(.2,.8,.2,1);

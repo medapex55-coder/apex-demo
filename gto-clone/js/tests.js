@@ -3,8 +3,9 @@
 // iframe using roles and labels. Open /tests.html; results land in #summary.
 import { parseCard, COMBOS, CLASS_BY_NAME, comboIndex } from './engine/cards.js';
 import { evalHand, classify } from './engine/evaluator.js';
-import { rangeEquity } from './engine/equity.js';
-import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS } from './engine/game.js';
+import { rangeEquity, weightedMean } from './engine/equity.js';
+import { levelOf, streakOf } from './data/progress.js';
+import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS, alive, isIP } from './engine/game.js';
 import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale } from './engine/strategy.js';
 import { icmEquities, bubbleFactor, requiredEquity } from './engine/icm.js';
 import { gradeDecision } from './ui/practice.js';
@@ -462,6 +463,28 @@ await test('U28', 'bubble factor: 1 heads-up and winner-takes-all, above 1 on th
   near(requiredEquity(1.5), 0.6, 1e-9, 'BF 1.5 needs 60% to call');
   assert(rangeScale({ stage: '100', bf: 2 }) < rangeScale({ stage: '100' }) - 0.3, 'a custom BF of 2 tightens the ranges');
 });
+await test('U29', 'multiway: an open and two cold-calls see a 3-way flop with a sensible equity', () => {
+  let st = initialState({ stack: 40, open: '2.5', multiway: true });
+  st = act(st, 'raise'); // LJ opens
+  st = act(st, 'call'); // HJ calls
+  st = act(st, 'fold'); // CO
+  st = act(st, 'call'); // BTN calls
+  st = act(act(st, 'fold'), 'fold'); // blinds fold
+  assert(st.needBoard === 3 && alive(st).length === 3, `3 players on the flop (${alive(st).map((p) => POS[p])})`);
+  st = dealBoard(st, cs('Kd8s3c'));
+  const node = analyze(st);
+  const avg = weightedMean(node.equity(st.toAct), node.ranges[st.toAct]);
+  assert(node.actions.length >= 2 && avg > 0.2 && avg < 0.5, `3-way equity ${avg.toFixed(3)}`);
+  assert(!isIP(st, st.toAct), 'first to act is out of position');
+});
+await test('U30', 'levels and the daily streak', () => {
+  assert(levelOf(0).n === 1 && levelOf(250).n === 3 && levelOf(7500).name === 'Légende', 'levels');
+  assert(levelOf(10600).n === 11 && levelOf(10600).name === 'Légende 2', 'after the last level');
+  near(levelOf(175).pct, 0.5, 1e-9, 'halfway from 100 to 250');
+  const d = (k) => { const x = new Date(2026, 9, 30 - k); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+  const p = { days: { [d(1)]: 30, [d(2)]: 25, [d(3)]: 10, [d(0)]: 3 } };
+  assert(streakOf(p, new Date(2026, 9, 30)) === 2, 'yesterday and the day before count, today not yet');
+});
 
 // ---------- flows in the real app ----------
 const frame = document.getElementById('frame');
@@ -605,6 +628,49 @@ await test('F10-H1', 'my data: an import is a session with a recap, a run meter 
   const vpip = [...doc().querySelectorAll('.hud-stat')].find((s) => s.querySelector('.name').textContent === 'VPIP');
   assert(vpip.querySelector('.val').textContent === '50', `VPIP ${vpip.querySelector('.val').textContent}`);
   ds.clearAll();
+});
+// Play a drill until a hand is finished and listed, answering every decision.
+async function playUntilHandListed(drillName) {
+  await load('#/practice');
+  byRole('button', drillName).click();
+  byRole('button', 'Commencer la session').click();
+  for (let n = 0; n < 40; n++) {
+    if (doc().querySelector('.hand-row')) return;
+    const b = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button'), 8000);
+    b.click();
+    await sleep(400);
+  }
+  throw new Error('no hand finished');
+}
+await test('F11-H1', 'postflop drill: decisions after the flop, XP gained, hand listed', async () => {
+  await playUntilHandListed('Postflop');
+  const log = [...doc().querySelectorAll('.decision-log li')].map((li) => li.textContent).join(' ');
+  assert(/Flop|Turn|River/.test(log), `postflop decisions: ${log.slice(0, 80)}`);
+  assert(/\+\d+ XP/.test(doc().querySelector('.progress-strip').textContent), 'XP shown');
+});
+await test('F11-H2', 'played hand opens a street-by-street replay', async () => {
+  doc().querySelector('.hand-row').click();
+  const rep = await waitFor(() => doc().querySelector('.replay'));
+  assert(rep.querySelectorAll('.replay-street').length >= 2 && rep.querySelector('.ra-decision'), 'streets and graded decision');
+  doc().querySelector('.modal-head button').click();
+  byRole('button', 'Terminer la session').click();
+  await sleep(300);
+});
+await test('F12-H1', 'multiway drill: three or more players see the flop', async () => {
+  await playUntilHandListed('Multiway');
+  doc().querySelector('.hand-row').click();
+  const rep = await waitFor(() => doc().querySelector('.replay'));
+  const pre = rep.querySelector('.replay-street');
+  const inPot = [...pre.querySelectorAll('li')].filter((li) => !/Fold/.test(li.querySelector('.ra-act').textContent)).map((li) => li.querySelector('.ra-pos').textContent);
+  assert(new Set(inPot).size >= 3, `players in: ${[...new Set(inPot)].join(',')}`);
+  doc().querySelector('.modal-head button').click();
+  byRole('button', 'Terminer la session').click();
+  await sleep(300);
+});
+await test('F13-H1', 'progression page shows the level, XP and badges', async () => {
+  await load('#/stats');
+  await waitFor(() => doc().querySelector('.hero-card'));
+  assert(doc().querySelectorAll('.badge-card.on').length >= 1 && doc().querySelector('.player-chip .level-badge'), 'badge earned, player chip');
 });
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {

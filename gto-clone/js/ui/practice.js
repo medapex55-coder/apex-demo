@@ -7,19 +7,30 @@ import {
   POS, STREETS, initialState, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
   aggression, pot, remaining, alive, toCallOf, STACKS,
 } from '../engine/game.js';
-import { analyze, comboFreqs, comboEVs, classSummary, chartCode, getOpenStyle } from '../engine/strategy.js';
-import { saveSession, uid, getSettings } from '../store.js';
-import { practiceSpotKey } from '../data/leaks.js';
+import { analyze, comboFreqs, comboEVs, classSummary, chartCode, getOpenStyle, rangesOf } from '../engine/strategy.js';
+import { saveSession, uid, getSettings, getProgress } from '../store.js';
+import { practiceSpotKey, studyLink } from '../data/leaks.js';
+import { recordDecision, recordSession, today, DAILY_GOAL, levelOf } from '../data/progress.js';
+import { celebrate, XpBar, DailyRing, LevelBadge } from './gamify.js';
+import { HandRow, showHandReplay } from './handreplay.js';
 
 export const DRILLS = [
-  { id: 'rfi', name: 'Ouverture', desc: 'Tout le monde a foldé jusqu\'à toi avant le flop. Ouvre ou couche-toi.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
-  { id: 'vsopen', name: 'Face à un open', desc: 'Un joueur a relancé en premier. Fold, call ou 3-bet.', heroes: [1, 2, 3, 4, 5], mode: 'spot' },
-  { id: 'vs3bet', name: 'Face à un 3-bet', desc: 'Tu as ouvert et tu te fais relancer.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
-  { id: 'srp', name: 'BTN vs BB au flop', desc: 'Pot relancé une fois, première décision au flop.', heroes: [3, 5], mode: 'spot' },
-  { id: 'full', name: 'Mains complètes', desc: 'À six joueurs, de la donne jusqu\'à l\'abattage.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
+  { id: 'rfi', name: 'Ouverture', icon: '🚪', desc: 'Tout le monde a foldé jusqu\'à toi avant le flop. Ouvre ou couche-toi.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
+  { id: 'vsopen', name: 'Face à un open', icon: '🛡️', desc: 'Un joueur a relancé en premier. Fold, call ou 3-bet.', heroes: [1, 2, 3, 4, 5], mode: 'spot' },
+  { id: 'vs3bet', name: 'Face à un 3-bet', icon: '⚔️', desc: 'Tu as ouvert et tu te fais relancer.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
+  { id: 'srp', name: 'BTN vs BB au flop', icon: '🎯', desc: 'Pot relancé une fois, première décision au flop.', heroes: [3, 5], mode: 'spot' },
+  { id: 'postflop', name: 'Postflop', icon: '🃏', desc: 'Pot relancé ou 3-bet : joue flop, turn et river jusqu\'à la fin du coup.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
+  { id: 'multiway', name: 'Multiway', icon: '👥', desc: 'Un open payé par plusieurs joueurs : joue le coup à 3 ou 4 dès le flop.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
+  { id: 'full', name: 'Mains complètes', icon: '♠️', desc: 'À six joueurs, de la donne jusqu\'à l\'abattage.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
 ];
+const FIELD_STAGES = [['100', 'Début'], ['50', '50 %'], ['25', '25 %'], ['10', '10 %'], ['semi', 'Demi-finale'], ['ft', 'Table finale']];
 
-const DEFAULT_CFG = { drill: 'rfi', hero: 'any', stack: 100, open: '2.5', difficulty: 'standard', rng: 'off', timebank: 0, pause: 'always', autoNext: true, closeOnly: true };
+const DEFAULT_CFG = {
+  drill: 'rfi', hero: 'any', stack: 100, open: '2.5', format: 'vanilla', stage: '100', multiway: false,
+  difficulty: 'standard', rng: 'off', timebank: 0, pause: 'always', autoNext: true, closeOnly: true,
+};
+// The engine config of a drill: format, field stage, multiway pots.
+const gameCfg = (c) => ({ stack: c.stack, open: c.open, ko: c.format === 'ko', stage: c.stage, multiway: c.drill === 'multiway' || (c.drill === 'full' && c.multiway) });
 
 const P = {
   cfg: { ...DEFAULT_CFG },
@@ -52,10 +63,13 @@ function setupView() {
   return h('div.setup',
     h('div.setup-head', h('h1', 'Entraînement'), h('p.muted', 'Choisis un exercice, joue le spot et compare ton choix à la stratégie.')),
     h('div.drills', DRILLS.map((d) => h('button.drill' + (d.id === c.drill ? '.on' : ''), {
-      type: 'button', 'aria-pressed': d.id === c.drill ? 'true' : 'false', on: { click: () => set('drill')(d.id) },
-    }, h('strong', d.name), h('span.muted.small', d.desc), h('span.pill', d.mode === 'full' ? 'Main complète' : 'Spot unique')))),
+      type: 'button', title: d.name, 'aria-pressed': d.id === c.drill ? 'true' : 'false', on: { click: () => set('drill')(d.id) },
+    }, h('span.drill-icon', { 'aria-hidden': 'true' }, d.icon), h('strong', d.name), h('span.muted.small', d.desc), h('span.pill', d.mode === 'full' ? 'Main complète' : 'Spot unique')))),
     h('div.panel.setup-opts',
       field('Ta position', Segmented('Position', [{ value: 'any', label: 'Toutes' }, ...drill.heroes.map((p) => ({ value: p, label: POS[p] }))], c.hero, set('hero'))),
+      field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
+      field('Field restant', Segmented('Field restant', FIELD_STAGES.map(([value, label]) => ({ value, label })), c.stage, set('stage'))),
+      c.drill === 'full' ? field('Multiway', h('label.check', h('input', { type: 'checkbox', checked: c.multiway, on: { change: (e) => { c.multiway = e.target.checked; } } }), ' Autoriser les coups à 3 joueurs ou plus')) : null,
       field('Stack effectif', h('label.pick-field', h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => { c.stack = +e.target.value; } } },
         STACKS.map((s) => h('option', { value: String(s), selected: s === c.stack }, s + 'bb'))))),
       field('Taille d\'open', Segmented('Taille d\'open', [{ value: '2', label: '2bb' }, { value: '2.5', label: '2.5bb' }, { value: '4.5', label: '4.5bb' }], c.open, set('open'))),
@@ -71,14 +85,17 @@ function setupView() {
 function startSession() {
   P.session = {
     id: uid(), startedAt: new Date().toISOString(), drill: P.cfg.drill, config: { ...P.cfg },
-    hands: 0, decisionsCount: 0, mistakes: 0, scoreSum: 0, evLoss: 0, decisions: [],
+    hands: 0, decisionsCount: 0, mistakes: 0, scoreSum: 0, evLoss: 0, decisions: [], handsLog: [], combo: 0, xp: 0,
   };
   dealHand();
 }
 
 function endSession() {
   stopTimer();
-  if (P.session && P.session.decisionsCount) saveSession({ ...P.session, endedAt: new Date().toISOString() });
+  if (P.session && P.session.decisionsCount) {
+    saveSession({ ...P.session, endedAt: new Date().toISOString() });
+    celebrate({ badges: recordSession(P.session) });
+  }
   const had = P.session?.decisionsCount;
   P.session = null; P.hand = null; P.feedback = null;
   if (had) location.hash = '#/stats'; else render();
@@ -114,16 +131,88 @@ function sampleCombo(node, p, used) {
 }
 
 const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const actOf = (st, ...types) => legalActions(st).find((a) => types.includes(a.type));
+
+// Preflop line that reaches the flop with the hero in the pot: a raised pot
+// (30% 3-bet pots) for "postflop", an open with 1 or 2 cold-callers (plus the
+// big blind sometimes) for "multiway". Null when the spot can't be built.
+function flopLine(st0, kind, heroPick) {
+  for (let tries = 0; tries < 40; tries++) {
+    let st = st0;
+    const opener = rand(kind === 'multiway' ? [0, 1, 2, 3] : [0, 1, 2, 3, 4]);
+    st = foldTo(st, opener);
+    const open = actOf(st, 'raise');
+    if (!open) return null;
+    st = applyAction(st, open);
+    let inPot = [opener];
+    if (kind === 'multiway') {
+      const later = [opener + 1, opener + 2, opener + 3, opener + 4, opener + 5].filter((p) => p <= 5);
+      const want = new Set([rand(later), rand(later), ...(Math.random() < 0.5 ? [5] : [])]);
+      for (let guard = 0; guard < 8 && !st.needBoard && !st.terminal; guard++) {
+        const p = st.toAct;
+        const a = want.has(p) ? actOf(st, 'call', 'check') : actOf(st, 'fold', 'check');
+        st = applyAction(st, a);
+        if (want.has(p)) inPot.push(p);
+      }
+      if (inPot.length < 3) continue;
+    } else {
+      const caller = rand([1, 2, 3, 4, 5].filter((p) => p > opener));
+      st = foldTo(st, caller);
+      if (Math.random() < 0.3) {
+        const three = actOf(st, 'raise');
+        if (!three) continue;
+        st = foldTo(applyAction(st, three), opener);
+        const call = actOf(st, 'call');
+        if (!call) continue;
+        st = applyAction(st, call);
+      } else {
+        const call = actOf(st, 'call');
+        if (!call) continue;
+        st = applyAction(st, call);
+      }
+      inPot = [opener, caller];
+    }
+    if (!st.needBoard || inPot.some((p) => remaining(st, p) <= 0)) continue;
+    if (heroPick !== 'any' && !inPot.includes(heroPick)) continue;
+    return { st, hero: heroPick === 'any' ? rand(inPot) : heroPick };
+  }
+  return null;
+}
+
+// Cards for every player still in, drawn from their ranges, then the board.
+function dealFromRanges(hand, st) {
+  const ranges = rangesOf(st);
+  const used = [];
+  for (const p of alive(st)) {
+    const dead = new Uint8Array(52);
+    used.forEach((c) => { dead[c] = 1; });
+    const w = Array.from({ length: 1326 }, (_, i) => (dead[COMBOS[i][0]] || dead[COMBOS[i][1]] ? 0 : ranges[p][i]));
+    const i = pickWeighted(w);
+    hand.hands[p] = (i >= 0 ? COMBOS[i] : COMBOS[0]).slice();
+    used.push(...hand.hands[p]);
+  }
+  hand.boardCards = shuffledDeck().filter((c) => !used.includes(c)).slice(0, 5);
+}
 
 function dealHand() {
   stopTimer();
   const drill = DRILLS.find((d) => d.id === P.cfg.drill);
-  const hero = P.cfg.hero === 'any' ? rand(drill.heroes) : P.cfg.hero;
-  const game = { stack: P.cfg.stack, open: P.cfg.open };
+  let hero = P.cfg.hero === 'any' ? rand(drill.heroes) : P.cfg.hero;
+  const game = gameCfg(P.cfg);
   const hand = { hero, hands: Array(6).fill(null), boardCards: [], st: initialState(game), decisions: [], over: false, mode: drill.mode, result: null };
   P.feedback = null;
   P.hand = hand;
   let st = initialState(game);
+  if (drill.id === 'postflop' || drill.id === 'multiway') {
+    const line = flopLine(st, drill.id, P.cfg.hero);
+    if (!line) { P.session.hands++; hand.over = true; hand.result = 'Spot impossible à ces réglages (stack trop court ?) : change le stack ou la position.'; render(); return; }
+    hand.hero = hero = line.hero;
+    dealFromRanges(hand, line.st);
+    hand.st = line.st;
+    P.session.hands++;
+    advance();
+    return;
+  }
   if (drill.id === 'full') {
     const deck = shuffledDeck();
     for (let p = 0; p < 6; p++) hand.hands[p] = [deck.pop(), deck.pop()].sort((a, b) => b - a);
@@ -210,6 +299,16 @@ function finishHand() {
       hand.showdown = true;
     }
   }
+  // Keep the hand for the replay ("Revoir").
+  if (hand.decisions.length) {
+    P.session.handsLog.unshift({
+      t: new Date().toISOString(), drill: P.cfg.drill, hero: hand.hero,
+      cards: hand.hands.map((c) => (c ? c.map(cardStr).join('') : null)), shown: !!(hand.showdown || hand.mode === 'spot'),
+      history: st.history.map((e) => (e.kind === 'deal' ? { s: e.street, d: e.cards.map(cardStr).join('') } : { p: e.p, s: e.street, l: e.label })),
+      decisions: hand.decisions, result: hand.result, pot: pot(st),
+      cfg: { stack: st.cfg.stack, ko: !!st.cfg.ko, stage: st.cfg.stage, multiway: !!st.cfg.multiway },
+    });
+  }
   saveSession({ ...P.session });
   if (P.cfg.autoNext && !P.feedback?.pausing) setTimeout(() => { if (P.hand === hand) dealHand(); }, 1400);
 }
@@ -272,7 +371,8 @@ function explain(node, i) {
   const parts = [];
   const info = node.info?.[i];
   if (info) parts.push(`Tu as : ${catFr(info.made).toLowerCase()}${info.draw ? ', avec ' + catFr(info.draw).toLowerCase() : ''}.`);
-  if (Number.isFinite(eq)) parts.push(`Ton équité contre sa range est de ${pct(eq)}.`);
+  const players = alive(st).length;
+  if (Number.isFinite(eq)) parts.push(players > 2 ? `À ${players} joueurs, ta part estimée du pot est de ${pct(eq)} (la moyenne serait de ${Math.round(100 / players)} %).` : `Ton équité contre sa range est de ${pct(eq)}.`);
   if (call > 0 && st.raiseLevel > 0) parts.push(`Payer coûte ${num(call)}bb pour un pot de ${num(pot(st))}bb : il te faut environ ${pct(call / (pot(st) + call))} d'équité pour être rentable, avant position et mises futures.`);
   if (st.street === 0 && st.raiseLevel === 0 && st.toAct <= 4) {
     const code = chartCode(st.toAct, CLASSES[CLASS_OF_COMBO[i]]);
@@ -312,17 +412,24 @@ function heroAct(k, timedOut = false) {
     street: STREETS[st.street], stack: st.cfg.stack, spot: practiceSpotKey(st), chosen: labels[k], best: labels[g.bestK], grade: g.grade, score: g.score, evLoss: g.loss, pot: pot(st),
     freqs: node.actions.map((a, j) => ({ label: labels[j], role: actionRole(st, a), f: g.f[j] })), timedOut,
     why: explain(node, i),
+    // Study can't replay multiway raised pots, so those get no link.
+    link: st.cfg.multiway ? null : studyLink(st),
   };
   const s = P.session;
   s.decisionsCount++;
   s.scoreSum += g.score;
   s.evLoss += g.loss;
-  if (!['best', 'correct'].includes(g.grade)) s.mistakes++;
+  const mistake = !['best', 'correct'].includes(g.grade);
+  if (mistake) s.mistakes++;
   s.decisions.unshift(rec);
   hand.decisions.push(rec);
-  const mistake = !['best', 'correct'].includes(g.grade);
+  // Progression: XP, combo of good decisions, daily goal, badges.
+  s.combo = mistake ? 0 : s.combo + 1;
+  const prog = recordDecision({ grade: g.grade, street: rec.street, multiway: alive(st).length > 2, ko: !!st.cfg.ko }, s.combo);
+  s.xp += prog.gained;
+  celebrate(prog);
   const pausing = P.cfg.pause === 'always' || mistake;
-  P.feedback = { rec, node, pausing, heroIdx: i };
+  P.feedback = { rec, node, pausing, heroIdx: i, prog, combo: s.combo };
   hand.st = applyAction(st, node.actions[k]);
   if (hand.mode === 'spot') { finishHand(); render(); return; }
   if (pausing) { render(); return; }
@@ -396,10 +503,19 @@ function sideView() {
   const score = s.decisionsCount ? s.scoreSum / s.decisionsCount : 0;
   const fb = P.feedback;
   const order = (fr) => fr.map((x, k) => k).sort((a, b) => b - a);
+  const prog = getProgress();
+  const lvl = levelOf(prog.xp);
   return h('aside.practice-side',
+    h('section.panel.progress-strip',
+      LevelBadge(lvl),
+      h('div.grow', h('div.row.between', h('strong', `${lvl.icon} ${lvl.name}`), h('span.small.xp-gain', `+${s.xp} XP cette session`)), XpBar(prog.xp, { label: false })),
+      h('div.combo' + (s.combo >= 3 ? '.hot' : ''), { title: 'Bonnes décisions d\'affilée' }, h('span', '🔥'), h('b', s.combo)),
+      DailyRing(prog.days[today()] || 0, DAILY_GOAL, 40)),
     h('div.stats-row', StatTile('Score', pct(score, 0)), StatTile('Mains', s.hands), StatTile('Erreurs', s.mistakes), StatTile('EV perdue', num(s.evLoss, 2) + 'bb')),
     fb ? h('section.panel.feedback.grade-' + fb.rec.grade, { 'aria-live': 'polite' },
-      h('div.row.between', h('strong.grade', GRADE_TEXT[fb.rec.grade]), h('span.mono', fb.rec.evLoss > 0.005 ? '−' + num(fb.rec.evLoss, 2) + 'bb' : '±0bb')),
+      h('div.row.between', h('strong.grade', GRADE_TEXT[fb.rec.grade]),
+        h('span.row.gap', h('span.xp-pop', `+${fb.prog.gained} XP`), fb.prog.comboBonus ? h('span.xp-pop.bonus', `combo ×${fb.combo}`) : null,
+          h('span.mono', fb.rec.evLoss > 0.005 ? '−' + num(fb.rec.evLoss, 2) + 'bb' : '±0bb'))),
       h('p.small', 'Tu as choisi ', h('strong', fb.rec.chosen), fb.rec.grade !== 'best' ? [' · le meilleur était ', h('strong', fb.rec.best)] : null, fb.rec.timedOut ? ' (temps écoulé)' : ''),
       fb.rec.why ? h('p.small.why', fb.rec.why) : null,
       h('div.small.muted', `Stratégie pour ${fb.rec.hand} :`),
@@ -408,7 +524,9 @@ function sideView() {
       learnGrid(fb)) : h('section.panel', h('p.muted', 'Prends une décision pour la comparer à la stratégie.')),
     h('section.panel', h('div.panel-title', 'Cette session'),
       s.decisions.length ? h('ol.decision-log', s.decisions.slice(0, 12).map((d) => h('li',
-        h('span.grade-dot.grade-' + d.grade, { title: GRADE_TEXT[d.grade] }), h('span.mono', d.hand), h('span', d.pos + ' · ' + d.street), h('span.grow.muted.small', d.chosen), h('span.mono.small', d.evLoss > 0.005 ? '−' + num(d.evLoss, 2) : '')))) : h('p.muted.small', 'Aucune décision pour l\'instant.')));
+        h('span.grade-dot.grade-' + d.grade, { title: GRADE_TEXT[d.grade] }), h('span.mono', d.hand), h('span', d.pos + ' · ' + d.street), h('span.grow.muted.small', d.chosen), h('span.mono.small', d.evLoss > 0.005 ? '−' + num(d.evLoss, 2) : '')))) : h('p.muted.small', 'Aucune décision pour l\'instant.')),
+    s.handsLog.length ? h('section.panel', h('div.panel-title', 'Mains jouées'),
+      h('div.hand-list', s.handsLog.slice(0, 15).map((log, k) => HandRow(log, () => showHandReplay(log, `Main ${s.handsLog.length - k}`))))) : null);
 }
 
 function learnGrid(fb) {

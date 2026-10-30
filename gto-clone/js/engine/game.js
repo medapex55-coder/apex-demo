@@ -1,7 +1,7 @@
 // 6-max NLHE game tree, blinds 0.5/1. The effective stack and the first-in open
 // size come from the spot config (cfg). Preflop becomes heads-up as soon as a
-// second player voluntarily enters (everyone else folds), so every postflop
-// spot is heads-up.
+// second player voluntarily enters a raised pot (everyone else folds), unless
+// cfg.multiway is set; limped pots can always be multiway.
 import { cardStr } from './cards.js';
 
 export const POS = ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
@@ -68,11 +68,14 @@ export function opponentOf(st, p) {
   return -1; // several opponents: treat as a random hand
 }
 
-// In position = acts last postflop.
+// In position = acts last postflop (against every player still in the hand).
 export function isIP(st, p) {
+  const others = alive(st).filter((i) => i !== p);
+  const order = postflopOrder(st);
+  if (others.length > 1) return others.every((o) => order.indexOf(p) > order.indexOf(o));
   const o = opponentOf(st, p);
   if (o < 0) return p === 3;
-  return postflopOrder(st).indexOf(p) > postflopOrder(st).indexOf(o);
+  return order.indexOf(p) > order.indexOf(o);
 }
 
 function preflopSizes(st, p) {
@@ -193,9 +196,10 @@ export function applyAction(st0, act) {
   st.acted[p] = true;
   st.history.push({ kind: 'act', p, street: st.street, act, label });
 
-  // Several players may limp; the pot goes heads-up once someone calls or
-  // re-raises a raise (the raiser and that player stay in).
-  if (st.street === 0 && !st.locked && wasOpen && act.type !== 'fold') {
+  // Several players may limp. After a raise, the pot goes heads-up once someone
+  // calls or re-raises (the raiser and that player stay in), unless the spot
+  // allows multiway pots (cfg.multiway): then everyone may still call.
+  if (st.street === 0 && !st.locked && !st.cfg.multiway && wasOpen && act.type !== 'fold') {
     POS.forEach((_, i) => { if (i !== p && i !== prevAggr) st.folded[i] = true; });
     st.locked = true;
   }
@@ -248,7 +252,7 @@ export function actionKey(act) {
 
 export function stateKey(st) {
   const fmt = (st.cfg.ko ? '/ko' : '') + (st.cfg.stage && st.cfg.stage !== '100' ? '/' + st.cfg.stage : '') + (st.cfg.bf != null ? '/bf' + st.cfg.bf.toFixed(3) : '');
-  return `${st.cfg.stack}bb/${st.cfg.open}${fmt}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
+  return `${st.cfg.stack}bb/${st.cfg.open}${fmt}${st.cfg.multiway ? '/mw' : ''}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
 }
 
 export function actionLabel(st, act, units = 'bb') {

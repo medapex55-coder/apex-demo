@@ -10,7 +10,7 @@ import { hashStr } from './rng.js';
 import { OPEN_CHARTS } from '../data/open-charts.js';
 import { stageBubbleFactor } from './icm.js';
 import {
-  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, SHOVE_STACK, isHU,
+  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, alive, SHOVE_STACK, isHU,
 } from './game.js';
 
 // Tournament pressure. ICM: the bubble factor (BF) says how much more a chip
@@ -133,6 +133,8 @@ function preflopClassFreqs(st, actions) {
   const shoveCall = Math.min(0.6, (0.025 + 2 / st.cfg.stack) * k);
   const facingShove = rl >= 1 && iR < 0 && st.lastAggr >= 0 && remaining(st, st.lastAggr) <= 0;
   const width = (q) => (hu && q === 4 ? HU_OPEN : openWidth(q));
+  // Players who already called the open (multiway spots only).
+  const callers = rl === 1 ? alive(st).filter((i) => i !== p && i !== st.lastAggr && st.streetBet[i] >= st.currentBet).length : 0;
   for (const c of CLASSES) {
     const pc = PERCENTILE[c.id];
     let raise = 0, call = 0;
@@ -159,7 +161,7 @@ function preflopClassFreqs(st, actions) {
       else if (p === 5) { V = o * 0.22; C = Math.min(hu ? 0.8 : 0.62, 0.12 + o * 1.05); }
       else if (p === 4) { V = o * 0.32; C = V + o * 0.1; }
       else { V = o * 0.2; C = o * 0.55; }
-      V *= k; C = Math.min(0.9, C * k);
+      V *= k; C = Math.min(0.9, C * k * 0.85 ** callers); // cold-callers already in: call tighter
       const bluff = !limped && c.suited && pc > C && pc < C + 0.12 ? 0.4 : 0;
       raise = within(pc, V) + bluff;
       call = Math.max(0, within(pc, C) - within(pc, V));
@@ -213,7 +215,12 @@ function prune(f) {
 function postflopFreqs(node) {
   const { st, actions } = node;
   const p = st.toAct;
-  const eq = node.equity(p);
+  const eqShare = node.equity(p);
+  // Bet and raise thresholds are tuned heads-up. Multiway, the equity is
+  // turned back into a heads-up-like number, a bit lower (betting into
+  // several players needs a stronger hand). Calls keep the true pot share.
+  const n = alive(st).length;
+  const eq = n > 2 ? eqShare.map((e) => Math.max(0, e ** (1 / (n - 1)) - 0.04 * (n - 2))) : eqShare;
   const w = node.ranges[p];
   const adv = weightedMean(eq, w);
   const ip = isIP(st, p);
@@ -249,7 +256,7 @@ function postflopFreqs(node) {
     } else {
       const po = call / (P + call);
       const R = street === 3 ? 1 : ip ? 1 : 0.92;
-      const eff = e * R + d * 0.12;
+      const eff = eqShare[i] * R + d * 0.12;
       const cont = ramp(eff + jitter * 0.3, po - 0.05, po + 0.08);
       const hasRaise = actions.length === 3;
       let raise = 0;
@@ -284,8 +291,20 @@ function makeNode(st, ranges) {
     freqs: null,
     info: null,
     _eq: {},
+    // Share of the pot each combo wins. Multiway (postflop), the chance to beat
+    // every opponent is approximated by multiplying the equity against each one.
     equity(p) {
       if (this._eq[p]) return this._eq[p];
+      const others = alive(this.st).filter((i) => i !== p);
+      if (this.st.street > 0 && others.length > 1) {
+        const eq = new Float32Array(1326).fill(1);
+        for (const o of others) {
+          const e = rangeEquity(this.ranges[o], this.st.board, hashStr(this.key + '#' + p + '>' + o));
+          for (let i = 0; i < 1326; i++) eq[i] *= e[i];
+        }
+        this._eq[p] = eq;
+        return eq;
+      }
       const o = opponentOf(this.st, p);
       const villW = o >= 0 ? this.ranges[o] : new Float32Array(1326).fill(1);
       this._eq[p] = rangeEquity(villW, this.st.board, hashStr(this.key + '#' + p));
@@ -297,26 +316,28 @@ function makeNode(st, ranges) {
 
 export const isCached = (st) => cache.has(stateKey(st));
 
+// Each player's range at this point of the hand (weights per combo), from the
+// parent decision's strategy. Works on states waiting for a board too.
+export function rangesOf(st) {
+  if (st.history.length === 0) return POS.map(() => new Float32Array(1326).fill(1));
+  const last = st.history[st.history.length - 1];
+  const parent = analyze(replay(st.history.slice(0, -1), st.cfg));
+  const ranges = parent.ranges.map((r) => r.slice());
+  if (last.kind === 'act') {
+    const ai = parent.actions.findIndex((a) => actionKey(a) === actionKey(last.act));
+    const f = parent.freqs && ai >= 0 ? parent.freqs[ai] : null;
+    if (f) { const r = ranges[last.p]; for (let i = 0; i < 1326; i++) r[i] *= f[i]; }
+  } else {
+    const dead = deadMask(last.cards);
+    for (const r of ranges) for (let i = 0; i < 1326; i++) { const [a, b] = COMBOS[i]; if (dead[a] || dead[b]) r[i] = 0; }
+  }
+  return ranges;
+}
+
 export function analyze(st) {
   const key = stateKey(st);
   if (cache.has(key)) return cache.get(key);
-  let ranges;
-  if (st.history.length === 0) {
-    ranges = POS.map(() => new Float32Array(1326).fill(1));
-  } else {
-    const last = st.history[st.history.length - 1];
-    const parent = analyze(replay(st.history.slice(0, -1), st.cfg));
-    ranges = parent.ranges.map((r) => r.slice());
-    if (last.kind === 'act') {
-      const ai = parent.actions.findIndex((a) => actionKey(a) === actionKey(last.act));
-      const f = parent.freqs && ai >= 0 ? parent.freqs[ai] : null;
-      if (f) { const r = ranges[last.p]; for (let i = 0; i < 1326; i++) r[i] *= f[i]; }
-    } else {
-      const dead = deadMask(last.cards);
-      for (const r of ranges) for (let i = 0; i < 1326; i++) { const [a, b] = COMBOS[i]; if (dead[a] || dead[b]) r[i] = 0; }
-    }
-  }
-  const node = makeNode(st, ranges);
+  const node = makeNode(st, rangesOf(st));
   if (node.actions.length) {
     if (st.street === 0) {
       const cf = preflopClassFreqs(st, node.actions);

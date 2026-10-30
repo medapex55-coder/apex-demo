@@ -5,6 +5,8 @@ import {
   importFiles, getTournaments, getHandRecords, getImportSessions, setType, removeTournament, clearAll, getScreenNames, setScreenNames,
 } from '../data/datastore.js';
 import { results, runZone, reliability } from '../data/handstats.js';
+import { recordImport } from '../data/progress.js';
+import { celebrate } from './gamify.js';
 import { getGateway } from '../data/datastore.js';
 import { gatewaySupported, savedFolder, pickFolder, forgetFolder, hasAccess, syncFolder, onGatewaySync } from '../data/gateway.js';
 
@@ -23,8 +25,15 @@ export function renderMyData(el) {
   root = el;
   unsub?.();
   // The gateway may bring new files while this page is open.
-  unsub = onGatewaySync((res) => { if (root?.isConnected) { lastReport = res.report; toast(reportText(res.report, 'Passerelle Winamax')); render(); } });
+  unsub = onGatewaySync((res) => { importBadges(res.report); if (root?.isConnected) { lastReport = res.report; toast(reportText(res.report, 'Passerelle Winamax')); render(); } });
   render();
+}
+
+// Badges for importing tournaments (and for one finished in the money).
+function importBadges(rep) {
+  const keys = new Set(rep.tournaments);
+  const itm = getTournaments().some((t) => keys.has(t.key) && !t.running && (t.prize || 0) > 0);
+  celebrate({ badges: recordImport({ tournaments: keys.size, itm }) });
 }
 
 function reportText(rep, from = '') {
@@ -45,6 +54,7 @@ async function readFiles(fileList) {
   if (!files.length) { toast('Choisis des fichiers .txt'); return; }
   const rep = importFiles(files);
   toast(reportText(rep));
+  importBadges(rep);
   lastReport = rep;
   render();
 }
@@ -83,6 +93,7 @@ async function fillGateway(box) {
       if (!(await hasAccess(d, true))) { toast('Accès refusé au dossier'); return; }
       const res = await syncFolder(d);
       lastReport = res.report || lastReport;
+      if (res.report) importBadges(res.report);
       toast(res.report ? reportText(res.report, 'Passerelle Winamax') : `Passerelle Winamax : rien de nouveau (${plural(res.total, 'fichier', 'fichiers')} dans le dossier)`);
       render();
     } catch (e) { if (e?.name !== 'AbortError') toast('Impossible de lire ce dossier : ' + (e?.message || e)); }

@@ -5,20 +5,21 @@ import { renderPractice, practiceKey, leavePractice } from './ui/practice.js';
 import { renderStats } from './ui/stats.js';
 import { renderMyData } from './ui/mydata.js';
 import { renderLeaks } from './ui/leakfinder.js';
-import { getSettings, setSetting } from './store.js';
+import { getSettings, setSetting, onChange } from './store.js';
 import { CLASSES } from './engine/cards.js';
 import { setOpenStyle } from './engine/strategy.js';
 import { startAutoSync } from './data/gateway.js';
+import { PlayerChip } from './ui/gamify.js';
 
 setOpenStyle(getSettings().openStyle || 'standard');
 startAutoSync();
 
 const ROUTES = {
-  study: { label: 'Étude', render: renderStudy, key: studyKey },
-  practice: { label: 'Entraînement', render: renderPractice, key: practiceKey },
-  stats: { label: 'Stats', render: renderStats },
-  data: { label: 'Mes données', render: renderMyData },
-  leaks: { label: 'Leakfinder', render: renderLeaks },
+  study: { label: 'Étude', icon: '📚', render: renderStudy, key: studyKey },
+  practice: { label: 'Entraînement', icon: '🎮', render: renderPractice, key: practiceKey },
+  stats: { label: 'Progression', icon: '🏆', render: renderStats },
+  data: { label: 'Mes données', icon: '📊', render: renderMyData },
+  leaks: { label: 'Leakfinder', icon: '🔍', render: renderLeaks },
   design: { label: 'Design', render: renderDesign, hidden: true },
 };
 
@@ -30,18 +31,23 @@ function route() {
   const r = ROUTES[name] ? name : 'study';
   if (current === 'practice' && r !== 'practice') leavePractice();
   current = r;
+  document.querySelectorAll('.overlay').forEach((o) => o.remove()); // a link inside a dialog leaves it
   const main = h('main#view', { tabindex: '-1' });
   mount(app, topNav(r), main);
   ROUTES[r].render(main);
   document.title = `${ROUTES[r].label} · Spotwise`;
 }
 
+// The player chip follows XP, streak and the daily goal live.
+onChange(() => document.querySelector('.player-chip')?.replaceWith(PlayerChip()));
+
 function topNav(active) {
   return h('header.topnav',
     h('a.brand', { href: '#/study' }, Logo(), h('span', 'Spotwise')),
     h('nav', { 'aria-label': 'Navigation principale' }, Object.entries(ROUTES).filter(([, r]) => !r.hidden).map(([id, r]) =>
-      h('a.navtab' + (id === active ? '.active' : ''), { href: '#/' + id, 'aria-current': id === active ? 'page' : null }, r.label))),
+      h('a.navtab' + (id === active ? '.active' : ''), { href: '#/' + id, 'aria-current': id === active ? 'page' : null }, h('span.nav-icon', { 'aria-hidden': 'true' }, r.icon), r.label))),
     h('span.grow'),
+    PlayerChip(),
     h('button.icon-btn', { type: 'button', 'aria-label': 'Réglages', title: 'Réglages', on: { click: openSettings } },
       h('span', { html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>' })));
 }
