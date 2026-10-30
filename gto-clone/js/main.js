@@ -8,8 +8,10 @@ import { renderLeaks } from './ui/leakfinder.js';
 import { getSettings, setSetting } from './store.js';
 import { CLASSES } from './engine/cards.js';
 import { setOpenStyle } from './engine/strategy.js';
+import { startAutoSync } from './data/gateway.js';
 
 setOpenStyle(getSettings().openStyle || 'standard');
+startAutoSync();
 
 const ROUTES = {
   study: { label: 'Étude', render: renderStudy, key: studyKey },

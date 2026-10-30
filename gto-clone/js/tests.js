@@ -429,6 +429,22 @@ await test('D10', 'HUD counters: RFI and steal from the BTN, fold in the BB to a
   const t = hudTotals([handRecord(a), handRecord(b)]);
   assert(t.VPIP.opp === 2 && t.VPIP.hit === 1 && t.FBS.hit === 1, 'totals');
 });
+const share = (node, type) => { const o = overallFreqs(node); return node.actions.reduce((a, x, k) => a + (x.type === type ? o.freqs[k] : 0), 0); };
+const bbVsBtn = (cfg) => { let st = foldTo(initialState({ stack: 40, open: '2.5', ...cfg }), 3); st = foldTo(act(st, 'raise'), 5); return analyze(st); };
+await test('U25', 'KO widens the BB defence, the final table tightens it', () => {
+  const base = 1 - share(bbVsBtn({}), 'fold');
+  const ko = 1 - share(bbVsBtn({ ko: true }), 'fold');
+  const ft = 1 - share(bbVsBtn({ stage: 'ft' }), 'fold');
+  assert(ko > base + 0.02 && ft < base - 0.02, `defend: base ${base.toFixed(3)}, KO ${ko.toFixed(3)}, final table ${ft.toFixed(3)}`);
+});
+await test('U26', 'heads-up: SB (button) opens wide first, BB acts first after the flop', () => {
+  let st = initialState({ stack: 40, open: '2.5', stage: 'hu' });
+  assert(st.toAct === 4 && legalActions(st).find((a) => a.type === 'raise').to === 2.5, 'SB to act, opens 2.5');
+  assert(share(analyze(st), 'fold') < 0.3, `SB folds ${share(analyze(st), 'fold').toFixed(2)}`);
+  st = act(act(st, 'raise'), 'call');
+  st = dealBoard(st, cs('2c7dKs'));
+  assert(st.toAct === 5, 'BB first on the flop');
+});
 
 // ---------- flows in the real app ----------
 const frame = document.getElementById('frame');
@@ -556,7 +572,13 @@ await test('F10-H1', 'my data: an import is a session with a recap, a run meter 
   await load('#/data');
   const ds = await frame.contentWindow.eval(`import('${new URL('js/data/datastore.js', frame.contentWindow.location.href).href}')`);
   ds.clearAll();
-  ds.importFiles([{ name: 'h.txt', text: PS_HANDS2 }]);
+  const r1 = ds.importFiles([{ name: 'h.txt', text: PS_HANDS2 }]);
+  const r2 = ds.importFiles([{ name: 'h-copy.txt', text: PS_HANDS2 }]);
+  const r3 = ds.importFiles([{ name: 'h-other.txt', text: PS_HANDS2 + '\n' }]);
+  assert(r1.ok === 1 && r1.newHands === 2 && r1.newTournaments === 1, 'first import');
+  assert(r2.ok === 0 && r2.duplicates.length === 1, 'same file again: skipped');
+  assert(r3.ok === 1 && r3.newHands === 0 && r3.newTournaments === 0, 'same hands in another file: merged');
+  assert(ds.getTournaments().length === 1 && ds.getHandRecords().length === 2 && ds.getImportSessions().length === 1, 'no duplicate tournament, hand or session');
   await load('#/data');
   const sess = await waitFor(() => doc().querySelector('.import-session'));
   assert(/1 tournoi/.test(sess.textContent) && /2 mains/.test(sess.textContent), `recap: ${sess.querySelector('.recap').textContent}`);

@@ -5,10 +5,11 @@ import { MADE, DRAWS, catFr } from '../engine/evaluator.js';
 import { weightedMean } from '../engine/equity.js';
 import {
   POS, STREETS, replay, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
-  aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey, STACKS, OPEN_SIZES, DEFAULT_CFG,
+  aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey, STACKS, OPEN_SIZES, DEFAULT_CFG, STAGES,
 } from '../engine/game.js';
 
 const OPEN_LABELS = { limp: 'Limp 1bb', 2: '2bb', 2.5: '2.5bb (SB 3.5)', 4.5: '4.5bb' };
+const STAGE_LABELS = { 100: 'Début (100 %)', 50: '50 % restants', 25: '25 % restants', 10: '10 % restants', semi: 'Demi-finale', ft: 'Table finale', hu: 'Heads-up' };
 import {
   analyze, isCached, classSummary, overallFreqs, comboFreqs, comboEVs, classAverage, rangeCombos,
   chartCode, codeFreqs, getOpenStyle, setOpenStyle,
@@ -33,9 +34,14 @@ let root = null;
 export function renderStudy(el) {
   root = el;
   const q = (k) => (location.hash.match(new RegExp(`[?&]${k}=([^&]*)`)) || [])[1];
-  const stack = +q('s'), open = q('o');
-  if (STACKS.includes(stack) || OPEN_SIZES.includes(open)) {
-    ui.cfg = { stack: STACKS.includes(stack) ? stack : ui.cfg.stack, open: OPEN_SIZES.includes(open) ? open : ui.cfg.open };
+  const stack = +q('s'), open = q('o'), stage = q('fs');
+  if (STACKS.includes(stack) || OPEN_SIZES.includes(open) || q('f') || STAGES.includes(stage)) {
+    ui.cfg = {
+      stack: STACKS.includes(stack) ? stack : ui.cfg.stack,
+      open: OPEN_SIZES.includes(open) ? open : ui.cfg.open,
+      ko: q('f') === 'ko',
+      stage: STAGES.includes(stage) ? stage : DEFAULT_CFG.stage,
+    };
   }
   if (q('l')) ui.history = decodeLine(q('l'));
   render();
@@ -49,16 +55,20 @@ function setHistory(hist) {
   const params = [];
   if (ui.cfg.stack !== DEFAULT_CFG.stack) params.push('s=' + ui.cfg.stack);
   if (ui.cfg.open !== DEFAULT_CFG.open) params.push('o=' + ui.cfg.open);
+  if (ui.cfg.ko) params.push('f=ko');
+  if (ui.cfg.stage !== DEFAULT_CFG.stage) params.push('fs=' + ui.cfg.stage);
   if (hist.length) params.push('l=' + encodeLine(hist));
   history.replaceState(null, '', '#/study' + (params.length ? '?' + params.join('&') : ''));
   render();
 }
 
-// Changing the stack or open size keeps as much of the line as still exists.
+// Changing the stack, open size or format keeps as much of the line as still
+// exists. Going in or out of heads-up starts over: the seats are different.
 function setCfg(patch) {
   const line = encodeLine(ui.history);
+  const seatsChange = 'stage' in patch && (patch.stage === 'hu') !== (ui.cfg.stage === 'hu');
   ui.cfg = { ...ui.cfg, ...patch };
-  setHistory(line ? decodeLine(line) : []);
+  setHistory(line && !seatsChange ? decodeLine(line) : []);
 }
 
 // The line lives in the URL so a refresh or a shared link reopens the spot.
@@ -126,7 +136,7 @@ function spotBar(st) {
   if (st.terminal) {
     chips.push(h('span.chip.current', st.terminal === 'fold' ? `${POS[st.winner]} remporte le pot` : 'Showdown'));
   } else if (st.needBoard) {
-    chips.push(h('span.chip.current', h('span.chip-pos', STREETS[st.street]), h('span.muted', 'choose cards')));
+    chips.push(h('span.chip.current', h('span.chip-pos', STREETS[st.street]), h('span.muted', 'choisis les cartes')));
   } else {
     const acts = legalActions(st);
     chips.push(h('div.chip.current', h('span.chip-pos', POS[st.toAct]),
@@ -142,14 +152,19 @@ function spotBar(st) {
     }
   }
   return h('header.spotbar',
-    h('div.spot-format', h('span.pill', 'Cash'), h('span.pill', '6-max'),
+    h('div.spot-format', h('span.pill', ui.cfg.stage === 'hu' ? 'Heads-up' : '6-max'),
+      h('label.pick-field', 'Format',
+        h('select', { 'aria-label': 'Format du tournoi', on: { change: (e) => setCfg({ ko: e.target.value === 'ko' }) } },
+          [['classic', 'Classique'], ['ko', 'KO (bounty)']].map(([v, l]) => h('option', { value: v, selected: (v === 'ko') === !!ui.cfg.ko }, l)))),
+      h('label.pick-field', 'Field restant',
+        h('select', { 'aria-label': 'Field restant', on: { change: (e) => setCfg({ stage: e.target.value }) } },
+          STAGES.map((s) => h('option', { value: s, selected: s === ui.cfg.stage }, STAGE_LABELS[s])))),
       h('label.pick-field', 'Stack',
         h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => setCfg({ stack: +e.target.value }) } },
           STACKS.map((s) => h('option', { value: String(s), selected: s === ui.cfg.stack }, s + 'bb')))),
       h('label.pick-field', 'Open',
         h('select', { 'aria-label': 'Taille d\'open', on: { change: (e) => setCfg({ open: e.target.value }) } },
-          OPEN_SIZES.map((o) => h('option', { value: o, selected: o === ui.cfg.open }, OPEN_LABELS[o])))),
-      h('span.pill.muted', 'stratégies de démo')),
+          OPEN_SIZES.map((o) => h('option', { value: o, selected: o === ui.cfg.open }, o === '2.5' && ui.cfg.stage === 'hu' ? '2.5bb' : OPEN_LABELS[o]))))),
     h('nav.line', { 'aria-label': 'Ligne d\'action' },
       h('button.chip.root', { type: 'button', title: 'Revenir au début', on: { click: () => setHistory([]) } }, '⟲'),
       chips));
@@ -368,7 +383,7 @@ function handDetail(node) {
   return box;
 }
 
-const isFirstIn = (node) => node.st.street === 0 && node.st.raiseLevel === 0 && node.actor <= 4;
+const isFirstIn = (node) => node.st.street === 0 && node.st.raiseLevel === 0 && node.actor <= 4 && node.st.cfg.stage !== 'hu';
 
 // The user's open chart for this seat: its zones and the style that decides
 // how the flex zones (Loosifie / Tightfie) are played.

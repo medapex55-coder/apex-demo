@@ -7,14 +7,21 @@ import { cardStr } from './cards.js';
 export const POS = ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
 export const STACKS = [200, 100, 80, 70, 50, 40, 30, 25, 20, 15, 10];
 export const OPEN_SIZES = ['limp', '2', '2.5', '4.5']; // '2.5' means the SB opens 3.5
-export const DEFAULT_CFG = Object.freeze({ stack: 100, open: '2.5' });
+// Tournament stage = how much of the field is left. 'hu' is heads-up: only the
+// SB (who is also the button) and the BB are dealt in.
+export const STAGES = ['100', '50', '25', '10', 'semi', 'ft', 'hu'];
+export const DEFAULT_CFG = Object.freeze({ stack: 100, open: '2.5', ko: false, stage: '100' });
 export const SHOVE_STACK = 20; // at or below this depth, preflop all-in becomes a strategy
 export const STREETS = ['Preflop', 'Flop', 'Turn', 'River'];
 const POSTFLOP_ORDER = [4, 5, 0, 1, 2, 3]; // SB first
+const HU_POSTFLOP_ORDER = [5, 4, 0, 1, 2, 3]; // heads-up: the SB has the button and acts last
+export const isHU = (st) => st.cfg.stage === 'hu';
+const postflopOrder = (st) => (isHU(st) ? HU_POSTFLOP_ORDER : POSTFLOP_ORDER);
 
 const round = (x) => Math.round(x * 10) / 10;
 
 export function initialState(cfg = DEFAULT_CFG) {
+  const hu = cfg.stage === 'hu';
   return {
     cfg,
     limpers: [],
@@ -22,9 +29,9 @@ export function initialState(cfg = DEFAULT_CFG) {
     board: [],
     invested: [0, 0, 0, 0, 0.5, 1],
     streetBet: [0, 0, 0, 0, 0.5, 1],
-    folded: [false, false, false, false, false, false],
+    folded: hu ? [true, true, true, true, false, false] : [false, false, false, false, false, false],
     acted: [false, false, false, false, false, false],
-    toAct: 0,
+    toAct: hu ? 4 : 0,
     currentBet: 1,
     raiseLevel: 0,
     streetRaises: 0,
@@ -65,7 +72,7 @@ export function opponentOf(st, p) {
 export function isIP(st, p) {
   const o = opponentOf(st, p);
   if (o < 0) return p === 3;
-  return POSTFLOP_ORDER.indexOf(p) > POSTFLOP_ORDER.indexOf(o);
+  return postflopOrder(st).indexOf(p) > postflopOrder(st).indexOf(o);
 }
 
 function preflopSizes(st, p) {
@@ -73,12 +80,12 @@ function preflopSizes(st, p) {
   if (st.raiseLevel === 0) {
     // Iso-raise: the base open size plus 1bb for each player who limped before.
     if (st.limpers.length) return round((st.cfg.open === 'limp' ? 2 : +st.cfg.open) + st.limpers.length);
-    if (st.cfg.open === '2.5' && p === 4) return 3.5;
+    if (st.cfg.open === '2.5' && p === 4 && !isHU(st)) return 3.5;
     return st.cfg.open === 'limp' ? 2.5 : +st.cfg.open;
   }
   if (st.raiseLevel === 1) {
     const open = st.currentBet;
-    const ip = POSTFLOP_ORDER.indexOf(p) > POSTFLOP_ORDER.indexOf(opener);
+    const ip = postflopOrder(st).indexOf(p) > postflopOrder(st).indexOf(opener);
     return round(open * (ip ? 3 : 4));
   }
   if (st.raiseLevel === 2) return round(Math.round(st.currentBet * 2.3 * 2) / 2);
@@ -136,7 +143,7 @@ export function legalActions(st) {
 }
 
 function nextActor(st, from) {
-  const order = st.street === 0 ? [0, 1, 2, 3, 4, 5] : POSTFLOP_ORDER;
+  const order = st.street === 0 ? [0, 1, 2, 3, 4, 5] : postflopOrder(st);
   const start = order.indexOf(from);
   for (let k = 1; k <= 6; k++) {
     const p = order[(start + k) % 6];
@@ -158,7 +165,7 @@ function endStreet(st) {
   if (st.street === 4) { st.terminal = 'showdown'; st.toAct = -1; st.street = 3; return; }
   st.needBoard = st.street === 1 ? 3 : 1;
   const canAct = live.filter((p) => remaining(st, p) > 0);
-  st.toAct = canAct.length >= 2 ? POSTFLOP_ORDER.find((p) => canAct.includes(p)) : -1;
+  st.toAct = canAct.length >= 2 ? postflopOrder(st).find((p) => canAct.includes(p)) : -1;
 }
 
 export function applyAction(st0, act) {
@@ -240,7 +247,8 @@ export function actionKey(act) {
 }
 
 export function stateKey(st) {
-  return `${st.cfg.stack}bb/${st.cfg.open}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
+  const fmt = (st.cfg.ko ? '/ko' : '') + (st.cfg.stage && st.cfg.stage !== '100' ? '/' + st.cfg.stage : '');
+  return `${st.cfg.stack}bb/${st.cfg.open}${fmt}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
 }
 
 export function actionLabel(st, act, units = 'bb') {

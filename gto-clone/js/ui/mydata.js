@@ -5,6 +5,8 @@ import {
   importFiles, getTournaments, getHandRecords, getImportSessions, setType, removeTournament, clearAll, getScreenNames, setScreenNames,
 } from '../data/datastore.js';
 import { results, runZone, reliability } from '../data/handstats.js';
+import { getGateway } from '../data/datastore.js';
+import { gatewaySupported, savedFolder, pickFolder, forgetFolder, hasAccess, syncFolder, onGatewaySync } from '../data/gateway.js';
 
 const TYPES = { vanilla: 'Vanilla', ko: 'KO', mystery: 'Mystery KO' };
 const filter = { type: 'all', room: 'all' };
@@ -16,23 +18,84 @@ const fmtDate = (s) => new Date(s).toLocaleString('fr-FR', { weekday: 'short', d
 
 let root;
 let lastReport = null;
+let unsub = null;
 export function renderMyData(el) {
   root = el;
+  unsub?.();
+  // The gateway may bring new files while this page is open.
+  unsub = onGatewaySync((res) => { if (root?.isConnected) { lastReport = res.report; toast(reportText(res.report, 'Passerelle Winamax')); render(); } });
   render();
+}
+
+function reportText(rep, from = '') {
+  const parts = [];
+  if (rep.ok) parts.push(`${plural(rep.ok, 'fichier importé', 'fichiers importés')} · ${plural(rep.newTournaments, 'nouveau tournoi', 'nouveaux tournois')} · ${plural(rep.newHands, 'nouvelle main', 'nouvelles mains')}`);
+  if (rep.duplicates.length) parts.push(`${plural(rep.duplicates.length, 'fichier déjà importé ignoré', 'fichiers déjà importés ignorés')}`);
+  if (!parts.length) parts.push('Aucun fichier lisible');
+  if (!rep.saved) return 'Stockage plein : le navigateur n\'a pas pu tout enregistrer';
+  return (from ? from + ' : ' : '') + parts.join(' · ');
 }
 
 async function readFiles(fileList) {
   const files = [];
   for (const f of fileList) {
     if (!/\.txt$/i.test(f.name)) continue;
-    files.push({ name: f.name, text: await f.text() });
+    files.push({ name: f.webkitRelativePath || f.name, text: await f.text() });
   }
   if (!files.length) { toast('Choisis des fichiers .txt'); return; }
   const rep = importFiles(files);
-  const msg = `${plural(rep.ok, 'fichier lu', 'fichiers lus')} · ${plural(rep.tournaments.size, 'tournoi', 'tournois')} · ${plural(rep.hands, 'main', 'mains')}`;
-  toast(rep.saved ? msg : 'Stockage plein : le navigateur n\'a pas pu tout enregistrer');
+  toast(reportText(rep));
   lastReport = rep;
   render();
+}
+
+// ---------- Winamax gateway ----------
+function gatewayPanel() {
+  const box = h('section.panel.gateway', h('div.panel-title', 'Passerelle Winamax'), h('p.small.muted', 'Chargement…'));
+  fillGateway(box);
+  return box;
+}
+
+async function fillGateway(box) {
+  const g = getGateway();
+  const help = h('details.help', h('summary', 'Comment ça marche ?'),
+    h('ol.small',
+      h('li', 'Winamax enregistre tes mains et tes résumés de tournoi dans ', h('code', '%APPDATA%\\winamax\\documents\\accounts\\<ton pseudo>\\history'), '. Vérifie que l\'option d\'enregistrement des historiques est active dans le logiciel.'),
+      h('li', 'Chrome et Edge refusent d\'ouvrir les dossiers AppData. Télécharge le ', h('a', { href: 'tools/spotwise-winamax-sync.ps1', download: '' }, 'script de copie'),
+        ', puis lance-le une fois avec l\'option ', h('code', '-Install'), ' (clic droit → Exécuter avec PowerShell, ou ', h('code', 'powershell -ExecutionPolicy Bypass -File spotwise-winamax-sync.ps1 -Install'), '). Il copie tes fichiers Winamax dans ', h('code', 'Documents\\Spotwise\\Winamax'), ' toutes les 10 minutes.'),
+      h('li', 'Ici, connecte ce dossier ', h('code', 'Documents\\Spotwise\\Winamax'), ' une fois. Ensuite, le site le relit tout seul au démarrage et toutes les 2 minutes tant qu\'il est ouvert, et n\'importe que ce qui est nouveau.'),
+      h('li', 'Rien n\'est envoyé sur Internet : les fichiers sont lus par ton navigateur, sur ton PC.')));
+  if (!gatewaySupported()) {
+    const input = h('input', { type: 'file', webkitdirectory: true, multiple: true, hidden: true, on: { change: (e) => readFiles(e.target.files) } });
+    box.replaceChildren(h('div.panel-title', 'Passerelle Winamax'),
+      h('p.small', 'Ton navigateur ne permet pas de garder l\'accès à un dossier (c\'est possible avec Chrome ou Edge). Tu peux quand même importer tout un dossier d\'un coup : les fichiers déjà importés sont ignorés.'),
+      h('div.row.gap', input, h('button.btn.secondary', { type: 'button', on: { click: () => input.click() } }, 'Importer un dossier')), help);
+    return;
+  }
+  const dir = await savedFolder();
+  const access = dir ? await hasAccess(dir) : false;
+  const status = !dir ? 'Aucun dossier connecté.'
+    : access ? `Connecté à « ${dir.name} » · synchro auto toutes les 2 minutes · dernière synchro : ${g.last ? fmtDate(g.last) : 'jamais'} · ${plural(Object.keys(g.seen || {}).length, 'fichier suivi', 'fichiers suivis')}`
+      : `Dossier « ${dir.name} » connecté, mais ton navigateur demande de réautoriser l'accès.`;
+  const sync = async (ask) => {
+    try {
+      const d = dir || await pickFolder();
+      if (!(await hasAccess(d, true))) { toast('Accès refusé au dossier'); return; }
+      const res = await syncFolder(d);
+      lastReport = res.report || lastReport;
+      toast(res.report ? reportText(res.report, 'Passerelle Winamax') : `Passerelle Winamax : rien de nouveau (${plural(res.total, 'fichier', 'fichiers')} dans le dossier)`);
+      render();
+    } catch (e) { if (e?.name !== 'AbortError') toast('Impossible de lire ce dossier : ' + (e?.message || e)); }
+  };
+  box.replaceChildren(h('div.panel-title', 'Passerelle Winamax'),
+    h('p.small' + (dir && !access ? '.warn' : ''), status),
+    h('div.row.gap.wrap',
+      !dir ? h('button.btn.primary', { type: 'button', on: { click: () => sync() } }, 'Connecter un dossier') : null,
+      dir && !access ? h('button.btn.primary', { type: 'button', on: { click: () => sync(true) } }, 'Autoriser et synchroniser') : null,
+      dir && access ? h('button.btn.secondary', { type: 'button', on: { click: () => sync() } }, 'Synchroniser maintenant') : null,
+      dir ? h('button.btn.ghost.sm', { type: 'button', on: { click: async () => { await pickFolder().catch(() => null); render(); } } }, 'Changer de dossier') : null,
+      dir ? h('button.btn.ghost.sm', { type: 'button', on: { click: async () => { await forgetFolder(); render(); } } }, 'Déconnecter') : null),
+    help);
 }
 
 // Buy-ins, winnings, profit, ROI and ITM of a list of tournaments.
@@ -70,11 +133,18 @@ function render() {
     h('div.row.between', h('h1', 'Mes données'),
       all.length ? h('button.btn.ghost.sm', { type: 'button', on: { click: () => { if (confirm('Supprimer tous les tournois importés de ce navigateur ?')) { clearAll(); render(); } } } }, 'Tout supprimer') : null),
     drop,
+    gatewayPanel(),
     lastReport?.errors.length ? h('div.panel.warn', h('strong', 'Certains fichiers n\'ont pas été lus'), h('ul', lastReport.errors.slice(0, 8).map((e) => h('li.small', e)))) : null,
+    h('details.help', h('summary', 'Règle anti-doublon'),
+      h('ul.small',
+        h('li', 'Un fichier déjà importé (même contenu) est ignoré.'),
+        h('li', 'Un tournoi est reconnu par sa room et son numéro : le réimporter le met à jour, il n\'apparaît jamais deux fois.'),
+        h('li', 'Une main est reconnue par son numéro : si elle est dans deux fichiers, elle n\'est comptée qu\'une fois.'),
+        h('li', 'Retirer un tournoi permet de le réimporter ensuite.'))),
     h('details.help', h('summary', 'Où sont mes fichiers ?'),
       h('ul.small',
         h('li', h('strong', 'PokerStars : '), 'résumés dans %LOCALAPPDATA%\\PokerStars.FR\\TournSummary\\<ton pseudo>, mains dans …\\HandHistory\\<ton pseudo>. Dans le logiciel, active Paramètres → Historique de jeu → « Enregistrer mes historiques de mains ».'),
-        h('li', h('strong', 'Winamax : '), 'Options → Historiques de mains, puis le dossier « history » de ton compte.'),
+        h('li', h('strong', 'Winamax : '), '%APPDATA%\\winamax\\documents\\accounts\\<ton pseudo>\\history (ou utilise la passerelle ci-dessus).'),
         h('li', h('strong', 'PMU, Betclic : '), 'pas encore pris en charge. Envoie un tournoi (ses deux fichiers) et le format sera ajouté.'))),
     h('div.field.names', h('div.field-label', 'Mes pseudos'),
       h('input.text', {
@@ -152,7 +222,7 @@ export function runPanel(recs) {
         h('div', h('div.big', { class: r.luck >= 0 ? 'pos' : 'neg' }, sgn(r.luck, 0)), h('div.small.muted', 'bb par rapport à l\'EV')),
         h('div', h('div.big.warn', Math.round(r.runBetter * 100) + ' %'), h('div.small.muted', 'des joueurs run mieux'))),
       h('div.run-bar', { role: 'img', 'aria-label': `Run meter : ${zoneLabel}` },
-        ZONES.map((z) => h('span', { style: { width: z.to - z.from + '%', background: `var(--run-${z.id})` } })),
+        ZONES.map((z) => h('span', { style: { width: z.to - z.from + '%' } })),
         h('span.run-marker', { style: { left: zPos(r.z) + '%' } })),
       h('div.run-labels', ZONES.map((z) => h('span', { style: { left: (z.from + z.to) / 2 + '%' } }, z.label))),
       h('div.run-verdict', { style: { color: `var(--run-${zone})` } }, zoneLabel),

@@ -9,8 +9,19 @@ import { rangeEquity, weightedMean } from './equity.js';
 import { hashStr } from './rng.js';
 import { OPEN_CHARTS } from '../data/open-charts.js';
 import {
-  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, SHOVE_STACK,
+  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, SHOVE_STACK, isHU,
 } from './game.js';
+
+// Tournament pressure. ICM: the closer to the money and the final table, the
+// more each chip lost costs, so the ranges that face aggression tighten.
+// Bounties pay you for calling and isolating, so KO formats widen them.
+const ICM = { 100: 0, 50: 0.04, 25: 0.08, 10: 0.15, semi: 0.18, ft: 0.22, hu: 0 };
+const KO_BONUS = { 100: 0.1, 50: 0.12, 25: 0.15, 10: 0.15, semi: 0.15, ft: 0.15, hu: 0.1 };
+export function rangeScale(cfg) {
+  const s = cfg.stage || '100';
+  return (1 - ICM[s]) * (1 + (cfg.ko ? KO_BONUS[s] : 0));
+}
+const HU_OPEN = 0.8; // heads-up, the button (SB) opens most hands
 
 const clamp = (x, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, x));
 const ramp = (x, lo, hi) => clamp((x - lo) / (hi - lo));
@@ -113,47 +124,53 @@ function preflopClassFreqs(st, actions) {
   const facingLimp = rl === 0 && st.limpers.length > 0;
   // Facing an all-in with no raise left: call with the top of the range,
   // wider as stacks get shorter (better price relative to the stack).
-  const shoveCall = Math.min(0.45, 0.025 + 2 / st.cfg.stack);
+  // k scales every range that faces a limp or a raise (ICM tightens, bounties widen).
+  const k = rangeScale(st.cfg);
+  const hu = isHU(st);
+  const shoveCall = Math.min(0.6, (0.025 + 2 / st.cfg.stack) * k);
   const facingShove = rl >= 1 && iR < 0 && st.lastAggr >= 0 && remaining(st, st.lastAggr) <= 0;
+  const width = (q) => (hu && q === 4 ? HU_OPEN : openWidth(q));
   for (const c of CLASSES) {
     const pc = PERCENTILE[c.id];
     let raise = 0, call = 0;
     if (rl === 0 && p <= 4 && !facingLimp) {
-      // First in: the user's chart. With the "limp" open size, the raising range limps.
-      const f = codeFreqs(chartCode(p, c));
+      // First in: the user's chart (heads-up, the button opens most hands).
+      // With the "limp" open size, the raising range limps.
+      const f = hu && p === 4 ? { raise: within(pc, HU_OPEN, 0.03), limp: 0 } : codeFreqs(chartCode(p, c));
       if (st.cfg.open === 'limp') {
         // Limp mode: the raising range limps, except the part that shoves at 20bb and less.
         raise = iR >= 0 ? f.raise * shoveShare(c, st.cfg.stack, true) : 0;
         call = f.raise - raise + f.limp;
       } else { raise = f.raise; call = f.limp; }
     } else if (facingLimp && p !== 5) {
-      raise = within(pc, 0.12); // isolate the top
-      call = Math.max(0, within(pc, 0.2) - raise); // over-limp the next band
+      raise = within(pc, 0.12 * k); // isolate the top
+      call = Math.max(0, within(pc, 0.2 * k) - raise); // over-limp the next band
     } else if (rl === 0) {
-      raise = within(pc, 0.18); // BB vs a limp: isolate the top, check the rest
+      raise = within(pc, 0.18 * k); // BB vs a limp: isolate the top, check the rest
     } else if (facingShove) {
       call = within(pc, shoveCall, 0.01);
     } else if (rl === 1) {
-      const o = openWidth(st.lastAggr);
+      const o = width(st.lastAggr);
       let V, C;
       if (limped) { V = 0.03; C = 0.6; } // limp-call wide, limp-raise the nuts
-      else if (p === 5) { V = o * 0.22; C = Math.min(0.62, 0.12 + o * 1.05); }
+      else if (p === 5) { V = o * 0.22; C = Math.min(hu ? 0.8 : 0.62, 0.12 + o * 1.05); }
       else if (p === 4) { V = o * 0.32; C = V + o * 0.1; }
       else { V = o * 0.2; C = o * 0.55; }
+      V *= k; C = Math.min(0.9, C * k);
       const bluff = !limped && c.suited && pc > C && pc < C + 0.12 ? 0.4 : 0;
       raise = within(pc, V) + bluff;
       call = Math.max(0, within(pc, C) - within(pc, V));
     } else if (rl === 2) {
-      const o = openWidth(p);
-      const C = o * (isIP(st, p) ? 0.55 : 0.42);
+      const o = width(p);
+      const C = o * (isIP(st, p) ? 0.55 : 0.42) * k;
       const bluff = c.suited && c.hi === 12 && pc > C && pc < o ? 0.5 : 0;
-      raise = within(pc, 0.03, 0.008) + bluff;
-      call = Math.max(0, within(pc, C) - within(pc, 0.03, 0.008));
+      raise = within(pc, 0.03 * k, 0.008) + bluff;
+      call = Math.max(0, within(pc, C) - within(pc, 0.03 * k, 0.008));
     } else if (rl === 3) {
-      raise = within(pc, 0.02, 0.006);
-      call = Math.max(0, within(pc, 0.045, 0.01) - raise);
+      raise = within(pc, 0.02 * k, 0.006);
+      call = Math.max(0, within(pc, 0.045 * k, 0.01) - raise);
     } else {
-      call = within(pc, 0.03, 0.008);
+      call = within(pc, 0.03 * k, 0.008);
     }
     if (iR < 0) { call += raise; raise = 0; }
     if (iC < 0) call = 0;

@@ -167,7 +167,7 @@ export function handFlags(hand) {
 export function handRecord(hand) {
   if (!hand.hero || !hand.cards) return null;
   const r = handResult(hand);
-  return { h: hand.id, t: hand.tid, at: hand.at || null, n: r.net, e: r.ev, sd: r.sd ? 1 : 0, v: r.v, f: handFlags(hand) };
+  return { h: hand.id, t: hand.tid, at: hand.at || null, n: r.net, e: r.ev, sd: r.sd ? 1 : 0, v: r.v, b: hand.bounty || 0, f: handFlags(hand) };
 }
 
 // ---------- totals ----------

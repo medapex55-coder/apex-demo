@@ -133,7 +133,8 @@ function typeSelect() {
 
 // ---------- My spots ----------
 function spotsView() {
-  const all = getDecisions();
+  const koTypes = new Map(getTournaments().map((t) => [t.tid, t.type === 'ko' || t.type === 'mystery']));
+  const all = getDecisions().map((d) => ({ ...d, ko: koTypes.get(d.t) }));
   if (!all.length) {
     return h('div.empty-state',
       h('p.muted', 'Importe d\'abord tes tournois (avec leurs historiques de mains) dans Mes données. Leakfinder compare ensuite chacune de tes décisions préflop à la stratégie de l\'Étude.'),
@@ -250,7 +251,9 @@ const STATUS = {
 };
 
 function liveView() {
-  const report = liveAction(getSessions(), getDecisions(), getTournaments());
+  const tours = getTournaments();
+  const koTypes = new Map(tours.map((t) => [t.tid, t.type === 'ko' || t.type === 'mystery']));
+  const report = liveAction(getSessions(), getDecisions().map((d) => ({ ...d, ko: koTypes.get(d.t) })), tours);
   if (!report.length) {
     return h('div.empty-state',
       h('p.muted', 'Live action suit les spots que tu travailles dans Entraînement. Entraîne-toi sur un spot (par exemple BB vs BTN à 50bb), puis joue et importe tes tournois dans Mes données : cette page montre si l\'entraînement se voit à la table.'),

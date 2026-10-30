@@ -26,7 +26,7 @@ const aggressive = (st, allin) => (allin ? find(st, 'allin') || find(st, 'raise'
 
 // Rebuild the engine state where the hero decides. Returns null if the tree can't express it.
 export function spotState(d) {
-  const cfg = { stack: d.s, open: d.o || '2.5' };
+  const cfg = { stack: d.s, open: d.o || '2.5', ko: !!d.ko, stage: '100' };
   let st = initialState(cfg);
   try {
     if (d.sc === 'RFI') st = foldTo(st, d.hp);
@@ -258,5 +258,5 @@ export function biggestGap(sp) {
 
 export function studyLink(st) {
   const line = st.history.map((e) => e.p + actionKey(e.act)).join('_');
-  return `#/study?s=${st.cfg.stack}&o=${st.cfg.open}${line ? '&l=' + line : ''}`;
+  return `#/study?s=${st.cfg.stack}&o=${st.cfg.open}${st.cfg.ko ? '&f=ko' : ''}${line ? '&l=' + line : ''}`;
 }
