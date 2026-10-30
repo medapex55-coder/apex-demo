@@ -5,7 +5,8 @@ import { parseCard, COMBOS, CLASS_BY_NAME, comboIndex } from './engine/cards.js'
 import { evalHand, classify } from './engine/evaluator.js';
 import { rangeEquity } from './engine/equity.js';
 import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS } from './engine/game.js';
-import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle } from './engine/strategy.js';
+import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale } from './engine/strategy.js';
+import { icmEquities, bubbleFactor, requiredEquity } from './engine/icm.js';
 import { gradeDecision } from './ui/practice.js';
 import { parseFile } from './data/parsers.js';
 import { extractDecisions } from './data/decisions.js';
@@ -444,6 +445,22 @@ await test('U26', 'heads-up: SB (button) opens wide first, BB acts first after t
   st = act(act(st, 'raise'), 'call');
   st = dealBoard(st, cs('2c7dKs'));
   assert(st.toAct === 5, 'BB first on the flop');
+});
+await test('U27', 'ICM equity (Malmuth-Harville): 3 players, checked by hand', () => {
+  const eq = icmEquities([50, 30, 20], [50, 30, 20]);
+  // P1: 1st 0.5, 2nd 0.3*(5/7)+0.2*(5/8) = 0.3393, 3rd 0.1607 -> 25 + 10.18 + 3.21
+  near(eq[0], 38.393, 0.01, 'big stack');
+  near(eq.reduce((a, b) => a + b, 0), 100, 1e-9, 'whole prize pool shared');
+  const hu = icmEquities([1, 1], [60, 40]);
+  assert(Math.abs(hu[0] - 50) < 1e-9 && Math.abs(hu[1] - 50) < 1e-9, 'equal stacks heads-up');
+});
+await test('U28', 'bubble factor: 1 heads-up and winner-takes-all, above 1 on the bubble', () => {
+  near(bubbleFactor([20, 20], [60, 40], 0, 1), 1, 1e-9, 'heads-up');
+  near(bubbleFactor([10, 20, 30], [100], 0, 2), 1, 1e-9, 'winner takes all');
+  const bubble = bubbleFactor([20, 20, 20, 20], [50, 30, 20], 0, 1);
+  assert(bubble > 1.3, `4 left, 3 paid: BF ${bubble.toFixed(2)}`);
+  near(requiredEquity(1.5), 0.6, 1e-9, 'BF 1.5 needs 60% to call');
+  assert(rangeScale({ stage: '100', bf: 2 }) < rangeScale({ stage: '100' }) - 0.3, 'a custom BF of 2 tightens the ranges');
 });
 
 // ---------- flows in the real app ----------

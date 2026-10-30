@@ -400,3 +400,12 @@ table.leaks tr.detail > td { background: var(--bg); padding: var(--s2); }
 .hud-stat .val.none { color: var(--text-muted); }
 .hud-stat .sub { font-size: var(--fs-xs); color: var(--text-muted); }
 .hud-stat .why { font-size: var(--fs-xs); color: var(--text-muted); text-align: left; margin-top: 4px; }
+
+/* ---- ICM panel (Study) ---- */
+.icm-panel { display: flex; flex-direction: column; gap: var(--s2); }
+.icm-panel p { margin: 0; }
+.icm-bf { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.icm-big { font-size: var(--fs-xl); font-weight: 700; font-family: var(--font-mono); }
+.icm-input { display: flex; flex-direction: column; gap: 2px; }
+.icm-input input { width: 100%; }
+.icm-table tr.me td { color: var(--accent); font-weight: 700; }

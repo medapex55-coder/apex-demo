@@ -16,9 +16,13 @@ import {
 } from '../engine/strategy.js';
 import { getSettings, setSetting } from '../store.js';
 import { TAG_NAMES } from '../data/open-charts.js';
+import { scenarioReport, requiredEquity, riskPremium, STAGE_SCENARIOS, stageBubbleFactor, MAX_PLAYERS } from '../engine/icm.js';
 
 const ui = {
   cfg: DEFAULT_CFG,
+  // Your own ICM table: stacks (you first) and prizes. When set, its bubble
+  // factor replaces the stage's typical one.
+  icm: { custom: false, stacks: [25, 30, 18, 40, 22, 15], payouts: [32, 22, 16, 12, 10, 8] },
   history: [],
   tab: 'strategy',
   metric: 'strategy',
@@ -43,8 +47,24 @@ export function renderStudy(el) {
       stage: STAGES.includes(stage) ? stage : DEFAULT_CFG.stage,
     };
   }
+  const ic = parseList((q('ic') || '').replace(/-/g, ' ')), ip = parseList((q('ip') || '').replace(/-/g, ' '));
+  if (ic.length >= 2 && ip.length) ui.icm = { custom: true, stacks: ic, payouts: ip };
+  applyIcm();
   if (q('l')) ui.history = decodeLine(q('l'));
   render();
+}
+
+// "25 30 18,5 40" or "25; 30; 18" -> numbers (a comma inside a number is a decimal comma).
+function parseList(s) {
+  return String(s).replace(/,\s/g, ' ').split(/[\s;/]+/).filter(Boolean)
+    .flatMap((t) => ((t.match(/,/g) || []).length > 1 ? t.split(',') : [t]))
+    .map((t) => parseFloat(t.replace(',', '.'))).filter((x) => Number.isFinite(x) && x >= 0);
+}
+
+// The custom scenario's bubble factor goes into the spot config (and the cache key).
+function applyIcm() {
+  const { bf, ...rest } = ui.cfg;
+  ui.cfg = ui.icm.custom ? { ...rest, bf: scenarioReport(ui.icm.stacks, ui.icm.payouts).bf } : rest;
 }
 
 function setHistory(hist) {
@@ -57,6 +77,7 @@ function setHistory(hist) {
   if (ui.cfg.open !== DEFAULT_CFG.open) params.push('o=' + ui.cfg.open);
   if (ui.cfg.ko) params.push('f=ko');
   if (ui.cfg.stage !== DEFAULT_CFG.stage) params.push('fs=' + ui.cfg.stage);
+  if (ui.icm.custom) params.push('ic=' + ui.icm.stacks.join('-'), 'ip=' + ui.icm.payouts.join('-'));
   if (hist.length) params.push('l=' + encodeLine(hist));
   history.replaceState(null, '', '#/study' + (params.length ? '?' + params.join('&') : ''));
   render();
@@ -110,7 +131,7 @@ function render() {
   const node = analyze(st);
   mount(root, head, h('div.study-main',
     h('section.study-left', { 'aria-label': 'Vue stratégie' }, toolbar(node), mainView(node)),
-    h('aside.study-side', infoBox(node), chartPanel(node), actionsTable(node), handDetail(node), categoryFilters(node))));
+    h('aside.study-side', infoBox(node), icmPanel(), chartPanel(node), actionsTable(node), handDetail(node), categoryFilters(node))));
 }
 const stateKeyNow = () => ui.history.length;
 
@@ -321,6 +342,62 @@ function summaryView(node) {
 }
 
 // ---------- side panels ----------
+const dec = (x, d = 2) => x.toFixed(d).replace('.', ',');
+const pctFr = (x, d = 1) => dec(x * 100, d) + ' %';
+
+// ICM and bubble factor: the stage's typical spot, or your own table.
+function icmPanel() {
+  const stage = ui.cfg.stage || '100';
+  const sc = STAGE_SCENARIOS[stage];
+  const custom = ui.icm.custom;
+  const bf = custom ? ui.cfg.bf : stageBubbleFactor(stage);
+  const narrower = 1 - bf ** -0.8;
+  const setMode = (m) => {
+    ui.icm = { ...ui.icm, custom: m === 'custom' };
+    applyIcm();
+    setHistory(ui.history);
+  };
+  const body = [
+    Segmented('Scénario ICM', [{ value: 'stage', label: 'Typique du stade' }, { value: 'custom', label: 'Ma table' }], custom ? 'custom' : 'stage', setMode),
+    h('div.icm-bf',
+      h('div', h('div.small.muted', 'Bubble factor'), h('div.icm-big.' + (bf >= 1.3 ? 'neg' : bf > 1.05 ? 'warn' : 'pos'), dec(bf))),
+      h('div', h('div.small.muted', 'Équité pour payer un tapis à 50/50'), h('div.icm-big', pctFr(requiredEquity(bf))), h('div.small.muted', `risk premium +${pctFr(riskPremium(bf))}`))),
+    h('p.small', bf > 1.005
+      ? `Perdre un jeton te coûte ${dec(bf)} fois plus que ne te rapporte un jeton gagné. Tes ranges face à une relance ou un tapis sont donc ${Math.round(narrower * 100)} % plus serrées${ui.cfg.ko ? ', puis élargies par les primes (KO)' : ''}.`
+      : `Un jeton perdu coûte autant qu'un jeton gagné : pas d'ajustement ICM${ui.cfg.ko ? ' (les primes KO élargissent quand même tes ranges)' : ''}.`),
+  ];
+  if (!custom) body.push(h('p.small.muted', sc.label));
+  else body.push(...customIcm());
+  return h('section.panel.icm-panel', { 'aria-label': 'ICM et bubble factor' }, h('div.panel-title', 'ICM & bubble factor'), body);
+}
+
+function customIcm() {
+  const { stacks, payouts } = ui.icm;
+  const update = (key) => (e) => {
+    const list = parseList(e.target.value);
+    if (key === 'stacks' && (list.length < 2 || list.length > MAX_PLAYERS || list.some((x) => x <= 0))) { toast(`Entre de 2 à ${MAX_PLAYERS} tapis, tous supérieurs à 0`); return; }
+    if (key === 'payouts' && !list.some((x) => x > 0)) { toast('Entre au moins un prix'); return; }
+    ui.icm = { ...ui.icm, [key]: list };
+    applyIcm();
+    setHistory(ui.history);
+  };
+  const r = scenarioReport(stacks, payouts);
+  const share = (x) => (r.pool ? x / r.pool : 0);
+  return [
+    h('label.field.icm-input', h('span.small.muted', 'Tapis en bb (toi en premier)'),
+      h('input.text', { type: 'text', value: stacks.join(' '), placeholder: '25 30 18 40 22 15', on: { change: update('stacks') } })),
+    h('label.field.icm-input', h('span.small.muted', 'Prix du 1er au dernier payé (€ ou %)'),
+      h('input.text', { type: 'text', value: payouts.join(' '), placeholder: '32 22 16 12 10 8', on: { change: update('payouts') } })),
+    h('table.data.compact.icm-table',
+      h('thead', h('tr', h('th', ''), h('th', 'Tapis'), h('th', 'Jetons'), h('th', 'Équité ICM'), h('th', { title: 'Ton bubble factor si tu joues un tapis contre ce joueur' }, 'BF'))),
+      h('tbody', stacks.map((s, i) => h('tr' + (i === 0 ? '.me' : ''),
+        h('td', i === 0 ? 'Toi' : 'J' + (i + 1)), h('td.mono', dec(s, s % 1 ? 1 : 0)), h('td.mono', pctFr(s / r.chips)),
+        h('td.mono', pctFr(share(r.eq[i]))),
+        h('td.mono', i === 0 ? '–' : dec(r.vs[i - 1].bf)))))),
+    h('p.small.muted', `Bubble factor utilisé : la moyenne contre les ${stacks.length - 1} adversaires. Le « Stack » en haut règle toujours la profondeur du spot étudié.`),
+  ];
+}
+
 function infoBox(node) {
   const st = node.st, p = node.actor;
   const P = pot(st), call = toCallOf(st, p);

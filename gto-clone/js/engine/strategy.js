@@ -8,18 +8,21 @@ import { classify } from './evaluator.js';
 import { rangeEquity, weightedMean } from './equity.js';
 import { hashStr } from './rng.js';
 import { OPEN_CHARTS } from '../data/open-charts.js';
+import { stageBubbleFactor } from './icm.js';
 import {
   POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, SHOVE_STACK, isHU,
 } from './game.js';
 
-// Tournament pressure. ICM: the closer to the money and the final table, the
-// more each chip lost costs, so the ranges that face aggression tighten.
+// Tournament pressure. ICM: the bubble factor (BF) says how much more a chip
+// lost costs than a chip won; the ranges that face aggression shrink by
+// BF^-0.8 (BF 1.5 -> about 28% narrower). The BF comes from your own ICM
+// scenario when you set one, else from the typical spot of the stage.
 // Bounties pay you for calling and isolating, so KO formats widen them.
-const ICM = { 100: 0, 50: 0.04, 25: 0.08, 10: 0.15, semi: 0.18, ft: 0.22, hu: 0 };
 const KO_BONUS = { 100: 0.1, 50: 0.12, 25: 0.15, 10: 0.15, semi: 0.15, ft: 0.15, hu: 0.1 };
+export const spotBubbleFactor = (cfg) => cfg.bf ?? stageBubbleFactor(cfg.stage || '100');
 export function rangeScale(cfg) {
   const s = cfg.stage || '100';
-  return (1 - ICM[s]) * (1 + (cfg.ko ? KO_BONUS[s] : 0));
+  return spotBubbleFactor(cfg) ** -0.8 * (1 + (cfg.ko ? KO_BONUS[s] : 0));
 }
 const HU_OPEN = 0.8; // heads-up, the button (SB) opens most hands
 
