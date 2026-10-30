@@ -30,6 +30,15 @@
   --felt-rim: #2a2016;
   --tag-loose: #4cc38a;
   --tag-tight: #5aa9ff;
+  --series-net: #4cc38a;
+  --series-ev: #e8b44a;
+  --series-sd: #5aa9ff;
+  --series-nsd: #ef6b6b;
+  --run-terrible: #9b1c1c;
+  --run-bad: #e2552b;
+  --run-neutral: #e8b44a;
+  --run-good: #2fae5b;
+  --run-sun: #1c7a3f;
 
   --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

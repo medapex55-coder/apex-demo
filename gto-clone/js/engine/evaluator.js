@@ -70,6 +70,13 @@ export function evalHand(a, b, board) {
 // Postflop hand categories, strongest first. Used for filters and heuristics.
 export const MADE = ['Straight flush', 'Quads', 'Full house', 'Flush', 'Straight', 'Set', 'Trips', 'Two pair', 'Overpair', 'Top pair', 'Middle pair', 'Weak pair', 'Ace high', 'Nothing'];
 export const DRAWS = ['Flush draw', 'Open-ended', 'Gutshot'];
+// French display names; the English names above stay the internal keys.
+const CAT_FR = {
+  'Straight flush': 'Quinte flush', Quads: 'Carré', 'Full house': 'Full', Flush: 'Couleur', Straight: 'Quinte', Set: 'Brelan (set)',
+  Trips: 'Brelan (trips)', 'Two pair': 'Double paire', Overpair: 'Overpair', 'Top pair': 'Top paire', 'Middle pair': 'Paire moyenne',
+  'Weak pair': 'Petite paire', 'Ace high': 'Hauteur As', Nothing: 'Rien', 'Flush draw': 'Tirage couleur', 'Open-ended': 'Tirage quinte bilatéral', Gutshot: 'Tirage ventral',
+};
+export const catFr = (c) => CAT_FR[c] || c;
 
 function outRanks(mask) {
   let outs = 0;

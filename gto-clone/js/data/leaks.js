@@ -5,11 +5,11 @@ import { analyze } from '../engine/strategy.js';
 import { CLASS_OF_COMBO, CLASSES, comboIndex, parseCard } from '../engine/cards.js';
 
 export const SCEN = {
-  RFI: 'First in',
-  VL: 'Facing limp(s)',
-  VO: 'Facing an open',
-  VS: 'Facing an open shove',
-  V3: 'Facing a 3-bet',
+  RFI: 'First in (personne n\'a joué)',
+  VL: 'Face à un ou des limps',
+  VO: 'Face à un open',
+  VS: 'Face à un tapis',
+  V3: 'Face à un 3-bet',
 };
 
 export const STACK_GROUPS = [
@@ -116,31 +116,31 @@ export function aggregate(meta, hands) {
 export function spotTitle(sp) {
   return {
     RFI: `${sp.hero} first in`,
-    VL: `${sp.hero} vs ${sp.vill} limp${sp.vill.includes('+') ? 's' : ''}`,
-    VO: `${sp.hero} vs ${sp.vill} open`,
-    VS: `${sp.hero} vs ${sp.vill} shove`,
-    V3: `${sp.hero} open, ${sp.vill} 3-bets`,
+    VL: `${sp.hero} vs limp${sp.vill.includes('+') ? 's' : ''} ${sp.vill}`,
+    VO: `${sp.hero} vs open ${sp.vill}`,
+    VS: `${sp.hero} vs tapis ${sp.vill}`,
+    V3: `${sp.hero} open, 3-bet ${sp.vill}`,
   }[sp.sc] || sp.key;
 }
 
 export function spotStory(sp) {
   return {
-    RFI: `Everyone folded to you in the ${sp.hero}. You can open or fold.`,
-    VL: `You are in the ${sp.hero} and ${sp.vill.replace(/\+/g, ' and ')} limped (just called the big blind).`,
-    VO: `You are in the ${sp.hero} and the ${sp.vill} raised first.`,
-    VS: `You are in the ${sp.hero} and the ${sp.vill} went all-in first.`,
-    V3: `You opened from the ${sp.hero} and the ${sp.vill} re-raised (3-bet).`,
+    RFI: `Tout le monde a foldé jusqu'à toi en ${sp.hero}. Tu peux ouvrir ou te coucher.`,
+    VL: `Tu es en ${sp.hero} et ${sp.vill.replace(/\+/g, ' et ')} ${sp.vill.includes('+') ? 'ont' : 'a'} limpé (simplement payé la big blind).`,
+    VO: `Tu es en ${sp.hero} et le ${sp.vill} a relancé en premier.`,
+    VS: `Tu es en ${sp.hero} et le ${sp.vill} a fait tapis en premier.`,
+    V3: `Tu as ouvert depuis le ${sp.hero} et le ${sp.vill} a relancé (3-bet).`,
   }[sp.sc] || '';
 }
 
 // The one number a beginner should watch in each spot. "target" is what the
 // strategy plays with the exact same hands you were dealt, so the two compare.
 const METRIC = {
-  RFI: { label: 'Open', acts: ['raise', 'allin', 'call'], low: (s) => `You fold hands that should be opened from the ${s.hero}. Open more.`, high: (s) => `You open hands that should be folded from the ${s.hero}. Fold the weakest ones.` },
-  VL: { label: 'Raise over the limp', acts: ['raise', 'allin'], low: () => 'You let limpers see a cheap flop. Raise more to isolate them.', high: () => 'You raise too many hands over limps. Fold or check the weakest ones.' },
-  VO: { label: 'Defend', acts: ['call', 'raise', 'allin'], low: (s) => `You fold too often against the ${s.vill} open. Defend more by calling or 3-betting.`, high: (s) => `You play too many hands against the ${s.vill} open. Fold the weakest ones.` },
-  VS: { label: 'Call the shove', acts: ['call'], low: (s) => `You fold too much against the ${s.vill} shove. Call wider.`, high: (s) => `You call the ${s.vill} shove too light. Fold the weakest calls.` },
-  V3: { label: 'Continue vs 3-bet', acts: ['call', 'raise', 'allin'], low: () => 'You give up too often after being 3-bet. Call or 4-bet more of your opens.', high: () => 'You continue too often against 3-bets. Fold your weakest opens.' },
+  RFI: { label: 'Open', acts: ['raise', 'allin', 'call'], low: (s) => `Tu te couches avec des mains qu'il faut ouvrir depuis le ${s.hero}. Ouvre plus.`, high: (s) => `Tu ouvres des mains qu'il faut jeter depuis le ${s.hero}. Couche les plus faibles.` },
+  VL: { label: 'Relance sur limp', acts: ['raise', 'allin'], low: () => 'Tu laisses les limpers voir un flop pas cher. Relance plus pour les isoler.', high: () => 'Tu relances trop de mains sur les limps. Couche ou checke les plus faibles.' },
+  VO: { label: 'Défense', acts: ['call', 'raise', 'allin'], low: (s) => `Tu te couches trop souvent face à l'open du ${s.vill}. Défends plus en payant ou en 3-bettant.`, high: (s) => `Tu joues trop de mains face à l'open du ${s.vill}. Couche les plus faibles.` },
+  VS: { label: 'Call du tapis', acts: ['call'], low: (s) => `Tu te couches trop face au tapis du ${s.vill}. Paye plus large.`, high: (s) => `Tu payes le tapis du ${s.vill} trop léger. Couche les calls les plus faibles.` },
+  V3: { label: 'Continuation vs 3-bet', acts: ['call', 'raise', 'allin'], low: () => 'Tu abandonnes trop souvent après un 3-bet. Paye ou 4-bet plus de tes opens.', high: () => 'Tu continues trop souvent face aux 3-bets. Couche tes opens les plus faibles.' },
 };
 export const ON_TARGET = 0.05;
 
@@ -151,11 +151,11 @@ export function keyMetric(sp) {
   const target = m.acts.reduce((a, k) => a + sp.gto[k], 0) / sp.n;
   const diff = you - target;
   const dir = Math.abs(diff) < ON_TARGET ? 'ok' : diff < 0 ? 'low' : 'high';
-  const word = { ok: 'about right', low: 'not enough', high: 'too much' }[dir];
+  const word = { ok: 'bien dosé', low: 'pas assez', high: 'trop' }[dir];
   const badHands = sp.n >= 3 && (sp.avg < 0.4 || sp.mistakeRate > 0.3);
   const tip = dir !== 'ok' ? m[dir](sp) : badHands
-    ? `You play this spot about as often as the strategy, but not with the right hands. Click the spot in the table to see which hands to swap.`
-    : 'Your frequency here matches the strategy. Keep it up.';
+    ? 'Tu joues ce spot à peu près aussi souvent que la stratégie, mais pas avec les bonnes mains. Clique sur le spot dans le tableau pour voir lesquelles changer.'
+    : 'Ta fréquence ici correspond à la stratégie. Continue comme ça.';
   return { label: m.label, you, target, diff, dir, word, tip };
 }
 

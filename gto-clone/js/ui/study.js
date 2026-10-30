@@ -1,7 +1,7 @@
 import { h, mount, pct, num, toast } from './dom.js';
 import { RangeGrid, FreqBar, PlayingCard, Tabs, Segmented, cardPicker, randomCards } from './components.js';
 import { CLASSES, COMBOS, cardStr, parseCard } from '../engine/cards.js';
-import { MADE, DRAWS } from '../engine/evaluator.js';
+import { MADE, DRAWS, catFr } from '../engine/evaluator.js';
 import { weightedMean } from '../engine/equity.js';
 import {
   POS, STREETS, replay, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
@@ -89,7 +89,7 @@ function render() {
   const decision = !st.terminal && !st.needBoard && st.toAct >= 0;
   const head = spotBar(st);
   if (decision && !isCached(st)) {
-    mount(root, head, h('div.study-main', h('div.panel.loading', { 'aria-busy': 'true' }, h('div.spinner'), 'Computing strategy…')));
+    mount(root, head, h('div.study-main', h('div.panel.loading', { 'aria-busy': 'true' }, h('div.spinner'), 'Calcul de la stratégie…')));
     setTimeout(() => { analyze(st); if (stateKeyNow() === st.history.length) render(); }, 20);
     return;
   }
@@ -99,7 +99,7 @@ function render() {
   }
   const node = analyze(st);
   mount(root, head, h('div.study-main',
-    h('section.study-left', { 'aria-label': 'Strategy view' }, toolbar(node), mainView(node)),
+    h('section.study-left', { 'aria-label': 'Vue stratégie' }, toolbar(node), mainView(node)),
     h('aside.study-side', infoBox(node), chartPanel(node), actionsTable(node), handDetail(node), categoryFilters(node))));
 }
 const stateKeyNow = () => ui.history.length;
@@ -111,20 +111,20 @@ function spotBar(st) {
   let replaySt = replay([], ui.cfg);
   ui.history.forEach((e, i) => {
     if (e.kind === 'deal') {
-      chips.push(h('button.chip.board', { type: 'button', title: 'Change board', on: { click: () => setHistory(ui.history.slice(0, i)) } },
+      chips.push(h('button.chip.board', { type: 'button', title: 'Changer le board', on: { click: () => setHistory(ui.history.slice(0, i)) } },
         h('span.chip-pos', STREETS[e.street]), h('span.cards', e.cards.map((c) => PlayingCard(c, 'xs')))));
       replaySt = dealBoard(replaySt, e.cards);
     } else {
       const role = actionRole(replaySt, e.act);
       if (e.act.type !== 'fold' || replaySt.street > 0 || replaySt.raiseLevel > 0) {
-        chips.push(h('button.chip', { type: 'button', title: 'Go back to this decision', on: { click: () => setHistory(ui.history.slice(0, i)) } },
+        chips.push(h('button.chip', { type: 'button', title: 'Revenir à cette décision', on: { click: () => setHistory(ui.history.slice(0, i)) } },
           h('span.chip-pos', POS[e.p]), h('span.chip-act', { style: { color: `var(--act-${role})` } }, actionLabel(replaySt, e.act, units))));
       }
       replaySt = applyAction(replaySt, e.act);
     }
   });
   if (st.terminal) {
-    chips.push(h('span.chip.current', st.terminal === 'fold' ? `${POS[st.winner]} wins the pot` : 'Showdown'));
+    chips.push(h('span.chip.current', st.terminal === 'fold' ? `${POS[st.winner]} remporte le pot` : 'Showdown'));
   } else if (st.needBoard) {
     chips.push(h('span.chip.current', h('span.chip-pos', STREETS[st.street]), h('span.muted', 'choose cards')));
   } else {
@@ -137,21 +137,21 @@ function spotBar(st) {
     // Unopened pot: jump straight to a later position.
     if (st.street === 0 && st.raiseLevel === 0) {
       for (let p = st.toAct + 1; p < 5; p++) {
-        chips.push(h('button.chip.future', { type: 'button', title: `Fold to ${POS[p]}`, on: { click: () => setHistory(foldTo(st, p).history) } }, POS[p]));
+        chips.push(h('button.chip.future', { type: 'button', title: `Fold jusqu'au ${POS[p]}`, on: { click: () => setHistory(foldTo(st, p).history) } }, POS[p]));
       }
     }
   }
   return h('header.spotbar',
     h('div.spot-format', h('span.pill', 'Cash'), h('span.pill', '6-max'),
       h('label.pick-field', 'Stack',
-        h('select', { 'aria-label': 'Effective stack', on: { change: (e) => setCfg({ stack: +e.target.value }) } },
+        h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => setCfg({ stack: +e.target.value }) } },
           STACKS.map((s) => h('option', { value: String(s), selected: s === ui.cfg.stack }, s + 'bb')))),
       h('label.pick-field', 'Open',
-        h('select', { 'aria-label': 'Open size', on: { change: (e) => setCfg({ open: e.target.value }) } },
+        h('select', { 'aria-label': 'Taille d\'open', on: { change: (e) => setCfg({ open: e.target.value }) } },
           OPEN_SIZES.map((o) => h('option', { value: o, selected: o === ui.cfg.open }, OPEN_LABELS[o])))),
-      h('span.pill.muted', 'demo strategies')),
-    h('nav.line', { 'aria-label': 'Action line' },
-      h('button.chip.root', { type: 'button', title: 'Reset to the start', on: { click: () => setHistory([]) } }, '⟲'),
+      h('span.pill.muted', 'stratégies de démo')),
+    h('nav.line', { 'aria-label': 'Ligne d\'action' },
+      h('button.chip.root', { type: 'button', title: 'Revenir au début', on: { click: () => setHistory([]) } }, '⟲'),
       chips));
 }
 
@@ -161,31 +161,31 @@ function nonDecision(st) {
     const name = STREETS[st.street];
     const pick = (cards) => setHistory([...ui.history, { kind: 'deal', street: st.street, cards }]);
     return h('div.panel.center-panel',
-      h('h2', `Deal the ${name.toLowerCase()}`),
+      h('h2', `Distribuer le ${name.toLowerCase()}`),
       h('p.muted', `${alive(st).map((p) => POS[p]).join(' vs ')} · pot ${num(pot(st))}bb`),
       st.board.length ? h('div.board', st.board.map((c) => PlayingCard(c, 'md'))) : null,
       h('div.row.gap.center',
-        h('button.btn.primary', { type: 'button', on: { click: () => cardPicker({ title: `Choose the ${name.toLowerCase()}`, count: n, used: st.board, onDone: pick }) } }, `Pick ${name.toLowerCase()}`),
-        h('button.btn.secondary', { type: 'button', on: { click: () => pick(randomCards(n, st.board)) } }, 'Random')));
+        h('button.btn.primary', { type: 'button', on: { click: () => cardPicker({ title: `Choisir le ${name.toLowerCase()}`, count: n, used: st.board, onDone: pick }) } }, `Choisir le ${name.toLowerCase()}`),
+        h('button.btn.secondary', { type: 'button', on: { click: () => pick(randomCards(n, st.board)) } }, 'Au hasard')));
   }
   return h('div.panel.center-panel',
-    h('h2', st.terminal === 'fold' ? `${POS[st.winner]} takes it down` : 'Showdown'),
-    h('p.muted', `Final pot ${num(pot(st))}bb. Step back in the line above to study another branch.`),
-    h('button.btn.secondary', { type: 'button', on: { click: () => setHistory(ui.history.slice(0, -1)) } }, 'Back one step'));
+    h('h2', st.terminal === 'fold' ? `${POS[st.winner]} remporte le coup` : 'Showdown'),
+    h('p.muted', `Pot final ${num(pot(st))}bb. Reviens en arrière dans la ligne ci-dessus pour étudier une autre branche.`),
+    h('button.btn.secondary', { type: 'button', on: { click: () => setHistory(ui.history.slice(0, -1)) } }, 'Revenir d\'un cran'));
 }
 
 // ---------- toolbar ----------
 function toolbar(node) {
   const tabs = Tabs([
-    { id: 'strategy', label: 'Strategy', hotkey: '1' },
+    { id: 'strategy', label: 'Stratégie', hotkey: '1' },
     { id: 'ranges', label: 'Ranges', hotkey: '2' },
-    { id: 'summary', label: 'Summary', hotkey: '3' },
+    { id: 'summary', label: 'Résumé', hotkey: '3' },
   ], ui.tab, (t) => { ui.tab = t; render(); });
   const right = ui.tab === 'strategy'
-    ? Segmented('Metric', [{ value: 'strategy', label: 'Strategy' }, { value: 'equity', label: 'Equity' }, { value: 'ev', label: 'EV' }], ui.metric, (m) => { ui.metric = m; render(); })
+    ? Segmented('Mesure', [{ value: 'strategy', label: 'Stratégie' }, { value: 'equity', label: 'Équité' }, { value: 'ev', label: 'EV' }], ui.metric, (m) => { ui.metric = m; render(); })
     : null;
   const clear = (ui.filterAction >= 0 || ui.filterCat || ui.bucket)
-    ? h('button.btn.ghost.sm', { type: 'button', on: { click: clearFilters } }, 'Clear filters ', h('kbd', 'P'))
+    ? h('button.btn.ghost.sm', { type: 'button', on: { click: clearFilters } }, 'Effacer les filtres ', h('kbd', 'P'))
     : null;
   return h('div.toolbar', tabs, h('div.row.gap', clear, right));
 }
@@ -258,13 +258,13 @@ function rangesView(node) {
     const summ = classSummary(node, p);
     const dim = ui.bucket ? (idx) => { const v = classAverage(eq, node, p, CLASSES[idx]); return !(v >= ui.bucket[0] && v < ui.bucket[1]); } : null;
     return h('div.range-panel',
-      h('div.range-head', h('strong', POS[p] + (p === a ? ' (to act)' : '')),
+      h('div.range-head', h('strong', POS[p] + (p === a ? ' (à jouer)' : '')),
         h('span.muted', `${num(rangeCombos(w), 0)} combos`), h('span.muted', `EQ ${pct(weightedMean(eq, w), 1)}`)),
       RangeGrid({ cells: summ, roles: [], order: [], mode: 'range', dim, size: 'sm', label: `${POS[p]} range` }),
-      h('button.btn.ghost.sm', { type: 'button', on: { click: () => copyRange(p, w) } }, 'Copy range'));
+      h('button.btn.ghost.sm', { type: 'button', on: { click: () => copyRange(p, w) } }, 'Copier la range'));
   });
   return h('div',
-    h('div.row.gap.wrap', h('span.muted', 'Equity bucket:'), buckets.map((b) => h('button.btn.sm' + (ui.bucket && ui.bucket[0] === b[0] ? '.primary' : '.secondary'), {
+    h('div.row.gap.wrap', h('span.muted', 'Tranche d\'équité :'), buckets.map((b) => h('button.btn.sm' + (ui.bucket && ui.bucket[0] === b[0] ? '.primary' : '.secondary'), {
       type: 'button', on: { click: () => { ui.bucket = ui.bucket && ui.bucket[0] === b[0] ? null : b; render(); } },
     }, `${b[0] * 100}–${Math.min(100, b[1] * 100)}%`))),
     h('div.ranges', panels));
@@ -278,7 +278,7 @@ function copyRange(p, w) {
     const avg = live.reduce((s, i) => s + w[i], 0) / c.combos.length;
     if (avg > 0.005) parts.push(avg > 0.995 ? c.name : `${c.name}:${avg.toFixed(3)}`);
   }
-  navigator.clipboard?.writeText(parts.join(',')).then(() => toast(`${POS[p]} range copied`), () => toast('Clipboard unavailable'));
+  navigator.clipboard?.writeText(parts.join(',')).then(() => toast(`Range ${POS[p]} copiée`), () => toast('Presse-papiers indisponible'));
 }
 
 // ---------- summary tab ----------
@@ -298,7 +298,7 @@ function summaryView(node) {
   const th = (id, label) => h('th', { 'aria-sort': col === id ? (dir > 0 ? 'ascending' : 'descending') : 'none' },
     h('button.th-btn', { type: 'button', on: { click: () => { ui.sort = { col: id, dir: col === id ? -dir : -1 }; render(); } } }, label, col === id ? (dir > 0 ? ' ▲' : ' ▼') : ''));
   return h('div.table-wrap', h('table.data',
-    h('thead', h('tr', h('th', 'Hand'), th('combos', 'Combos'), h('th', 'Strategy'), th('eq', 'EQ'), th('ev', 'EV (bb)'), th('evp', 'EV / pot'))),
+    h('thead', h('tr', h('th', 'Main'), th('combos', 'Combos'), h('th', 'Stratégie'), th('eq', 'EQ'), th('ev', 'EV (bb)'), th('evp', 'EV / pot'))),
     h('tbody', rows.map((r) => h('tr', { on: { click: () => { ui.selected = r.cls.id; ui.tab = 'strategy'; render(); } } },
       h('td.mono', r.cls.name), h('td', num(r.combos, 1)),
       h('td', FreqBar(orderOf(node).map((k) => ({ ...rs[k], freq: r.freqs[k] })), { height: 8 })),
@@ -310,14 +310,14 @@ function infoBox(node) {
   const st = node.st, p = node.actor;
   const P = pot(st), call = toCallOf(st, p);
   const rem = Math.min(...alive(st).map((x) => remaining(st, x)));
-  return h('section.panel.infobox', { 'aria-label': 'Spot info' },
-    h('div.row.between', h('strong', `${POS[p]} to act`), h('span.pill', STREETS[st.street])),
+  return h('section.panel.infobox', { 'aria-label': 'Infos du spot' },
+    h('div.row.between', h('strong', `${POS[p]} doit jouer`), h('span.pill', STREETS[st.street])),
     st.board.length ? h('div.board', st.board.map((c) => PlayingCard(c, 'sm'))) : null,
     h('dl.kv',
       h('dt', 'Pot'), h('dd', num(P) + 'bb'),
-      h('dt', 'To call'), h('dd', call ? num(call) + 'bb' : '–'),
-      h('dt', 'Pot odds'), h('dd', call ? pct(call / (P + call), 1) : '–'),
-      h('dt', 'Eff. stack'), h('dd', num(rem) + 'bb'),
+      h('dt', 'À payer'), h('dd', call ? num(call) + 'bb' : '–'),
+      h('dt', 'Cote du pot'), h('dd', call ? pct(call / (P + call), 1) : '–'),
+      h('dt', 'Stack eff.'), h('dd', num(rem) + 'bb'),
       h('dt', 'SPR'), h('dd', num(rem / P, 1))));
 }
 
@@ -337,23 +337,23 @@ function actionsTable(node) {
 function handDetail(node) {
   const idx = ui.selected ?? ui.hover;
   const box = h('section.panel.hand-detail', { 'aria-live': 'polite' });
-  if (idx == null) { box.append(h('div.panel-title', 'Hand'), h('p.muted', 'Hover or click a hand in the grid.')); return box; }
+  if (idx == null) { box.append(h('div.panel-title', 'Main'), h('p.muted', 'Survole ou clique une main dans la grille.')); return box; }
   const cls = CLASSES[idx];
   const w = node.ranges[node.actor];
   const rs = roles(node);
   const order = orderOf(node);
   const live = cls.combos.filter((i) => !node.dead[COMBOS[i][0]] && !node.dead[COMBOS[i][1]]);
   const inRange = live.filter((i) => w[i] > 0.001);
-  box.append(h('div.panel-title.row.between', h('span', cls.name, ui.selected === idx ? h('span.pill', 'pinned') : null), h('span.muted', `${inRange.length}/${live.length} combos in range`)));
-  if (!inRange.length) { box.append(h('p.muted', 'Not in this player\'s range at this point.')); return box; }
+  box.append(h('div.panel-title.row.between', h('span', cls.name, ui.selected === idx ? h('span.pill', 'épinglée') : null), h('span.muted', `${inRange.length}/${live.length} combos dans la range`)));
+  if (!inRange.length) { box.append(h('p.muted', 'Pas dans la range de ce joueur à ce moment.')); return box; }
   const eq = node.equity(node.actor);
   if (node.st.street === 0) {
     const i = inRange[0];
     const f = comboFreqs(node, i), ev = comboEVs(node, i);
     box.append(FreqBar(order.map((k) => ({ ...rs[k], freq: f[k] })), { height: 16, labels: true }),
       h('table.mini', h('tbody', order.map((k) => h('tr', h('td', h('span.swatch', { style: { background: `var(--act-${rs[k].role})` } }), ' ', rs[k].label), h('td.mono', pct(f[k], 1)), h('td.mono.muted', 'EV ' + num(ev[k], 2)))))),
-      h('p.muted.small', `Equity ${pct(classAverage(eq, node, node.actor, cls), 1)} · weight ${pct(w[i], 0)}`),
-      isFirstIn(node) && TAG_NAMES[chartCode(node.actor, cls)] ? h('p.small.tag-note', 'In your chart: ', h('strong', TAG_NAMES[chartCode(node.actor, cls)])) : null);
+      h('p.muted.small', `Équité ${pct(classAverage(eq, node, node.actor, cls), 1)} · poids ${pct(w[i], 0)}`),
+      isFirstIn(node) && TAG_NAMES[chartCode(node.actor, cls)] ? h('p.small.tag-note', 'Dans ton chart : ', h('strong', TAG_NAMES[chartCode(node.actor, cls)])) : null);
   } else {
     box.append(h('div.combo-list', inRange.slice(0, 16).map((i) => {
       const f = comboFreqs(node, i);
@@ -362,7 +362,7 @@ function handDetail(node) {
         h('span.cards', COMBOS[i].map((c) => PlayingCard(c, 'xs'))),
         FreqBar(order.map((k) => ({ ...rs[k], freq: f[k] })), { height: 10 }),
         h('span.mono.small', pct(eq[i], 0)),
-        h('span.small.muted', info ? info.made + (info.draw ? ' + ' + info.draw : '') : ''));
+        h('span.small.muted', info ? catFr(info.made) + (info.draw ? ' + ' + catFr(info.draw) : '') : ''));
     })));
   }
   return box;
@@ -381,21 +381,21 @@ function chartPanel(node) {
     share[k] = (share[k] || 0) + c.combos.length / 1326;
   }
   const open = node.actions.find((a) => a.type === 'raise' || a.type === 'allin');
-  const raiseLabel = open ? `Raise ${open.to}` : 'Limp (open size)';
+  const raiseLabel = open ? `Raise ${open.to}` : 'Limp (taille d\'open)';
   const rows = p === 4
     ? [[raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Fold', 'F', 'var(--act-fold)']]
     : [[raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']];
   const style = getOpenStyle();
-  return h('section.panel.chart-panel', { 'aria-label': 'Your open chart' },
-    h('div.panel-title', `Your chart · ${POS[p]} first in`),
-    node.st.cfg.stack !== 100 ? h('p.small.muted', `Your charts are built for 100bb; at ${node.st.cfg.stack}bb they're applied as they are.`) : null,
+  return h('section.panel.chart-panel', { 'aria-label': 'Ton chart d\'open' },
+    h('div.panel-title', `Ton chart · ${POS[p]} first in`),
+    node.st.cfg.stack !== 100 ? h('p.small.muted', `Tes charts sont faits pour 100bb ; à ${node.st.cfg.stack}bb ils sont appliqués tels quels.`) : null,
     h('ul.chart-rows', rows.filter(([, k]) => share[k]).map(([label, k, color]) => h('li',
       color ? h('span.swatch', { style: { background: color } }) : h('span.swatch.mark-' + k),
       label, h('span.mono', pct(share[k], 1))))),
-    p === 4 ? null : Segmented('Open style', [
+    p === 4 ? null : Segmented('Style d\'open', [
       { value: 'tight', label: 'Tight' }, { value: 'standard', label: 'Standard' }, { value: 'loose', label: 'Loose' },
     ], style, (v) => { setSetting('openStyle', v); setOpenStyle(v); render(); }),
-    p === 4 ? null : h('p.small.muted', style === 'tight' ? 'Tight: Tightfie hands fold.' : style === 'loose' ? 'Loose: Loosifie hands open too.' : 'Standard: Tightfie hands open, Loosifie hands fold.'));
+    p === 4 ? null : h('p.small.muted', style === 'tight' ? 'Tight : les mains Tightfie se couchent.' : style === 'loose' ? 'Loose : les mains Loosifie s\'ouvrent aussi.' : 'Standard : les mains Tightfie s\'ouvrent, les Loosifie se couchent.'));
 }
 
 function categoryFilters(node) {
@@ -411,12 +411,12 @@ function categoryFilters(node) {
     if (inf.draw) share[inf.draw] = (share[inf.draw] || 0) + w[i];
   }
   const rows = [...MADE, ...DRAWS].filter((c) => share[c] > 0);
-  return h('section.panel', { 'aria-label': 'Hand categories' },
-    h('div.panel-title', 'Hand categories'),
+  return h('section.panel', { 'aria-label': 'Catégories de mains' },
+    h('div.panel-title', 'Catégories de mains'),
     h('ul.cats', rows.map((c) => h('li', h('button.cat-row' + (ui.filterCat === c ? '.on' : ''), {
       type: 'button', 'aria-pressed': ui.filterCat === c ? 'true' : 'false',
       on: { click: () => { ui.filterCat = ui.filterCat === c ? null : c; render(); } },
-    }, h('span.grow', c), h('span.catbar', h('span', { style: { width: (share[c] / tot) * 100 + '%' } })), h('span.mono.small', pct(share[c] / tot, 1)))))));
+    }, h('span.grow', catFr(c)), h('span.catbar', h('span', { style: { width: (share[c] / tot) * 100 + '%' } })), h('span.mono.small', pct(share[c] / tot, 1)))))));
 }
 
 // ---------- hotkeys ----------

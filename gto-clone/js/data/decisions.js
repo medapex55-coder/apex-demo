@@ -5,7 +5,7 @@
 import { STACKS } from '../engine/game.js';
 
 // Seat -> Study seat index (0 LJ, 1 HJ, 2 CO, 3 BTN, 4 SB, 5 BB).
-function seatMap(hand) {
+export function seatMap(hand) {
   const live = hand.seats.filter((s) => s.chips > 0).map((s) => s.seat).sort((a, b) => a - b);
   if (live.length < 3) return null;
   const bi = live.indexOf(hand.button);

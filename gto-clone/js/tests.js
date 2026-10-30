@@ -10,6 +10,7 @@ import { gradeDecision } from './ui/practice.js';
 import { parseFile } from './data/parsers.js';
 import { extractDecisions } from './data/decisions.js';
 import { analyzeDecisions, keyMetric, practiceSpotKey, spotKey, liveAction } from './data/leaks.js';
+import { contributions, handResult, equityShare, handFlags, handRecord, results as handTotals, hudTotals } from './data/handstats.js';
 
 // Synthetic PokerStars files (made up for the tests, same layout as the real ones).
 const PS_SUMMARY = `PokerStars Tournament #111, No Limit Hold'em
@@ -317,10 +318,10 @@ await test('D05', 'hands keep their time; plain-language metric compares you wit
   const ds = hands.flatMap((x) => extractDecisions(x).decisions);
   const vs = analyzeDecisions(ds).spots.find((s) => s.sc === 'VS');
   const m = keyMetric(vs);
-  assert(m.label === 'Call the shove' && m.you === 1 && m.target > 0.95 && m.dir === 'ok', `metric ${JSON.stringify(m)}`);
+  assert(m.label === 'Call du tapis' && m.you === 1 && m.target > 0.95 && m.dir === 'ok', `metric ${JSON.stringify(m)}`);
   const fake = { sc: 'VO', hero: 'BB', vill: 'BTN', n: 10, you: { fold: 7, call: 3, raise: 0, allin: 0 }, gto: { fold: 4.5, call: 4.5, raise: 1, allin: 0 } };
   const m2 = keyMetric(fake);
-  assert(m2.label === 'Defend' && Math.abs(m2.you - 0.3) < 1e-9 && Math.abs(m2.target - 0.55) < 1e-9 && m2.dir === 'low' && /fold too often/.test(m2.tip), 'BB defends 30% vs 55% target: not enough');
+  assert(m2.label === 'Défense' && Math.abs(m2.you - 0.3) < 1e-9 && Math.abs(m2.target - 0.55) < 1e-9 && m2.dir === 'low' && /couches trop souvent/.test(m2.tip), 'BB defends 30% vs 55% target: not enough');
 });
 await test('D06', 'a Practice spot gets the same key as the tournament spot', () => {
   let st = foldTo(initialState({ stack: 50, open: '2.5' }), 3);
@@ -337,6 +338,96 @@ await test('D07', 'live action: only tournament hands played after the training 
   assert(before.after.n === 1 && before.before.n === 0 && before.status === 'thin', `trained before the hand: ${before.status}`);
   const later = liveAction(sess('2026-10-19T02:00:00'), ds, [])[0];
   assert(later.after.n === 0 && later.before.n === 1 && later.status === 'waiting', `trained after the hand: ${later.status}`);
+});
+
+// Two more hands: an all-in on the flop that loses (AA vs a runner-runner king), and a fold in the BB to a BTN steal.
+const PS_HANDS2 = `PokerStars Hand #2001: Tournament #333, €4.50+€0.50 EUR Hold'em No Limit - Level II (50/100) - 2026/10/20 21:00:00 CET [2026/10/20 15:00:00 ET]
+Table '333 1' 6-max Seat #3 is the button
+Seat 1: V1 (5000 in chips)
+Seat 2: V2 (5000 in chips)
+Seat 3: Hero (3000 in chips)
+Seat 4: V4 (5000 in chips)
+Seat 5: V5 (5000 in chips)
+Seat 6: V6 (5000 in chips)
+V1: posts the ante 10
+V2: posts the ante 10
+Hero: posts the ante 10
+V4: posts the ante 10
+V5: posts the ante 10
+V6: posts the ante 10
+V4: posts small blind 50
+V5: posts big blind 100
+*** HOLE CARDS ***
+Dealt to Hero [Ah Ad]
+V6: folds
+V1: folds
+V2: folds
+Hero: raises 150 to 250
+V4: folds
+V5: calls 150
+*** FLOP *** [Kc 7d 2s]
+V5: bets 300
+Hero: raises 2440 to 2740 and is all-in
+V5: calls 2440
+*** TURN *** [Kc 7d 2s] [Kd]
+*** RIVER *** [Kc 7d 2s Kd] [Ks]
+*** SHOW DOWN ***
+V5: shows [Kh 9h] (four of a kind, Kings)
+Hero: shows [Ah Ad] (a full house, Kings full of Aces)
+V5 collected 6090 from pot
+*** SUMMARY ***
+Total pot 6090 | Rake 0
+
+PokerStars Hand #2002: Tournament #333, €4.50+€0.50 EUR Hold'em No Limit - Level II (50/100) - 2026/10/20 21:02:00 CET [2026/10/20 15:02:00 ET]
+Table '333 1' 6-max Seat #4 is the button
+Seat 1: V1 (5000 in chips)
+Seat 2: V2 (5000 in chips)
+Seat 4: V4 (5000 in chips)
+Seat 5: V5 (5000 in chips)
+Seat 6: Hero (3000 in chips)
+V5: posts small blind 50
+Hero: posts big blind 100
+*** HOLE CARDS ***
+Dealt to Hero [7c 2d]
+V1: folds
+V2: folds
+V4: raises 150 to 250
+V5: folds
+Hero: folds
+Uncalled bet (150) returned to V4
+V4 collected 250 from pot
+*** SUMMARY ***
+Total pot 250 | Rake 0
+`;
+await test('D08', 'full hand parse: streets, board, antes, uncalled bet, collected, showdown', () => {
+  const [a, b] = parseFile(PS_HANDS2).hands.hands;
+  assert(a.streets.map((s) => s.length).join() === '6,3,0,0', `streets ${a.streets.map((s) => s.length)}`);
+  assert(a.board.join(' ') === 'Kc 7d 2s Kd Ks' && a.showdown && a.shown.V5 === 'Kh9h' && a.collected.V5 === 6090, 'board, showdown, collected');
+  assert(a.posts.filter((p) => p.kind === 'ante').length === 6, 'antes');
+  assert(b.returned.V4 === 150 && b.collected.V4 === 250 && !b.showdown, 'uncalled bet back');
+  const c = contributions(a);
+  assert(c.Hero === 3000 && c.V5 === 3000 && c.V4 === 60, `contributions ${JSON.stringify(c)}`);
+});
+await test('D09', 'result in bb and all-in EV: AA all-in on the flop loses but is ahead in EV', () => {
+  const [a, b] = parseFile(PS_HANDS2).hands.hands;
+  const r = handResult(a);
+  assert(r.net === -30 && r.sd, `net ${r.net}`);
+  const eq = equityShare([parseCard('Ah'), parseCard('Ad')], [[parseCard('Kh'), parseCard('9h')]], ['Kc', '7d', '2s'].map(parseCard));
+  near(eq, 808 / 990, 0.001, 'AA vs K9 on K72: 808 of 990 runouts');
+  near(r.ev, (eq * 6090 - 3000) / 100, 0.01, 'EV = equity × pot − invested');
+  const rb = handResult(b);
+  assert(rb.net === -1 && rb.ev === -1 && !rb.sd, 'BB fold loses 1bb, no showdown');
+  const tot = handTotals([handRecord(a), handRecord(b)]);
+  assert(tot.hands === 2 && Math.abs(tot.nsd - -1) < 1e-9 && Math.abs(tot.sd - -30) < 1e-9 && tot.luck < 0 && tot.runBetter > 0.5, 'totals: unlucky');
+});
+await test('D10', 'HUD counters: RFI and steal from the BTN, fold in the BB to a steal', () => {
+  const [a, b] = parseFile(PS_HANDS2).hands.hands;
+  const fa = handFlags(a), fb = handFlags(b);
+  assert(fa.VPIP === 1 && fa.PFR === 1 && fa.RFI === 1 && fa.ATS === 1 && !('CB' in fa), `hand 1 ${JSON.stringify(fa)}`);
+  assert(fa.WTSD === 1 && fa.WSD === 0 && fa.WWSF === 0 && fa.ag === 1, 'showdown counters');
+  assert(fb.VPIP === 0 && fb.FBS === 1 && fb.B3S === 0 && !('RFI' in fb), `hand 2 ${JSON.stringify(fb)}`);
+  const t = hudTotals([handRecord(a), handRecord(b)]);
+  assert(t.VPIP.opp === 2 && t.VPIP.hit === 1 && t.FBS.hit === 1, 'totals');
 });
 
 // ---------- flows in the real app ----------
@@ -356,34 +447,34 @@ await load('#/study');
 frame.contentWindow.addEventListener('error', (e) => errors.push(e.message));
 
 await test('F01-H1', 'study preflop: fold to BTN, open, see BB defend', async () => {
-  byRole('button', 'Fold to BTN').click();
+  byRole('button', 'Fold jusqu\'au BTN').click();
   await sleep(100);
   byRole('button', 'Raise 2.5').click();
   await sleep(100);
   [...doc().querySelectorAll('.act-btn')].find((b) => b.textContent === 'Fold').click();
   await sleep(100);
-  const info = await waitFor(() => doc().querySelector('[aria-label="Spot info"]'));
-  assert(info.textContent.includes('BB to act'), 'BB to act');
+  const info = await waitFor(() => doc().querySelector('[aria-label="Infos du spot"]'));
+  assert(info.textContent.includes('BB doit jouer'), 'BB doit jouer');
 });
 await test('F01-E1', 'back: clicking an earlier chip rewinds the line', async () => {
-  byRole('button', 'Go back to this decision').click();
+  byRole('button', 'Revenir à cette décision').click();
   await sleep(150);
-  assert(doc().querySelector('[aria-label="Spot info"]').textContent.includes('BTN to act'), 'BTN to act again');
+  assert(doc().querySelector('[aria-label="Infos du spot"]').textContent.includes('BTN doit jouer'), 'BTN doit jouer again');
 });
 await test('F02-H1', 'postflop: call, deal a random flop, get a flop strategy', async () => {
   byRole('button', 'Raise 2.5').click(); await sleep(100);
   [...doc().querySelectorAll('.act-btn')].find((b) => b.textContent === 'Fold').click(); await sleep(100);
   byRole('button', 'Call').click(); await sleep(100);
-  byRole('button', 'Random').click();
-  const info = await waitFor(() => doc().querySelector('[aria-label="Spot info"]'));
+  byRole('button', 'Au hasard').click();
+  const info = await waitFor(() => doc().querySelector('[aria-label="Infos du spot"]'));
   assert(info.textContent.includes('Flop'), 'on the flop');
-  assert(doc().querySelector('[aria-label="Hand categories"]'), 'category filters present');
+  assert(doc().querySelector('[aria-label="Catégories de mains"]'), 'category filters present');
 });
 await test('F02-E1', 'refresh mid-flow keeps the spot', async () => {
-  const before = doc().querySelector('[aria-label="Action line"]').textContent;
+  const before = doc().querySelector('[aria-label="Ligne d\'action"]').textContent;
   await load(frame.contentWindow.location.hash);
-  await waitFor(() => doc().querySelector('[aria-label="Spot info"]'));
-  assert(doc().querySelector('[aria-label="Action line"]').textContent === before, 'same line after reload');
+  await waitFor(() => doc().querySelector('[aria-label="Infos du spot"]'));
+  assert(doc().querySelector('[aria-label="Ligne d\'action"]').textContent === before, 'same line after reload');
 });
 await test('F03-H1', 'filter: clicking an action row dims other actions; P clears', async () => {
   const row = doc().querySelector('.action-row');
@@ -400,16 +491,16 @@ await test('F04-H1', 'ranges tab shows both players', async () => {
 });
 await test('F05-H1', 'trainer spot drill: start, act, get graded', async () => {
   await load('#/practice');
-  byRole('button', 'Facing an open').click();
-  byRole('button', 'Start session').click();
-  const btn = await waitFor(() => doc().querySelector('[aria-label="Your actions"] button'));
+  byRole('button', 'Face à un open').click();
+  byRole('button', 'Commencer la session').click();
+  const btn = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button'));
   btn.click();
   const g = await waitFor(() => doc().querySelector('.feedback .grade'));
-  assert(/Best|Correct|Inaccuracy|Wrong|Blunder/.test(g.textContent), 'graded');
+  assert(/Meilleur coup|Correct|Imprécision|Erreur|Grosse erreur/.test(g.textContent), 'graded');
 });
 await test('F05-E1', 'double click on an action records one decision', async () => {
-  byRole('button', 'Next hand').click();
-  const btn = await waitFor(() => doc().querySelector('[aria-label="Your actions"] button.act'));
+  byRole('button', 'Main suivante').click();
+  const btn = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
   btn.click(); btn.click();
   await sleep(200);
   const items = doc().querySelectorAll('.decision-log li').length;
@@ -417,25 +508,25 @@ await test('F05-E1', 'double click on an action records one decision', async () 
 });
 await test('F05-E2', 'keyboard only: digit keys act, space deals next', async () => {
   doc().body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-  await waitFor(() => doc().querySelector('[aria-label="Your actions"] button.act'));
+  await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
   doc().body.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true }));
   await waitFor(() => doc().querySelectorAll('.decision-log li').length === 3);
 });
 await test('F06-H1', 'full hand mode plays to the end', async () => {
-  byRole('button', 'End session').click();
+  byRole('button', 'Terminer la session').click();
   await load('#/practice');
-  byRole('button', 'Full hands').click();
-  byRole('button', 'Start session').click();
+  byRole('button', 'Mains complètes').click();
+  byRole('button', 'Commencer la session').click();
   for (let n = 0; n < 12; n++) {
-    const b = await waitFor(() => doc().querySelector('[aria-label="Your actions"] button'), 6000);
-    if (/Next hand/.test(b.textContent)) return;
+    const b = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button'), 6000);
+    if (/Main suivante/.test(b.textContent)) return;
     b.click();
     await sleep(700);
   }
   throw new Error('hand did not finish in 12 actions');
 });
 await test('F07-H1', 'stats list saved sessions and expand', async () => {
-  byRole('button', 'End session').click();
+  byRole('button', 'Terminer la session').click();
   await sleep(300);
   await load('#/stats');
   const head = await waitFor(() => doc().querySelector('.session-head'));
@@ -444,14 +535,14 @@ await test('F07-H1', 'stats list saved sessions and expand', async () => {
 });
 await test('F08-H1', 'practice at 50bb: the stack choice reaches the table', async () => {
   await load('#/practice');
-  const sel = await waitFor(() => doc().querySelector('select[aria-label="Effective stack"]'));
+  const sel = await waitFor(() => doc().querySelector('select[aria-label="Stack effectif"]'));
   sel.value = '50'; sel.dispatchEvent(new Event('change', { bubbles: true }));
-  byRole('button', 'Start session').click();
-  const btn = await waitFor(() => doc().querySelector('[aria-label="Your actions"] button.act'));
+  byRole('button', 'Commencer la session').click();
+  const btn = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
   assert([...doc().querySelectorAll('.table-top .pill')].some((p) => p.textContent === '50bb'), '50bb pill');
   btn.click();
   await waitFor(() => doc().querySelector('.feedback .grade'));
-  byRole('button', 'End session').click();
+  byRole('button', 'Terminer la session').click();
   await sleep(300);
 });
 await test('F09-H1', 'leakfinder live action lists the trained spot', async () => {
@@ -460,6 +551,21 @@ await test('F09-H1', 'leakfinder live action lists the trained spot', async () =
   tab.click();
   const card = await waitFor(() => [...doc().querySelectorAll('.la-card .la-title')].find((t) => /first in · 50–80bb/.test(t.textContent)));
   assert(card, 'card for the 50bb first-in spot');
+});
+await test('F10-H1', 'my data: an import is a session with a recap, a run meter and HUD stats', async () => {
+  await load('#/data');
+  const ds = await frame.contentWindow.eval(`import('${new URL('js/data/datastore.js', frame.contentWindow.location.href).href}')`);
+  ds.clearAll();
+  ds.importFiles([{ name: 'h.txt', text: PS_HANDS2 }]);
+  await load('#/data');
+  const sess = await waitFor(() => doc().querySelector('.import-session'));
+  assert(/1 tournoi/.test(sess.textContent) && /2 mains/.test(sess.textContent), `recap: ${sess.querySelector('.recap').textContent}`);
+  assert(doc().querySelector('.run-bar .run-marker') && doc().querySelector('svg.wchart polyline'), 'run meter and graph');
+  await load('#/leaks');
+  await waitFor(() => doc().querySelectorAll('.hud-stat').length >= 7);
+  const vpip = [...doc().querySelectorAll('.hud-stat')].find((s) => s.querySelector('.name').textContent === 'VPIP');
+  assert(vpip.querySelector('.val').textContent === '50', `VPIP ${vpip.querySelector('.val').textContent}`);
+  ds.clearAll();
 });
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {

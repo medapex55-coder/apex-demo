@@ -4,7 +4,7 @@ import { RANKS, SUITS, SUIT_SYM, CLASSES } from '../engine/cards.js';
 export const roleVar = (role) => `var(--act-${role})`;
 
 export function PlayingCard(c, size = 'md') {
-  if (c == null) return h('span.pcard.' + size + '.back', { 'aria-label': 'Hidden card' });
+  if (c == null) return h('span.pcard.' + size + '.back', { 'aria-label': 'Carte cachée' });
   const r = RANKS[c >> 2], s = SUITS[c & 3];
   return h('span.pcard.' + size + '.suit-' + s, { 'aria-label': r + ' of ' + { s: 'spades', h: 'hearts', d: 'diamonds', c: 'clubs' }[s] },
     h('b', r === 'T' ? '10' : r), h('i', SUIT_SYM[s]));
@@ -25,7 +25,7 @@ const heatColor = (t) => {
 };
 
 // cells: array(169) of { weight, freqs, heat, text }
-export function RangeGrid({ cells, roles, order, mode = 'strategy', gridMode = 'full', selected, hover, filterAction = -1, dim, marks, showNumbers, onHover, onSelect, label = 'Range grid', size = '' }) {
+export function RangeGrid({ cells, roles, order, mode = 'strategy', gridMode = 'full', selected, hover, filterAction = -1, dim, marks, showNumbers, onHover, onSelect, label = 'Grille de range', size = '' }) {
   const grid = h('div.rgrid' + (size ? '.' + size : ''), { role: 'grid', 'aria-label': label });
   CLASSES.forEach((c, idx) => {
     const cell = cells[idx];
@@ -74,7 +74,7 @@ export function cardPicker({ title, count, used = [], initial = [], onDone }) {
   const body = h('div.picker');
   const render = () => {
     body.replaceChildren(
-      h('p.muted', `Pick ${count} card${count > 1 ? 's' : ''}. ${picked.length}/${count} selected.`),
+      h('p.muted', `Choisis ${count} carte${count > 1 ? 's' : ''}. ${picked.length}/${count} sélectionnée${picked.length > 1 ? 's' : ''}.`),
       h('div.picker-grid', SUITS.split('').map((s, si) => h('div.picker-row', [...RANKS].reverse().map((r) => {
         const c = RANKS.indexOf(r) * 4 + si;
         const isUsed = used.includes(c);
@@ -85,9 +85,9 @@ export function cardPicker({ title, count, used = [], initial = [], onDone }) {
         }, PlayingCard(c, 'sm'));
       })))),
       h('div.row.gap.end',
-        h('button.btn.ghost', { type: 'button', on: { click: () => { picked = []; render(); } } }, 'Clear'),
-        h('button.btn.secondary', { type: 'button', on: { click: () => { picked = randomCards(count, used); render(); } } }, 'Random'),
-        h('button.btn.primary', { type: 'button', disabled: picked.length !== count, on: { click: () => { m.close(); onDone(picked); } } }, 'Confirm')),
+        h('button.btn.ghost', { type: 'button', on: { click: () => { picked = []; render(); } } }, 'Effacer'),
+        h('button.btn.secondary', { type: 'button', on: { click: () => { picked = randomCards(count, used); render(); } } }, 'Au hasard'),
+        h('button.btn.primary', { type: 'button', disabled: picked.length !== count, on: { click: () => { m.close(); onDone(picked); } } }, 'Valider')),
     );
   };
   render();

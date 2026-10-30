@@ -1,14 +1,17 @@
-// My Data storage: imported tournaments and the hero's preflop decisions,
-// kept in this browser only (localStorage key gtoc.data.v1).
+// My Data storage: imported tournaments, the hero's preflop decisions, one
+// small record per hand, and the import sessions — kept in this browser only
+// (localStorage key gtoc.data.v1).
 import { parseFile } from './parsers.js';
 import { extractDecisions } from './decisions.js';
+import { handRecord } from './handstats.js';
 
 const KEY = /[?&]test=1/.test(location.search) ? 'gtoc.data.test' : 'gtoc.data.v1';
+const EMPTY = () => ({ tournaments: {}, decisions: {}, hands: {}, sessions: [], screenNames: [] });
 let db = load();
 
 function load() {
-  try { return { tournaments: {}, decisions: {}, screenNames: [], ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
-  catch { return { tournaments: {}, decisions: {}, screenNames: [] }; }
+  try { return { ...EMPTY(), ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
+  catch { return EMPTY(); }
 }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(db)); return true; }
@@ -17,11 +20,13 @@ function save() {
 
 export const getTournaments = () => Object.values(db.tournaments).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.tid.localeCompare(a.tid));
 export const getDecisions = () => Object.values(db.decisions).flat();
+export const getHandRecords = () => Object.values(db.hands).flat().sort((a, b) => (a.at || '').localeCompare(b.at || '') || String(a.h).localeCompare(String(b.h)));
+export const getImportSessions = () => db.sessions.slice().reverse();
 export const getScreenNames = () => db.screenNames;
 export function setScreenNames(list) { db.screenNames = list; Object.values(db.tournaments).forEach(derive); save(); }
 export function setType(key, type) { if (db.tournaments[key]) { db.tournaments[key].type = type; db.tournaments[key].typeSet = true; save(); } }
-export function removeTournament(key) { delete db.tournaments[key]; delete db.decisions[key]; save(); }
-export function clearAll() { db = { tournaments: {}, decisions: {}, screenNames: db.screenNames }; save(); }
+export function removeTournament(key) { delete db.tournaments[key]; delete db.decisions[key]; delete db.hands[key]; save(); }
+export function clearAll() { db = { ...EMPTY(), screenNames: db.screenNames }; save(); }
 
 function tour(room, tid) {
   const key = `${room}:${tid}`;
@@ -47,23 +52,26 @@ function derive(t) {
   t.profit = t.winnings - t.cost;
 }
 
-// files: [{name, text}] -> report
+// files: [{name, text}] -> report. Each call is one import session.
 export function importFiles(files) {
-  const report = { ok: 0, errors: [], tournaments: new Set(), decisions: 0, skipped: 0 };
+  const sid = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const report = { ok: 0, errors: [], tournaments: new Set(), decisions: 0, skipped: 0, hands: 0, session: sid };
   for (const f of files) {
     const res = parseFile(f.text);
-    if (res.error) { report.errors.push(`${f.name}: ${res.error}`); continue; }
+    if (res.error) { report.errors.push(`${f.name} : ${res.error}`); continue; }
     if (res.summary) {
       const s = res.summary;
       const t = tour(s.room, s.tid);
       const keepType = t.typeSet ? t.type : null;
       Object.assign(t, s, { files: [...new Set([...t.files, 'summary'])] });
       if (keepType) t.type = keepType;
+      t.session = t.session || sid;
       report.tournaments.add(t.key);
     } else {
       const hh = res.hands;
-      if (!hh.tid) { report.errors.push(`${f.name}: no hands found`); continue; }
+      if (!hh.tid) { report.errors.push(`${f.name} : aucune main trouvée`); continue; }
       const t = tour(hh.room, hh.tid);
+      t.session = t.session || sid;
       if (hh.hero && !db.screenNames.includes(hh.hero)) db.screenNames.push(hh.hero);
       if (hh.isKO && !t.typeSet && t.type === 'vanilla') t.type = 'ko';
       if (!t.name || t.name.startsWith(hh.room + ' #')) t.name = hh.hands[0]?.name || t.name;
@@ -75,15 +83,18 @@ export function importFiles(files) {
         skipped += r.skipped;
       }
       db.decisions[t.key] = decisions;
+      db.hands[t.key] = hh.hands.map(handRecord).filter(Boolean).map((r) => ({ ...r, s: sid }));
       t.handsCount = hh.hands.length;
       t.hhBounty = hh.hands.reduce((a, h) => a + (h.bounty || 0), 0);
       t.files = [...new Set([...t.files, 'hands'])];
       report.decisions += decisions.length;
+      report.hands += hh.hands.length;
       report.skipped += skipped;
       report.tournaments.add(t.key);
     }
     report.ok++;
   }
+  if (report.ok) db.sessions.push({ id: sid, at: new Date().toISOString(), files: report.ok, hands: report.hands, keys: [...report.tournaments] });
   Object.values(db.tournaments).forEach(derive);
   report.saved = save();
   return report;

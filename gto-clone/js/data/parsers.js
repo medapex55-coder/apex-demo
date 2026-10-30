@@ -74,10 +74,7 @@ function parseStarsHands(text) {
     const seats = [];
     for (const m of block.matchAll(/^Seat (\d+): (.+?) \((\d+) in chips[^)]*\)/gm)) seats.push({ seat: +m[1], name: m[2], chips: +m[3] });
     const dealt = block.match(/^Dealt to (.+?) \[(\S\S) (\S\S)\]/m);
-    const pre = sectionLines(block, '*** HOLE CARDS ***').map((l) => {
-      const m = l.match(/^(.+?): (folds|checks|calls|bets|raises)(?: ([\d,]+))?(?: to ([\d,]+))?( and is all-in)?/);
-      return m && { name: m[1], type: m[2].replace(/s$/, ''), amount: +(m[3] || '0').replace(/,/g, ''), to: +(m[4] || m[3] || '0').replace(/,/g, ''), allin: !!m[5] };
-    }).filter(Boolean);
+    const body = parseBody(block, STARS_MARKS, seats.map((s) => s.name));
     const hero = dealt && dealt[1];
     let bounty = 0;
     if (hero) {
@@ -87,22 +84,51 @@ function parseStarsHands(text) {
     }
     hands.push({
       id: head[1], tid: head[2], at: stamp(block.split('\n')[0]), bb: +head[4].replace(/,/g, ''), max: table ? +table[1] : 9, button: table ? +table[2] : 0,
-      seats, hero, cards: dealt ? dealt[2] + dealt[3] : null, pre, bounty,
+      seats, hero, cards: dealt ? dealt[2] + dealt[3] : null, ...body, bounty,
     });
   }
   return { room: 'PokerStars', tid: hands[0]?.tid, hands, hero: hands.find((x) => x.hero)?.hero || null, isKO: /bounty/i.test(text) };
 }
 
-// Lines after a "*** X ***" marker, up to the next marker.
-function sectionLines(block, marker) {
-  const i = block.indexOf(marker);
-  if (i < 0) return [];
-  const rest = block.slice(i + marker.length).split(/\r?\n/);
-  const out = [];
-  for (const l of rest) {
-    if (/^\*\*\* /.test(l)) break;
-    if (l.trim()) out.push(l.trim());
+// The body of one hand, the same for both rooms: blinds and antes, the actions
+// of each street, the board, uncalled bets, what each player collected, the
+// cards shown, and whether there was a showdown.
+const STARS_MARKS = ['*** HOLE CARDS ***', '*** FLOP ***', '*** TURN ***', '*** RIVER ***'];
+const WINA_MARKS = ['*** PRE-FLOP ***', '*** FLOP ***', '*** TURN ***', '*** RIVER ***'];
+const chips = (s) => +String(s || '0').replace(/,/g, '');
+
+function parseBody(block, marks, seatNames) {
+  const names = [...seatNames].sort((a, b) => b.length - a.length);
+  const out = { posts: [], streets: [[], [], [], []], board: [], returned: {}, collected: {}, shown: {}, showdown: false };
+  let s = -1;
+  for (const raw of block.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith('***')) {
+      const k = marks.findIndex((m) => line.startsWith(m));
+      if (k >= 0) {
+        s = k;
+        if (k > 0) out.board = [...line.matchAll(/\[([^\]]+)\]/g)].flatMap((m) => m[1].trim().split(/\s+/));
+      } else if (/SHOW ?DOWN/i.test(line)) { out.showdown = true; s = 4; }
+      else if (/SUMMARY/i.test(line)) s = 5;
+      continue;
+    }
+    if (s === 5) continue;
+    const back = line.match(/^Uncalled bet \(([\d,.]+)\) returned to (.+)$/);
+    if (back) { out.returned[back[2]] = (out.returned[back[2]] || 0) + chips(back[1]); continue; }
+    const name = names.find((n) => line.startsWith(n + ':') || line.startsWith(n + ' '));
+    if (!name) continue;
+    const rest = line.slice(name.length).replace(/^:?\s*/, '');
+    let m;
+    if ((m = rest.match(/^posts (?:the )?ante ([\d,.]+)/))) out.posts.push({ name, kind: 'ante', amount: chips(m[1]) });
+    else if ((m = rest.match(/^posts (small|big) blind ([\d,.]+)/))) out.posts.push({ name, kind: m[1] === 'small' ? 'sb' : 'bb', amount: chips(m[2]) });
+    else if ((m = rest.match(/^collected ([\d,.]+)/))) out.collected[name] = (out.collected[name] || 0) + chips(m[1]);
+    else if ((m = rest.match(/^shows \[(\S\S) (\S\S)\]/))) out.shown[name] = m[1] + m[2];
+    else if (s >= 0 && s <= 3 && (m = rest.match(/^(folds|checks|calls|bets|raises)(?: ([\d,.]+))?(?: to ([\d,.]+))?(.*all-in)?/))) {
+      out.streets[s].push({ name, type: m[1].replace(/s$/, ''), amount: chips(m[2]), to: chips(m[3] || m[2]), allin: !!m[4] });
+    }
   }
+  out.pre = out.streets[0];
   return out;
 }
 
@@ -144,16 +170,10 @@ function parseWinamaxHands(text) {
     const seats = [];
     for (const m of block.matchAll(/^Seat (\d+): (.+?) \((\d+)(?:, [^)]*)?\)/gm)) seats.push({ seat: +m[1], name: m[2], chips: +m[3] });
     const dealt = block.match(/^Dealt to (.+?) \[(\S\S) (\S\S)\]/m);
-    const names = seats.map((s) => s.name).sort((a, b) => b.length - a.length);
-    const pre = sectionLines(block, '*** PRE-FLOP ***').map((l) => {
-      const name = names.find((n) => l.startsWith(n + ' '));
-      if (!name) return null;
-      const m = l.slice(name.length + 1).match(/^(folds|checks|calls|bets|raises)(?: ([\d.]+))?(?: to ([\d.]+))?( and is all-in)?/);
-      return m && { name, type: m[1].replace(/s$/, ''), amount: +(m[2] || 0), to: +(m[3] || m[2] || 0), allin: !!m[4] };
-    }).filter(Boolean);
+    const body = parseBody(block, WINA_MARKS, seats.map((s) => s.name));
     hands.push({
       id: head[2], tid: table ? table[1] : null, at: stamp(block.split('\n')[0]), name: head[1], bb: blinds[blinds.length - 1], max: table ? +table[2] : 6, button: table ? +table[3] : 0,
-      seats, hero: dealt && dealt[1], cards: dealt ? dealt[2] + dealt[3] : null, pre, bounty: 0,
+      seats, hero: dealt && dealt[1], cards: dealt ? dealt[2] + dealt[3] : null, ...body, bounty: 0,
     });
   }
   return { room: 'Winamax', tid: hands[0]?.tid, hands, hero: hands.find((x) => x.hero)?.hero || null, isKO: /bounty|KO/i.test(text) };
@@ -161,12 +181,12 @@ function parseWinamaxHands(text) {
 
 export function parseFile(text) {
   const d = detect(text);
-  if (!d) return { error: 'Format not recognised' };
-  if (d.kind === 'unsupported') return { error: `${d.room} files aren't supported yet — send me one and I'll add it` };
+  if (!d) return { error: 'Format non reconnu' };
+  if (d.kind === 'unsupported') return { error: `Les fichiers ${d.room} ne sont pas encore pris en charge : envoie-m'en un et je l'ajoute` };
   try {
     if (d.room === 'PokerStars') return d.kind === 'summary' ? { summary: parseStarsSummary(text) } : { hands: parseStarsHands(text) };
     return d.kind === 'summary' ? { summary: parseWinamaxSummary(text) } : { hands: parseWinamaxHands(text) };
   } catch (e) {
-    return { error: 'Could not read this file: ' + e.message };
+    return { error: 'Impossible de lire ce fichier : ' + e.message };
   }
 }
