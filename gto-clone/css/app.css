@@ -125,6 +125,24 @@ button.chip:hover { border-color: var(--border-input); }
 .chip-pos { font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
 .chip-act { font-weight: 700; font-size: var(--fs-sm); }
 .chip-actions { display: flex; gap: var(--s1); flex-wrap: wrap; }
+.chip-wrap { display: inline-flex; align-items: stretch; }
+.chip-wrap > .chip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.chip-wrap > .chip-dots { border-radius: 0 var(--r-md) var(--r-md) 0; border-left: 0; }
+.chip-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.chip-dots { min-width: 24px; padding: 0 var(--s1); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text-muted); font-weight: 800; line-height: 1; cursor: pointer; }
+.chip-head .chip-dots { min-height: 20px; }
+.chip-dots:hover, .chip-dots:focus-visible { color: var(--text); background: var(--surface-2); }
+.chip-dots.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.pop-wrap { position: fixed; inset: 0; z-index: 60; }
+.popover { position: fixed; overflow: auto; display: flex; flex-direction: column; gap: var(--s3); padding: var(--s3); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
+.popover h3 { margin: 0; font-size: var(--fs-base); }
+.popover .range { width: 100%; accent-color: var(--accent); }
+.size-row { display: flex; flex-direction: column; gap: var(--s1); padding: var(--s2) 0; border-top: 1px solid var(--border); }
+.size-tag { display: inline-flex; align-items: center; gap: 2px; padding: 0 0 0 var(--s2); background: var(--surface-2); border-radius: var(--r-sm); font-family: var(--font-mono); font-size: var(--fs-sm); }
+.size-input { width: 80px; }
+.loose-field { display: flex; flex-direction: column; gap: var(--s1); }
+.loose-field p { margin: 0; }
+.size-input.bad { border-color: var(--danger); }
 .act-btn { border: 1px solid var(--c); background: transparent; color: var(--text); border-radius: var(--r-sm); padding: 2px var(--s2); font-size: var(--fs-sm); font-weight: 600; }
 .act-btn:hover { background: var(--c); color: var(--on-act); }
 .study-main { display: grid; grid-template-columns: minmax(0, 1fr) var(--sidebar-w); gap: var(--s4); align-items: start; }

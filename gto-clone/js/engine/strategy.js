@@ -11,7 +11,7 @@ import { OPEN_CHARTS } from '../data/open-charts.js';
 import { OPEN_CHARTS_50, BB_CHARTS_50, BB_CODES } from '../data/charts-50.js';
 import { stageBubbleFactor } from './icm.js';
 import {
-  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, alive, SHOVE_STACK, isHU,
+  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, alive, SHOVE_STACK, isHU, seatCfg,
 } from './game.js';
 
 // Tournament pressure. ICM: the bubble factor (BF) says how much more a chip
@@ -135,16 +135,20 @@ function shoveShare(c, stack, firstIn) {
   return s;
 }
 
-function preflopClassFreqs(st, actions) {
+function preflopClassFreqs(st, actions, range) {
   const p = st.toAct;
   const rl = st.raiseLevel;
   const out = CLASSES.map(() => new Array(actions.length).fill(0));
   const idx = (t) => actions.findIndex((a) => a.type === t);
   const iF = idx('fold'), iC = idx('call');
-  // iR: the main aggressive action (raise, or all-in when that's the only one).
+  // sizes: the aggressive actions, smallest first (several when the player
+  // has custom sizings; the all-in counts as one when it is just the biggest).
+  // iR: where the raising frequency is computed, then split across sizes.
   // iA: a separate all-in option next to a raise (20bb and shorter).
-  const iR = idx('raise') >= 0 ? idx('raise') : idx('allin');
-  const iA = idx('raise') >= 0 ? idx('allin') : -1;
+  const short = st.cfg.stack <= SHOVE_STACK && idx('raise') >= 0;
+  const sizes = actions.map((_, j) => j).filter((j) => actions[j].type === 'raise' || (actions[j].type === 'allin' && !short));
+  const iR = sizes.length ? sizes[0] : -1;
+  const iA = short ? idx('allin') : -1;
   const firstIn = rl === 0 && st.limpers.length === 0;
   const limped = st.limpers.includes(p);
   const facingLimp = rl === 0 && st.limpers.length > 0;
@@ -219,7 +223,67 @@ function preflopClassFreqs(st, actions) {
     else if (iC >= 0) f[iC] += rest;
     else f[0] += rest;
   }
+  // Weight of each hand class in the player's range at this point.
+  const w = CLASSES.map((c) => c.combos.reduce((a, i) => a + range[i], 0));
+  const loose = seatCfg(st.cfg, p).loose ?? 50;
+  if (loose !== 50) applyLoose(out, actions, w, 2 ** ((loose - 50) / 50));
+  if (sizes.length > 1) splitSizes(out, sizes, w);
   return out;
+}
+
+// Looser or tighter than the baseline (Study "⋯" slider): the share of the
+// range that continues is multiplied by m (0.5 at 0, 2 at 100). Looser adds
+// the best hands that folded (as calls, or raises when calling isn't an
+// option); tighter folds the weakest continuing hands. With no fold
+// available (BB vs a limp), it moves hands between check and raise instead.
+function applyLoose(out, actions, w, m) {
+  const find = (t) => actions.findIndex((a) => a.type === t);
+  const iF = find('fold');
+  const passive = iF >= 0 ? iF : find('check');
+  const aggr = actions.findIndex((a) => a.type === 'raise' || a.type === 'allin');
+  const target = iF >= 0 && find('call') >= 0 ? find('call') : aggr;
+  if (passive < 0 || target < 0) return;
+  let S = 0, W = 0;
+  for (const c of CLASSES) { S += w[c.id] * (1 - out[c.id][passive]); W += w[c.id]; }
+  let delta = clamp(S * m, 0, W) - S;
+  const order = CLASSES.slice().sort((a, b) => PERCENTILE[a.id] - PERCENTILE[b.id]);
+  if (delta < 0) order.reverse();
+  for (const c of order) {
+    if (Math.abs(delta) < 1e-9) break;
+    const f = out[c.id], wc = w[c.id];
+    if (!wc) continue;
+    if (delta > 0) {
+      const d = Math.min(f[passive], delta / wc);
+      f[passive] -= d; f[target] += d; delta -= d * wc;
+    } else {
+      // Fold calls before raises, then the rest of the aggressive actions.
+      for (const j of [target, ...actions.map((_, j) => j)]) {
+        if (j === passive || !f[j]) continue;
+        const d = Math.min(f[j], -delta / wc);
+        f[j] -= d; f[passive] += d; delta += d * wc;
+        if (delta > -1e-9) break;
+      }
+    }
+  }
+}
+
+// Several raise sizes: the raising range is ranked by hand strength and cut
+// into equal slices, the strongest slice taking the biggest size.
+function splitSizes(out, sizes, w) {
+  const order = CLASSES.slice().sort((a, b) => PERCENTILE[a.id] - PERCENTILE[b.id]);
+  const first = sizes[0];
+  const mass = (c) => out[c.id][first] * (w[c.id] || c.combos.length);
+  const total = order.reduce((a, c) => a + mass(c), 0);
+  if (total <= 0) return;
+  let cum = 0;
+  for (const c of order) {
+    const m = mass(c);
+    if (!m) continue;
+    const q = (cum + m / 2) / total;
+    cum += m;
+    const k = sizes[sizes.length - 1 - Math.min(sizes.length - 1, Math.floor(q * sizes.length))];
+    if (k !== first) { out[c.id][k] += out[c.id][first]; out[c.id][first] = 0; }
+  }
 }
 
 const DRAW_SCORE = { 'Flush draw': 0.65, 'Open-ended': 0.55, Gutshot: 0.25 };
@@ -278,7 +342,9 @@ function postflopFreqs(node) {
       let big = denom > 0 ? (value * polar + (1 - value) * bluff * (street >= 2 ? 0.7 : 0.3)) / denom : 0;
       if (street === 1 && adv > 0.55) big *= 0.6;
       big = clamp(big + jitter * 0.5);
-      f = actions.length === 2 ? [1 - bet, bet] : [1 - bet, bet * (1 - big), bet * big];
+      // big (0..1) picks the size: between two neighbouring sizes when there are several.
+      const n = actions.length - 1, x = big * (n - 1);
+      f = [1 - bet, ...actions.slice(1).map((_, j) => bet * (n === 1 ? 1 : Math.max(0, 1 - Math.abs(x - j))))];
     } else {
       const po = call / (P + call);
       const R = street === 3 ? 1 : ip ? 1 : 0.92;
@@ -366,7 +432,7 @@ export function analyze(st) {
   const node = makeNode(st, rangesOf(st));
   if (node.actions.length) {
     if (st.street === 0) {
-      const cf = preflopClassFreqs(st, node.actions);
+      const cf = preflopClassFreqs(st, node.actions, node.ranges[st.toAct]);
       node.freqs = node.actions.map((_, k) => {
         const arr = new Float32Array(1326);
         for (let i = 0; i < 1326; i++) arr[i] = cf[CLASS_OF_COMBO[i]][k];

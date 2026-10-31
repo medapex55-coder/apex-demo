@@ -5,7 +5,7 @@ import { MADE, DRAWS, catFr } from '../engine/evaluator.js';
 import { weightedMean } from '../engine/equity.js';
 import {
   POS, STREETS, replay, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
-  aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey, STACKS, OPEN_SIZES, DEFAULT_CFG, STAGES,
+  aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey, STACKS, OPEN_SIZES, DEFAULT_CFG, STAGES, seatCfg,
 } from '../engine/game.js';
 
 const OPEN_LABELS = { limp: 'Limp 1bb', 2: '2bb', 2.5: '2.5bb (SB 3.5)', 4.5: '4.5bb' };
@@ -48,6 +48,9 @@ export function renderStudy(el) {
       stage: STAGES.includes(stage) ? stage : DEFAULT_CFG.stage,
     };
   }
+  if (q('pp')) {
+    try { ui.cfg = { ...ui.cfg, players: JSON.parse(decodeURIComponent(q('pp'))) }; } catch { /* a broken link keeps the defaults */ }
+  }
   const ic = parseList((q('ic') || '').replace(/-/g, ' ')), ip = parseList((q('ip') || '').replace(/-/g, ' '));
   if (ic.length >= 2 && ip.length) ui.icm = { custom: true, stacks: ic, payouts: ip };
   applyIcm();
@@ -79,6 +82,7 @@ function setHistory(hist) {
   if (ui.cfg.ko) params.push('f=ko');
   if (ui.cfg.stage !== DEFAULT_CFG.stage) params.push('fs=' + ui.cfg.stage);
   if (ui.icm.custom) params.push('ic=' + ui.icm.stacks.join('-'), 'ip=' + ui.icm.payouts.join('-'));
+  if (ui.cfg.players) params.push('pp=' + encodeURIComponent(JSON.stringify(ui.cfg.players)));
   if (hist.length) params.push('l=' + encodeLine(hist));
   history.replaceState(null, '', '#/study' + (params.length ? '?' + params.join('&') : ''));
   render();
@@ -149,8 +153,10 @@ function spotBar(st) {
     } else {
       const role = actionRole(replaySt, e.act);
       if (e.act.type !== 'fold' || replaySt.street > 0 || replaySt.raiseLevel > 0) {
-        chips.push(h('button.chip', { type: 'button', title: 'Revenir à cette décision', on: { click: () => setHistory(ui.history.slice(0, i)) } },
-          h('span.chip-pos', POS[e.p]), h('span.chip-act', { style: { color: `var(--act-${role})` } }, actionLabel(replaySt, e.act, units))));
+        chips.push(h('span.chip-wrap',
+          h('button.chip', { type: 'button', title: 'Revenir à cette décision', on: { click: () => setHistory(ui.history.slice(0, i)) } },
+            h('span.chip-pos', POS[e.p]), h('span.chip-act', { style: { color: `var(--act-${role})` } }, actionLabel(replaySt, e.act, units))),
+          dotsButton(e.p)));
       }
       replaySt = applyAction(replaySt, e.act);
     }
@@ -161,7 +167,7 @@ function spotBar(st) {
     chips.push(h('span.chip.current', h('span.chip-pos', STREETS[st.street]), h('span.muted', 'choisis les cartes')));
   } else {
     const acts = legalActions(st);
-    chips.push(h('div.chip.current', h('span.chip-pos', POS[st.toAct]),
+    chips.push(h('div.chip.current', h('span.chip-head', h('span.chip-pos', POS[st.toAct]), dotsButton(st.toAct)),
       h('span.chip-actions', acts.map((a) => h('button.act-btn', {
         type: 'button', style: { '--c': `var(--act-${actionRole(st, a)})` },
         on: { click: () => setHistory([...ui.history, { kind: 'act', p: st.toAct, act: a }]) },
@@ -169,8 +175,11 @@ function spotBar(st) {
     // Unopened pot: jump straight to a later position.
     if (st.street === 0 && st.raiseLevel === 0) {
       for (let p = st.toAct + 1; p < 5; p++) {
-        chips.push(h('button.chip.future', { type: 'button', title: `Fold jusqu'au ${POS[p]}`, on: { click: () => setHistory(foldTo(st, p).history) } }, POS[p]));
+        chips.push(h('span.chip-wrap',
+          h('button.chip.future', { type: 'button', title: `Fold jusqu'au ${POS[p]}`, on: { click: () => setHistory(foldTo(st, p).history) } }, POS[p]),
+          dotsButton(p)));
       }
+      if (st.toAct < 5) chips.push(h('span.chip-wrap', h('span.chip.future', 'BB'), dotsButton(5)));
     }
   }
   return h('header.spotbar',
@@ -190,6 +199,101 @@ function spotBar(st) {
     h('nav.line', { 'aria-label': 'Ligne d\'action' },
       h('button.chip.root', { type: 'button', title: 'Revenir au début', on: { click: () => setHistory([]) } }, '⟲'),
       chips));
+}
+
+// ---------- player profile (the "⋯" on a position) ----------
+// Looseness 0..100 and custom sizings for one seat, kept in ui.cfg.players.
+const SIZE_LEVELS = [
+  { level: 1, label: 'Open (ou raise sur limp)', unit: 'bb' },
+  { level: 2, label: '3-bet', unit: 'bb' },
+  { level: 3, label: '4-bet', unit: 'bb' },
+  { level: 'post', label: 'Mises postflop', unit: '%' },
+];
+const styleWord = (v) => (v <= 15 ? 'très tight' : v <= 35 ? 'tight' : v < 65 ? 'neutre' : v < 85 ? 'loose' : 'très loose');
+const isCustom = (s) => s && ((s.loose ?? 50) !== 50 || Object.values(s.sizes || {}).some((l) => l.length));
+
+function dotsButton(p) {
+  const on = isCustom(seatCfg(ui.cfg, p));
+  return h('button.chip-dots' + (on ? '.on' : ''), {
+    type: 'button', 'aria-label': `Profil et sizings du ${POS[p]}`, title: on ? `${POS[p]} personnalisé` : `Personnaliser le ${POS[p]}`,
+    on: { click: (e) => { e.stopPropagation(); openPlayerMenu(p, e.currentTarget); } },
+  }, '⋯');
+}
+
+function setPlayer(p, s) {
+  const players = { ...(ui.cfg.players || {}) };
+  if (isCustom(s)) players[p] = s; else delete players[p];
+  const { players: _, ...rest } = ui.cfg;
+  ui.cfg = Object.keys(players).length ? { ...rest, players } : rest;
+  setHistory(decodeLine(encodeLine(ui.history))); // a removed size cuts the line there
+}
+
+function defaultSize(level, p) {
+  if (level === 1) return p === 5 ? 'open + 1bb par limper' : p === 4 && ui.cfg.open === '2.5' && ui.cfg.stage !== 'hu' ? '3.5bb' : ui.cfg.open === 'limp' ? 'limp' : ui.cfg.open + 'bb';
+  if (level === 2) return '3× l\'open en position, 4× hors position';
+  if (level === 3) return '2,3× le 3-bet';
+  return '33 % et 75 % du pot';
+}
+
+function openPlayerMenu(p, anchor) {
+  document.querySelector('.pop-wrap')?.remove();
+  const pop = h('div.popover', { role: 'dialog', 'aria-label': `Profil du ${POS[p]}` });
+  const wrap = h('div.overlay.pop-wrap', { on: { mousedown: (e) => { if (e.target === wrap) close(); } } }, pop);
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  function close() { wrap.remove(); document.removeEventListener('keydown', onKey); }
+  const commit = (s) => { setPlayer(p, s); draw(); };
+  function draw() {
+    const s = seatCfg(ui.cfg, p);
+    const loose = s.loose ?? 50;
+    const out = h('output.mono', `${loose} · ${styleWord(loose)}`);
+    pop.replaceChildren(
+      h('div.modal-head', h('h3', `${POS[p]} · profil du joueur`), h('button.icon-btn', { type: 'button', 'aria-label': 'Fermer', on: { click: close } }, '✕')),
+      h('div.loose-field', h('div.row.between', h('label.field-label', { for: 'loose-' + p }, 'Style de jeu'), out),
+        h('input.range', {
+          id: 'loose-' + p, type: 'range', min: 0, max: 100, step: 5, value: loose,
+          on: {
+            input: (e) => { out.textContent = `${e.target.value} · ${styleWord(+e.target.value)}`; },
+            change: (e) => commit({ ...s, loose: +e.target.value }),
+          },
+        }),
+        h('div.row.between.small.muted', h('span', '0 très tight'), h('span', '50 neutre'), h('span', '100 très loose')),
+        h('p.small.muted', 'Change la part de mains que ce joueur joue avant le flop : ×0,5 à 0, ×2 à 100. Les mains ajoutées ou retirées sont choisies par force.')),
+      h('div.panel-title', 'Sizings'),
+      h('div.size-rows', SIZE_LEVELS.map(({ level, label, unit }) => {
+        const list = s.sizes?.[level] || [];
+        const keep = s.keep?.[level] !== false;
+        const setList = (l, k = keep) => commit({ ...s, sizes: { ...(s.sizes || {}), [level]: l }, keep: { ...(s.keep || {}), [level]: k } });
+        const input = h('input.text.size-input', { type: 'number', min: unit === '%' ? 10 : 1, max: unit === '%' ? 300 : ui.cfg.stack, step: unit === '%' ? 5 : 0.1, placeholder: unit, 'aria-label': `Nouveau sizing ${label}` });
+        const add = () => {
+          const v = parseFloat(String(input.value).replace(',', '.'));
+          const ok = unit === '%' ? v >= 10 && v <= 300 : v > 1 && v <= ui.cfg.stack;
+          if (!ok || list.length >= 3) { input.classList.add('bad'); return; }
+          const x = unit === '%' ? Math.round(v) / 100 : Math.round(v * 10) / 10;
+          if (!list.includes(x)) setList([...list, x].sort((a, b) => a - b));
+        };
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+        return h('div.size-row',
+          h('div.small', h('strong', label), h('span.muted', ` · par défaut : ${defaultSize(level, p)}`)),
+          h('div.row.gap.wrap',
+            list.map((x) => h('span.size-tag', unit === '%' ? Math.round(x * 100) + ' %' : x + 'bb',
+              h('button.icon-btn.sm', { type: 'button', 'aria-label': 'Retirer ce sizing', on: { click: () => setList(list.filter((y) => y !== x)) } }, '✕'))),
+            list.length < 3 ? [input, h('button.btn.secondary.sm', { type: 'button', on: { click: add } }, 'Ajouter')] : null),
+          list.length ? h('label.check.small', h('input', { type: 'checkbox', checked: keep, on: { change: (e) => setList(list, e.target.checked) } }),
+            ' Garder aussi la taille par défaut') : null);
+      })),
+      h('p.small.muted', 'Décoche « garder » pour remplacer la taille par défaut, laisse coché pour ajouter une taille. Avec plusieurs tailles, les mains les plus fortes prennent la plus grosse.'),
+      h('div.row.end', h('button.btn.ghost.sm', { type: 'button', disabled: !isCustom(s), on: { click: () => commit({}) } }, 'Réinitialiser ce joueur')));
+  }
+  draw();
+  document.body.append(wrap);
+  document.addEventListener('keydown', onKey);
+  const r = anchor.getBoundingClientRect();
+  const W = Math.min(360, window.innerWidth - 32);
+  pop.style.width = W + 'px';
+  pop.style.left = Math.max(16, Math.min(r.left, window.innerWidth - W - 16)) + 'px';
+  pop.style.top = r.bottom + 6 + 'px';
+  pop.style.maxHeight = Math.max(240, window.innerHeight - r.bottom - 22) + 'px';
+  pop.querySelector('input')?.focus();
 }
 
 function nonDecision(st) {

@@ -95,6 +95,18 @@ function preflopSizes(st, p) {
   return st.cfg.stack;
 }
 
+// Per-player settings from the Study "⋯" menu: cfg.players[seat] =
+// { loose: 0..100 (50 neutral), sizes: { 1: [2.2], 2: [9], 3: [], post: [0.5] },
+// keep: { 1: false } }. sizes are bb totals preflop (level 1 open, 2 3-bet,
+// 3 4-bet) and pot fractions postflop; keep false drops the default size.
+export const seatCfg = (cfg, p) => cfg.players?.[p] || {};
+function sizesFor(st, p, level, defaults) {
+  const s = seatCfg(st.cfg, p);
+  const custom = s.sizes?.[level] || [];
+  const list = s.keep?.[level] === false && custom.length ? custom : [...defaults, ...custom];
+  return [...new Set(list)].sort((a, b) => a - b);
+}
+
 export function legalActions(st) {
   if (st.terminal || st.needBoard || st.toAct < 0) return [];
   const p = st.toAct;
@@ -109,11 +121,18 @@ export function legalActions(st) {
     else if (st.raiseLevel > 0 || st.limpers.length || p === 4 || st.cfg.open === 'limp') acts.push({ type: 'call', amount: call });
     const firstIn = st.raiseLevel === 0 && !st.limpers.length;
     if (st.raiseLevel <= 3 && rem > call && !(firstIn && st.cfg.open === 'limp')) {
-      let to = Math.min(preflopSizes(st, p), st.streetBet[p] + rem);
-      // A re-raise that commits almost half the stack goes all-in instead.
-      if (st.raiseLevel >= 1 && to >= (st.streetBet[p] + rem) * 0.45) to = st.streetBet[p] + rem;
-      const allin = to >= st.streetBet[p] + rem;
-      acts.push({ type: allin ? 'allin' : 'raise', to, level: st.raiseLevel + 1 });
+      const level = st.raiseLevel + 1;
+      const max = st.streetBet[p] + rem;
+      const seen = new Set();
+      for (const size of sizesFor(st, p, level, [preflopSizes(st, p)])) {
+        let to = Math.min(size, max);
+        if (to <= st.currentBet) continue;
+        // A re-raise that commits almost half the stack goes all-in instead.
+        if (st.raiseLevel >= 1 && to >= max * 0.45) to = max;
+        if (seen.has(to)) continue;
+        seen.add(to);
+        acts.push({ type: to >= max ? 'allin' : 'raise', to, level });
+      }
     }
     // 20bb and shorter: shoving is always an option, next to the raise or limp.
     const jam = st.streetBet[p] + rem;
@@ -125,7 +144,7 @@ export function legalActions(st) {
   if (call === 0) {
     acts.push({ type: 'check' });
     const seen = new Set();
-    for (const f of [0.33, 0.75]) {
+    for (const f of sizesFor(st, p, 'post', [0.33, 0.75])) {
       let b = round(P * f);
       let type = 'bet';
       if (b >= rem * 0.67) { b = rem; type = 'allin'; }
@@ -252,7 +271,8 @@ export function actionKey(act) {
 
 export function stateKey(st) {
   const fmt = (st.cfg.ko ? '/ko' : '') + (st.cfg.stage && st.cfg.stage !== '100' ? '/' + st.cfg.stage : '') + (st.cfg.bf != null ? '/bf' + st.cfg.bf.toFixed(3) : '');
-  return `${st.cfg.stack}bb/${st.cfg.open}${fmt}${st.cfg.multiway ? '/mw' : ''}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
+  const pl = st.cfg.players ? '/p' + JSON.stringify(st.cfg.players) : '';
+  return `${st.cfg.stack}bb/${st.cfg.open}${fmt}${st.cfg.multiway ? '/mw' : ''}${pl}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
 }
 
 export function actionLabel(st, act, units = 'bb') {
@@ -282,9 +302,17 @@ export function actionRole(st, act) {
   if (act.type === 'fold') return 'fold';
   if (act.type === 'check' || act.type === 'call') return 'call';
   if (act.type === 'allin') return 'allin';
-  if (st.street === 0) return act.level >= 3 ? 'bet-l' : 'bet-m';
+  if (st.street === 0) {
+    // Several raise sizes (custom sizings): smallest to biggest, three colours.
+    const rs = act.type === 'raise' ? legalActions(st).filter((a) => a.type === 'raise') : [];
+    if (rs.length > 1) {
+      const i = rs.findIndex((a) => a.to === act.to);
+      return i === 0 ? 'bet-s' : i === rs.length - 1 ? 'bet-l' : 'bet-m';
+    }
+    return act.level >= 3 ? 'bet-l' : 'bet-m';
+  }
   if (act.type === 'raise') return 'bet-l';
-  return act.frac && act.frac < 0.5 ? 'bet-s' : 'bet-m';
+  return act.frac && act.frac < 0.5 ? 'bet-s' : act.frac > 1 ? 'bet-l' : 'bet-m';
 }
 
 export function aggression(act) {

@@ -518,6 +518,28 @@ await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI'
   near(abi(list.slice(0, 3)), 6, 1e-9, 'ABI (5+10+3)/3');
   assert(Number.isNaN(abi([])), 'no ABI without tournaments');
 });
+await test('U33', 'player profile: looseness widens or narrows a range, custom sizes add actions', () => {
+  const btn = (players) => analyze(foldTo(initialState({ stack: 100, open: '2.5', stage: '100', players }), 3));
+  const base = 1 - share(btn(), 'fold');
+  const loose = 1 - share(btn({ 3: { loose: 100 } }), 'fold');
+  const tight = 1 - share(btn({ 3: { loose: 0 } }), 'fold');
+  near(loose, Math.min(1, base * 2), 0.01, `loose 100 doubles the opens (${base.toFixed(3)} -> ${loose.toFixed(3)})`);
+  near(tight, base / 2, 0.01, `tight 0 halves them (${tight.toFixed(3)})`);
+  const two = btn({ 3: { sizes: { 1: [3.5] } } });
+  assert(two.actions.map((a) => a.type + (a.to || '')).join() === 'fold,raise2.5,raise3.5', 'added size next to the default');
+  const AA = comboFreqs(two, CLASS_BY_NAME.AA.combos[0]), Q7 = comboFreqs(two, CLASS_BY_NAME.Q7s.combos[0]);
+  assert(AA[2] === 1 && Q7[1] > 0.5, 'strong hands take the big size, weaker ones the small');
+  near(1 - share(two, 'fold'), base, 1e-6, 'same opening range');
+  const repl = btn({ 3: { sizes: { 1: [2.2] }, keep: { 1: false } } });
+  assert(repl.actions.map((a) => a.type + (a.to || '')).join() === 'fold,raise2.2', 'replaced size');
+  let st = act(foldTo(initialState({ stack: 100, open: '2.5', players: { 5: { sizes: { post: [1.5] } } } }), 3), 'raise');
+  st = act(foldTo(st, 5), 'call');
+  st = dealBoard(st, ['As', '7d', '2c'].map(parseCard));
+  const n = analyze(st);
+  assert(n.actions.length === 4 && n.actions[3].frac === 1.5, 'BB gets a 150% overbet postflop');
+  const f = n.actions.map((_, k) => overallFreqs(n).freqs[k]);
+  near(f.reduce((a, b) => a + b, 0), 1, 1e-6, 'frequencies sum to 1');
+});
 
 // ---------- flows in the real app ----------
 const frame = document.getElementById('frame');
@@ -717,6 +739,24 @@ await test('F14-H1', 'BB 50bb drill: the BB plays its 50bb chart, explained', as
     byRole('button', 'Main suivante').click();
   }
   byRole('button', 'Terminer la session').click();
+});
+await test('F15-H1', 'study ⋯: make the BTN loose and add a 3.5bb open', async () => {
+  await load('#/study');
+  byRole('button', 'Fold jusqu\'au BTN').click();
+  await sleep(100);
+  byRole('button', 'Profil et sizings du BTN').click();
+  const pop = await waitFor(() => doc().querySelector('.popover'));
+  const slider = pop.querySelector('input[type="range"]');
+  slider.value = '80';
+  slider.dispatchEvent(new Event('change', { bubbles: true }));
+  const input = await waitFor(() => doc().querySelector('.popover [aria-label="Nouveau sizing Open (ou raise sur limp)"]'));
+  input.value = '3.5';
+  [...doc().querySelectorAll('.popover button')].find((b) => b.textContent === 'Ajouter').click();
+  await waitFor(() => [...doc().querySelectorAll('.act-btn')].some((b) => b.textContent === 'Raise 3.5'));
+  assert(/pp=/.test(frame.contentWindow.location.hash) && doc().querySelector('.chip-dots.on'), 'saved in the link, chip marked');
+  doc().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  await sleep(50);
+  assert(!doc().querySelector('.popover'), 'Escape closes');
 });
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {
