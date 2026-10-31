@@ -432,7 +432,7 @@ await test('D10', 'HUD counters: RFI and steal from the BTN, fold in the BB to a
   assert(t.VPIP.opp === 2 && t.VPIP.hit === 1 && t.FBS.hit === 1, 'totals');
 });
 const share = (node, type) => { const o = overallFreqs(node); return node.actions.reduce((a, x, k) => a + (x.type === type ? o.freqs[k] : 0), 0); };
-const bbVsBtn = (cfg) => { let st = foldTo(initialState({ stack: 40, open: '2.5', ...cfg }), 3); st = foldTo(act(st, 'raise'), 5); return analyze(st); };
+const bbVsBtn = (cfg) => { let st = foldTo(initialState({ stack: 30, open: '2.5', ...cfg }), 3); st = foldTo(act(st, 'raise'), 5); return analyze(st); };
 await test('U25', 'KO widens the BB defence, the final table tightens it', () => {
   const base = 1 - share(bbVsBtn({}), 'fold');
   const ko = 1 - share(bbVsBtn({ ko: true }), 'fold');
@@ -484,6 +484,25 @@ await test('U30', 'levels and the daily streak', () => {
   const d = (k) => { const x = new Date(2026, 9, 30 - k); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
   const p = { days: { [d(1)]: 30, [d(2)]: 25, [d(3)]: 10, [d(0)]: 3 } };
   assert(streakOf(p, new Date(2026, 9, 30)) === 2, 'yesterday and the day before count, today not yet');
+});
+await test('U31', '50bb charts: opens and every BB spot follow the user charts', () => {
+  const cfg = { stack: 50, open: '2.5' };
+  const f = (st, name) => {
+    const n = analyze(st);
+    const fr = comboFreqs(n, CLASS_BY_NAME[name].combos[0]);
+    return Object.fromEntries(n.actions.map((a, k) => [a.type, fr[k]]));
+  };
+  assert(f(foldTo(initialState(cfg), 0), 'A9o').raise < 0.5 && f(foldTo(initialState(), 0), 'A9o').fold === 1, 'LJ A9o is Loosifie at 50bb, a fold at 100bb');
+  assert(f(foldTo(initialState(cfg), 4), 'K6o').raise === 1, 'SB raises K6o at 50bb');
+  const vsOpen = (p) => foldTo(act(foldTo(initialState(cfg), p), 'raise'), 5);
+  assert(f(vsOpen(0), 'K7s').raise === 1 && f(vsOpen(0), 'AQs').call === 1, 'BB vs LJ: K7s 3bet light, AQs call');
+  assert(f(vsOpen(3), 'A2o').raise === 1 && f(vsOpen(3), 'T5o').fold === 1, 'BB vs BTN: A2o 3bet light, T5o fold');
+  assert(f(vsOpen(4), 'Q7o').raise === 1 && f(vsOpen(4), '83s').fold === 1, 'BB vs SB: Q7o 3bet, 83s fold');
+  let st = act(foldTo(initialState(cfg), 4), 'call'); // SB limps
+  assert(f(st, 'Q2o').raise === 1 && f(st, 'K5s').check === 1, 'BB vs limp: Q2o raise, K5s check');
+  st = act(act(st, 'raise'), 'raise'); // BB raises 3.5, SB re-raises
+  assert(f(st, 'AKs').allin === 1 && f(st, 'AA').call === 1 && f(st, 'KTo').fold === 1, 'vs limp-reraise: AKs shove, AA call, KTo fold');
+  assert(f(foldTo(act(foldTo(initialState({ ...cfg, stack: 100 }), 3), 'raise'), 5), 'K4o').raise !== 1, 'no 50bb chart at 100bb');
 });
 
 // ---------- flows in the real app ----------
@@ -671,6 +690,19 @@ await test('F13-H1', 'progression page shows the level, XP and badges', async ()
   await load('#/stats');
   await waitFor(() => doc().querySelector('.hero-card'));
   assert(doc().querySelectorAll('.badge-card.on').length >= 1 && doc().querySelector('.player-chip .level-badge'), 'badge earned, player chip');
+});
+await test('F14-H1', 'BB 50bb drill: the BB plays its 50bb chart, explained', async () => {
+  await load('#/practice');
+  byRole('button', 'Défense BB 50bb').click();
+  byRole('button', 'Commencer la session').click();
+  for (let n = 0; n < 4; n++) {
+    const btn = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
+    btn.click();
+    const why = await waitFor(() => doc().querySelector('.feedback .why'));
+    assert(/Ton chart 50bb \(BB vs/.test(why.textContent), why.textContent);
+    byRole('button', 'Main suivante').click();
+  }
+  byRole('button', 'Terminer la session').click();
 });
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {

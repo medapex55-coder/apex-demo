@@ -8,6 +8,7 @@ import { classify } from './evaluator.js';
 import { rangeEquity, weightedMean } from './equity.js';
 import { hashStr } from './rng.js';
 import { OPEN_CHARTS } from '../data/open-charts.js';
+import { OPEN_CHARTS_50, BB_CHARTS_50, BB_CODES } from '../data/charts-50.js';
 import { stageBubbleFactor } from './icm.js';
 import {
   POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, alive, SHOVE_STACK, isHU,
@@ -66,10 +67,32 @@ export function setOpenStyle(s) {
   cache.clear();
 }
 
-export function chartCode(p, cls) {
-  const ch = OPEN_CHARTS[POS[p]];
+// Which chart set a stack plays: the 50bb charts below 75bb, else the 100bb ones.
+export const chartDepth = (stack) => (stack < 75 ? 50 : 100);
+
+export function chartCode(p, cls, stack = 100) {
+  const ch = (chartDepth(stack) === 50 ? OPEN_CHARTS_50 : OPEN_CHARTS)[POS[p]];
   return ch ? ch[cls.row][cls.col] : null;
 }
+
+// The BB's 50bb chart for this spot, or null: vs a limp from the SB, vs a
+// single open (2.5bb, SB 3.5bb) with nobody else in, and vs the SB's
+// limp-reraise after the BB raised. Used from 40 to 70bb, 6-max, in chip-EV
+// spots only: with bounties or ICM pressure the model's adjusted ranges apply.
+export function bbChart(st) {
+  const { cfg } = st;
+  if (st.street !== 0 || st.toAct !== 5 || isHU(st) || cfg.open !== '2.5' || cfg.stack < 40 || chartDepth(cfg.stack) !== 50) return null;
+  if (Math.abs(rangeScale(cfg) - 1) > 0.005) return null;
+  const sbLimp = st.limpers.length === 1 && st.limpers[0] === 4;
+  if (st.raiseLevel === 0) return sbLimp ? BB_CHARTS_50.vsLimp : null;
+  if (st.raiseLevel === 1 && !st.limpers.length) {
+    const o = st.lastAggr;
+    return alive(st).every((i) => i === 5 || i === o) ? BB_CHARTS_50[POS[o]] || null : null;
+  }
+  if (st.raiseLevel === 2 && sbLimp && st.lastAggr === 4) return BB_CHARTS_50.vsLimp3bet;
+  return null;
+}
+export const bbCode = (chart, cls) => chart.grid[cls.row][cls.col];
 
 export function codeFreqs(code) {
   switch (code) {
@@ -93,11 +116,11 @@ export function codeFreqs(code) {
 }
 
 // Share of all combos a seat opens (raise only), used to size the defence.
-function openWidth(p) {
+function openWidth(p, stack) {
   if (p === 5) return 0.18; // BB isolating a limp
   if (!OPEN_CHARTS[POS[p]]) return 0.4;
   let s = 0;
-  for (const c of CLASSES) s += codeFreqs(chartCode(p, c)).raise * c.combos.length;
+  for (const c of CLASSES) s += codeFreqs(chartCode(p, c, stack)).raise * c.combos.length;
   return s / 1326;
 }
 
@@ -132,16 +155,19 @@ function preflopClassFreqs(st, actions) {
   const hu = isHU(st);
   const shoveCall = Math.min(0.6, (0.025 + 2 / st.cfg.stack) * k);
   const facingShove = rl >= 1 && iR < 0 && st.lastAggr >= 0 && remaining(st, st.lastAggr) <= 0;
-  const width = (q) => (hu && q === 4 ? HU_OPEN : openWidth(q));
+  const width = (q) => (hu && q === 4 ? HU_OPEN : openWidth(q, st.cfg.stack));
+  const bbc = bbChart(st);
   // Players who already called the open (multiway spots only).
   const callers = rl === 1 ? alive(st).filter((i) => i !== p && i !== st.lastAggr && st.streetBet[i] >= st.currentBet).length : 0;
   for (const c of CLASSES) {
     const pc = PERCENTILE[c.id];
     let raise = 0, call = 0;
-    if (rl === 0 && p <= 4 && !facingLimp) {
+    if (bbc) {
+      ({ raise, call } = BB_CODES[bbCode(bbc, c)]); // the BB's 50bb chart
+    } else if (rl === 0 && p <= 4 && !facingLimp) {
       // First in: the user's chart (heads-up, the button opens most hands).
       // With the "limp" open size, the raising range limps.
-      const f = hu && p === 4 ? { raise: within(pc, HU_OPEN, 0.03), limp: 0 } : codeFreqs(chartCode(p, c));
+      const f = hu && p === 4 ? { raise: within(pc, HU_OPEN, 0.03), limp: 0 } : codeFreqs(chartCode(p, c, st.cfg.stack));
       if (st.cfg.open === 'limp') {
         // Limp mode: the raising range limps, except the part that shoves at 20bb and less.
         raise = iR >= 0 ? f.raise * shoveShare(c, st.cfg.stack, true) : 0;

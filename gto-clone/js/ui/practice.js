@@ -7,7 +7,7 @@ import {
   POS, STREETS, initialState, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
   aggression, pot, remaining, alive, toCallOf, STACKS,
 } from '../engine/game.js';
-import { analyze, comboFreqs, comboEVs, classSummary, chartCode, getOpenStyle, rangesOf } from '../engine/strategy.js';
+import { analyze, comboFreqs, comboEVs, classSummary, chartCode, getOpenStyle, rangesOf, chartDepth, bbChart, bbCode } from '../engine/strategy.js';
 import { saveSession, uid, getSettings, getProgress } from '../store.js';
 import { practiceSpotKey, studyLink } from '../data/leaks.js';
 import { recordDecision, recordSession, today, DAILY_GOAL, levelOf } from '../data/progress.js';
@@ -17,6 +17,7 @@ import { HandRow, showHandReplay } from './handreplay.js';
 export const DRILLS = [
   { id: 'rfi', name: 'Ouverture', icon: '🚪', desc: 'Tout le monde a foldé jusqu\'à toi avant le flop. Ouvre ou couche-toi.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
   { id: 'vsopen', name: 'Face à un open', icon: '🛡️', desc: 'Un joueur a relancé en premier. Fold, call ou 3-bet.', heroes: [1, 2, 3, 4, 5], mode: 'spot' },
+  { id: 'bb50', name: 'Défense BB 50bb', icon: '🧱', desc: 'Tes charts BB à 50bb : face à un open (LJ à SB), au limp de la SB et à sa limp-relance.', heroes: [5], mode: 'spot' },
   { id: 'vs3bet', name: 'Face à un 3-bet', icon: '⚔️', desc: 'Tu as ouvert et tu te fais relancer.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
   { id: 'srp', name: 'BTN vs BB au flop', icon: '🎯', desc: 'Pot relancé une fois, première décision au flop.', heroes: [3, 5], mode: 'spot' },
   { id: 'postflop', name: 'Postflop', icon: '🃏', desc: 'Pot relancé ou 3-bet : joue flop, turn et river jusqu\'à la fin du coup.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
@@ -30,7 +31,10 @@ const DEFAULT_CFG = {
   difficulty: 'standard', rng: 'off', timebank: 0, pause: 'always', autoNext: true, closeOnly: true,
 };
 // The engine config of a drill: format, field stage, multiway pots.
-const gameCfg = (c) => ({ stack: c.stack, open: c.open, ko: c.format === 'ko', stage: c.stage, multiway: c.drill === 'multiway' || (c.drill === 'full' && c.multiway) });
+// The BB 50bb drill plays the spots its charts are made for.
+const BB50_CFG = { stack: 50, open: '2.5', ko: false, stage: '100', multiway: false };
+const BB50_SPOTS = ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'limp', 'limp3bet'];
+const gameCfg = (c) => c.drill === 'bb50' ? { ...BB50_CFG } : ({ stack: c.stack, open: c.open, ko: c.format === 'ko', stage: c.stage, multiway: c.drill === 'multiway' || (c.drill === 'full' && c.multiway) });
 
 const P = {
   cfg: { ...DEFAULT_CFG },
@@ -67,12 +71,13 @@ function setupView() {
     }, h('span.drill-icon', { 'aria-hidden': 'true' }, d.icon), h('strong', d.name), h('span.muted.small', d.desc), h('span.pill', d.mode === 'full' ? 'Main complète' : 'Spot unique')))),
     h('div.panel.setup-opts',
       field('Ta position', Segmented('Position', [{ value: 'any', label: 'Toutes' }, ...drill.heroes.map((p) => ({ value: p, label: POS[p] }))], c.hero, set('hero'))),
-      field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
-      field('Field restant', Segmented('Field restant', FIELD_STAGES.map(([value, label]) => ({ value, label })), c.stage, set('stage'))),
+      c.drill === 'bb50' ? field('Spot', h('p.small.muted', 'Toujours 50bb, open 2.5bb (SB 3.5bb), Vanilla en début de tournoi : les réglages de tes charts.')) : null,
+      c.drill === 'bb50' ? null : field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
+      c.drill === 'bb50' ? null : field('Field restant', Segmented('Field restant', FIELD_STAGES.map(([value, label]) => ({ value, label })), c.stage, set('stage'))),
       c.drill === 'full' ? field('Multiway', h('label.check', h('input', { type: 'checkbox', checked: c.multiway, on: { change: (e) => { c.multiway = e.target.checked; } } }), ' Autoriser les coups à 3 joueurs ou plus')) : null,
-      field('Stack effectif', h('label.pick-field', h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => { c.stack = +e.target.value; } } },
+      c.drill === 'bb50' ? null : field('Stack effectif', h('label.pick-field', h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => { c.stack = +e.target.value; } } },
         STACKS.map((s) => h('option', { value: String(s), selected: s === c.stack }, s + 'bb'))))),
-      field('Taille d\'open', Segmented('Taille d\'open', [{ value: '2', label: '2bb' }, { value: '2.5', label: '2.5bb' }, { value: '4.5', label: '4.5bb' }], c.open, set('open'))),
+      c.drill === 'bb50' ? null : field('Taille d\'open', Segmented('Taille d\'open', [{ value: '2', label: '2bb' }, { value: '2.5', label: '2.5bb' }, { value: '4.5', label: '4.5bb' }], c.open, set('open'))),
       field('Difficulté', Segmented('Difficulté', [{ value: 'standard', label: 'Tailles exactes' }, { value: 'simple', label: 'Simple' }], c.difficulty, set('difficulty'))),
       field('RNG', Segmented('RNG', [{ value: 'off', label: 'Désactivé' }, { value: 'high', label: 'Haut' }, { value: 'low', label: 'Bas' }], c.rng, set('rng'))),
       field('Temps par décision', Segmented('Timebank', [{ value: 0, label: 'Illimité' }, { value: 7, label: '7s' }, { value: 15, label: '15s' }, { value: 25, label: '25s' }], c.timebank, set('timebank'))),
@@ -223,7 +228,16 @@ function dealHand() {
     return;
   }
   if (drill.id === 'rfi') st = foldTo(st, hero);
-  else if (drill.id === 'vsopen') {
+  else if (drill.id === 'bb50') {
+    const spot = rand(BB50_SPOTS);
+    const take = (s, t) => applyAction(s, legalActions(s).find((a) => a.type === t));
+    if (spot.startsWith('limp')) {
+      st = take(foldTo(st, 4), 'call'); // SB limps
+      if (spot === 'limp3bet') st = take(take(st, 'raise'), 'raise'); // BB raises, SB re-raises
+    } else {
+      st = foldTo(take(foldTo(st, POS.indexOf(spot)), 'raise'), 5);
+    }
+  } else if (drill.id === 'vsopen') {
     const opener = rand([0, 1, 2, 3, 4].filter((p) => p < hero));
     st = foldTo(st, opener);
     st = applyAction(st, legalActions(st).find((a) => a.type === 'raise'));
@@ -375,13 +389,23 @@ function explain(node, i) {
   if (Number.isFinite(eq)) parts.push(players > 2 ? `À ${players} joueurs, ta part estimée du pot est de ${pct(eq)} (la moyenne serait de ${Math.round(100 / players)} %).` : `Ton équité contre sa range est de ${pct(eq)}.`);
   if (call > 0 && st.raiseLevel > 0) parts.push(`Payer coûte ${num(call)}bb pour un pot de ${num(pot(st))}bb : il te faut environ ${pct(call / (pot(st) + call))} d'équité pour être rentable, avant position et mises futures.`);
   if (st.street === 0 && st.raiseLevel === 0 && st.toAct <= 4) {
-    const code = chartCode(st.toAct, CLASSES[CLASS_OF_COMBO[i]]);
+    const code = chartCode(st.toAct, CLASSES[CLASS_OF_COMBO[i]], st.cfg.stack);
     const flex = {
       L: 'Loosifie (ouvre-la quand tu joues plus large)', T: 'Tightfie (jette-la quand tu joues plus serré)',
       X: 'moitié Raise, moitié Tightfie', H: 'raise ou limp, 50/50',
     }[code];
     const plain = { R: 'toujours raise', M: 'limp', F: 'fold' }[code];
-    parts.push(flex ? `Ton chart : ${flex}. Style : ${getOpenStyle()}.` : `Ton chart : ${plain}.`);
+    const name = `Ton chart ${chartDepth(st.cfg.stack)}bb`;
+    parts.push(flex ? `${name} : ${flex}. Style : ${getOpenStyle()}.` : `${name} : ${plain}.`);
+  }
+  const ch = bbChart(st);
+  if (ch) {
+    const code = bbCode(ch, CLASSES[CLASS_OF_COMBO[i]]);
+    const text = {
+      R: ch.raiseLabel.toLowerCase(), B: '3bet light (relance en bluff)', C: 'call', K: 'check', F: 'fold',
+      c: 'call ou fold, 50/50', r: `${ch.raiseLabel.toLowerCase()} ou call, 50/50`,
+    }[code];
+    parts.push(`Ton chart 50bb (${ch.title}) : ${text}.`);
   }
   return parts.join(' ');
 }

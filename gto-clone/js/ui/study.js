@@ -12,10 +12,11 @@ const OPEN_LABELS = { limp: 'Limp 1bb', 2: '2bb', 2.5: '2.5bb (SB 3.5)', 4.5: '4
 const STAGE_LABELS = { 100: 'Début (100 %)', 50: '50 % restants', 25: '25 % restants', 10: '10 % restants', semi: 'Demi-finale', ft: 'Table finale', hu: 'Heads-up' };
 import {
   analyze, isCached, classSummary, overallFreqs, comboFreqs, comboEVs, classAverage, rangeCombos,
-  chartCode, codeFreqs, getOpenStyle, setOpenStyle,
+  chartCode, codeFreqs, getOpenStyle, setOpenStyle, chartDepth, bbChart, bbCode,
 } from '../engine/strategy.js';
 import { getSettings, setSetting } from '../store.js';
 import { TAG_NAMES } from '../data/open-charts.js';
+import { BB_CODES } from '../data/charts-50.js';
 import { scenarioReport, requiredEquity, riskPremium, STAGE_SCENARIOS, stageBubbleFactor, MAX_PLAYERS } from '../engine/icm.js';
 
 const ui = {
@@ -131,7 +132,7 @@ function render() {
   const node = analyze(st);
   mount(root, head, h('div.study-main',
     h('section.study-left', { 'aria-label': 'Vue stratégie' }, toolbar(node), mainView(node)),
-    h('aside.study-side', infoBox(node), icmPanel(), chartPanel(node), actionsTable(node), handDetail(node), categoryFilters(node))));
+    h('aside.study-side', infoBox(node), icmPanel(), chartPanel(node), bbChartPanel(node), actionsTable(node), handDetail(node), categoryFilters(node))));
 }
 const stateKeyNow = () => ui.history.length;
 
@@ -267,7 +268,7 @@ function mainView(node) {
     cells, roles: roles(node), order: orderOf(node), mode, gridMode: s.gridMode, showNumbers: s.cellNumbers,
     selected: ui.selected, hover: ui.hover, filterAction: ui.filterAction, dim: dimCat,
     label: `${POS[node.actor]} strategy`,
-    marks: isFirstIn(node) ? (i) => { const k = chartCode(node.actor, CLASSES[i]); return 'LTXH'.includes(k) ? k : null; } : null,
+    marks: chartMarks(node),
     onHover: (i) => { if (ui.hover !== i) { ui.hover = i; refreshDetail(node); } },
     onSelect: (i) => { ui.selected = ui.selected === i ? null : i; render(); },
   }));
@@ -445,7 +446,7 @@ function handDetail(node) {
     box.append(FreqBar(order.map((k) => ({ ...rs[k], freq: f[k] })), { height: 16, labels: true }),
       h('table.mini', h('tbody', order.map((k) => h('tr', h('td', h('span.swatch', { style: { background: `var(--act-${rs[k].role})` } }), ' ', rs[k].label), h('td.mono', pct(f[k], 1)), h('td.mono.muted', 'EV ' + num(ev[k], 2)))))),
       h('p.muted.small', `Équité ${pct(classAverage(eq, node, node.actor, cls), 1)} · poids ${pct(w[i], 0)}`),
-      isFirstIn(node) && TAG_NAMES[chartCode(node.actor, cls)] ? h('p.small.tag-note', 'Dans ton chart : ', h('strong', TAG_NAMES[chartCode(node.actor, cls)])) : null);
+      chartNote(node, cls));
   } else {
     box.append(h('div.combo-list', inRange.slice(0, 16).map((i) => {
       const f = comboFreqs(node, i);
@@ -469,7 +470,7 @@ function chartPanel(node) {
   const p = node.actor;
   const share = {};
   for (const c of CLASSES) {
-    const k = chartCode(p, c);
+    const k = chartCode(p, c, node.st.cfg.stack);
     share[k] = (share[k] || 0) + c.combos.length / 1326;
   }
   const open = node.actions.find((a) => a.type === 'raise' || a.type === 'allin');
@@ -478,9 +479,10 @@ function chartPanel(node) {
     ? [[raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Fold', 'F', 'var(--act-fold)']]
     : [[raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']];
   const style = getOpenStyle();
+  const stack = node.st.cfg.stack, depth = chartDepth(stack);
   return h('section.panel.chart-panel', { 'aria-label': 'Ton chart d\'open' },
-    h('div.panel-title', `Ton chart · ${POS[p]} first in`),
-    node.st.cfg.stack !== 100 ? h('p.small.muted', `Tes charts sont faits pour 100bb ; à ${node.st.cfg.stack}bb ils sont appliqués tels quels.`) : null,
+    h('div.panel-title', `Ton chart ${depth}bb · ${POS[p]} first in`),
+    stack !== depth ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart ${depth}bb qui s'applique tel quel.`) : null,
     h('ul.chart-rows', rows.filter(([, k]) => share[k]).map(([label, k, color]) => h('li',
       color ? h('span.swatch', { style: { background: color } }) : h('span.swatch.mark-' + k),
       label, h('span.mono', pct(share[k], 1))))),
@@ -488,6 +490,52 @@ function chartPanel(node) {
       { value: 'tight', label: 'Tight' }, { value: 'standard', label: 'Standard' }, { value: 'loose', label: 'Loose' },
     ], style, (v) => { setSetting('openStyle', v); setOpenStyle(v); render(); }),
     p === 4 ? null : h('p.small.muted', style === 'tight' ? 'Tight : les mains Tightfie se couchent.' : style === 'loose' ? 'Loose : les mains Loosifie s\'ouvrent aussi.' : 'Standard : les mains Tightfie s\'ouvrent, les Loosifie se couchent.'));
+}
+
+// The BB's 50bb chart for this spot, when there is one. Split cells count
+// half to each side. Shares count only the hands still in the BB's range
+// (all of them, except vs a limp-reraise).
+function bbChartPanel(node) {
+  const ch = bbChart(node.st);
+  if (!ch) return null;
+  const w = node.ranges[node.actor];
+  const s = { raise: 0, light: 0, call: 0, fold: 0 };
+  let tot = 0;
+  for (const c of CLASSES) {
+    const k = bbCode(ch, c), f = BB_CODES[k];
+    const n = c.combos.reduce((a, i) => a + w[i], 0);
+    tot += n;
+    if (k === 'B') { s.light += n; continue; }
+    s.raise += n * f.raise;
+    s.call += n * (k === 'K' ? 1 : f.call);
+    s.fold += n * (k === 'K' ? 0 : 1 - f.raise - f.call);
+  }
+  const passive = node.st.raiseLevel === 0 ? 'Check' : 'Call';
+  const rows = [
+    [ch.raiseLabel, s.raise, 'var(--act-bet-m)'], ['3bet light', s.light, 'var(--tag-light)'],
+    [passive, s.call, 'var(--act-call)'], ['Fold', s.fold, 'var(--act-fold)'],
+  ];
+  const stack = node.st.cfg.stack;
+  return h('section.panel.chart-panel', { 'aria-label': 'Ton chart BB' },
+    h('div.panel-title', `Ton chart 50bb · ${ch.title}`),
+    stack !== 50 ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart 50bb qui s'applique tel quel.`) : null,
+    h('ul.chart-rows', rows.filter(([, v]) => v > 0).map(([label, v, color]) => h('li',
+      h('span.swatch', { style: { background: color } }), label, h('span.mono', pct(v / tot, 1))))));
+}
+
+function chartMarks(node) {
+  if (isFirstIn(node)) return (i) => { const k = chartCode(node.actor, CLASSES[i], node.st.cfg.stack); return 'LTXH'.includes(k) ? k : null; };
+  const ch = bbChart(node.st);
+  return ch ? (i) => (bbCode(ch, CLASSES[i]) === 'B' ? 'B' : null) : null;
+}
+
+function chartNote(node, cls) {
+  if (isFirstIn(node)) {
+    const t = TAG_NAMES[chartCode(node.actor, cls, node.st.cfg.stack)];
+    return t ? h('p.small.tag-note', 'Dans ton chart : ', h('strong', t)) : null;
+  }
+  const ch = bbChart(node.st);
+  return ch && bbCode(ch, cls) === 'B' ? h('p.small.tag-note', 'Dans ton chart : ', h('strong', '3bet light (bluff)')) : null;
 }
 
 function categoryFilters(node) {
