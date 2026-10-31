@@ -87,7 +87,9 @@ function parseStarsHands(text) {
       seats, hero, cards: dealt ? dealt[2] + dealt[3] : null, ...body, bounty,
     });
   }
-  return { room: 'PokerStars', tid: hands[0]?.tid, hands, hero: hands.find((x) => x.hero)?.hero || null, isKO: /bounty/i.test(text) };
+  // Buy-in from the hand header, for a tournament imported without its summary.
+  const buy = (text.match(/Tournament #\d+, (\S+(?:\+\S+)*)/) || [])[1] || '';
+  return { room: 'PokerStars', tid: hands[0]?.tid, hands, buyin: buy.split('+').map(money).reduce((a, b) => a + b, 0) || null, hero: hands.find((x) => x.hero)?.hero || null, isKO: /bounty/i.test(text) };
 }
 
 // The body of one hand, the same for both rooms: blinds and antes, the actions
@@ -176,7 +178,8 @@ function parseWinamaxHands(text) {
       seats, hero: dealt && dealt[1], cards: dealt ? dealt[2] + dealt[3] : null, ...body, bounty: 0,
     });
   }
-  return { room: 'Winamax', tid: hands[0]?.tid, hands, hero: hands.find((x) => x.hero)?.hero || null, isKO: /bounty|KO/i.test(text) };
+  const buy = (text.match(/buyIn: (.+?) level:/) || [])[1] || '';
+  return { room: 'Winamax', tid: hands[0]?.tid, hands, buyin: buy.split('+').map(money).reduce((a, b) => a + b, 0) || null, hero: hands.find((x) => x.hero)?.hero || null, isKO: /bounty|KO/i.test(text) };
 }
 
 export function parseFile(text) {

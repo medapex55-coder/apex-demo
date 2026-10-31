@@ -97,6 +97,7 @@ export function importFiles(files, { source = 'manual' } = {}) {
       t.session = t.session || sid;
       if (hh.hero && !db.screenNames.includes(hh.hero)) db.screenNames.push(hh.hero);
       if (hh.isKO && !t.typeSet && t.type === 'vanilla') t.type = 'ko';
+      if (hh.buyin) t.hhBuyin = hh.buyin; // only for the ABI: profit waits for the summary
       if (!t.name || t.name.startsWith(hh.room + ' #')) t.name = hh.hands[0]?.name || t.name;
       // Hands already stored (same hand number) are replaced, never doubled.
       const ids = new Set(hh.hands.map((x) => String(x.id)));

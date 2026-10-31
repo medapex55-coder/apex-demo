@@ -5,6 +5,7 @@ import { parseCard, COMBOS, CLASS_BY_NAME, comboIndex } from './engine/cards.js'
 import { evalHand, classify } from './engine/evaluator.js';
 import { rangeEquity, weightedMean } from './engine/equity.js';
 import { levelOf, streakOf } from './data/progress.js';
+import { playSessions, abi } from './data/playsessions.js';
 import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS, alive, isIP } from './engine/game.js';
 import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale } from './engine/strategy.js';
 import { icmEquities, bubbleFactor, requiredEquity } from './engine/icm.js';
@@ -504,6 +505,19 @@ await test('U31', '50bb charts: opens and every BB spot follow the user charts',
   assert(f(st, 'AKs').allin === 1 && f(st, 'AA').call === 1 && f(st, 'KTo').fold === 1, 'vs limp-reraise: AKs shove, AA call, KTo fold');
   assert(f(foldTo(act(foldTo(initialState({ ...cfg, stack: 100 }), 3), 'raise'), 5), 'K4o').raise !== 1, 'no 50bb chart at 100bb');
 });
+await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
+  const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });
+  const list = [
+    t('1', '2026-10-30T17:00:00', 5), t('2', '2026-10-30T23:30:00', 10), t('3', '2026-10-31T02:30:00', 3),
+    t('4', '2026-10-31T17:05:00', 20), t('5', '2026-11-01T03:30:00', 2), { tid: '6' },
+  ];
+  const hands = [{ t: '3', at: '2026-10-31T05:00:00' }, { t: '7', at: '2026-10-31T06:00:00' }];
+  const s = playSessions(list, hands);
+  assert(s.map((x) => x.tours.map((y) => y.tid).join('')).join('|') === '5|4|123|6', s.map((x) => x.tours.map((y) => y.tid).join('')).join('|'));
+  assert(new Date(s[2].end).getHours() === 5 && s[3].start === null, 'night ends at the last hand, no-date group last');
+  near(abi(list.slice(0, 3)), 6, 1e-9, 'ABI (5+10+3)/3');
+  assert(Number.isNaN(abi([])), 'no ABI without tournaments');
+});
 
 // ---------- flows in the real app ----------
 const frame = document.getElementById('frame');
@@ -640,7 +654,7 @@ await test('F10-H1', 'my data: an import is a session with a recap, a run meter 
   assert(ds.getTournaments().length === 1 && ds.getHandRecords().length === 2 && ds.getImportSessions().length === 1, 'no duplicate tournament, hand or session');
   await load('#/data');
   const sess = await waitFor(() => doc().querySelector('.import-session'));
-  assert(/1 tournoi/.test(sess.textContent) && /2 mains/.test(sess.textContent), `recap: ${sess.querySelector('.recap').textContent}`);
+  assert(/1 tournoi/.test(sess.textContent) && /2 mains/.test(sess.textContent) && /ABI 5,00/.test(sess.textContent), `recap: ${sess.querySelector('.recap').textContent}`);
   assert(doc().querySelector('.run-bar .run-marker') && doc().querySelector('svg.wchart polyline'), 'run meter and graph');
   await load('#/leaks');
   await waitFor(() => doc().querySelectorAll('.hud-stat').length >= 7);

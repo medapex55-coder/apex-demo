@@ -132,7 +132,7 @@ function render() {
   const node = analyze(st);
   mount(root, head, h('div.study-main',
     h('section.study-left', { 'aria-label': 'Vue stratégie' }, toolbar(node), mainView(node)),
-    h('aside.study-side', infoBox(node), icmPanel(), chartPanel(node), bbChartPanel(node), actionsTable(node), handDetail(node), categoryFilters(node))));
+    h('aside.study-side', infoBox(node), icmPanel(), chartPanel(node), bbChartPanel(node), modelNote(node), actionsTable(node), handDetail(node), categoryFilters(node))));
 }
 const stateKeyNow = () => ui.history.length;
 
@@ -521,6 +521,12 @@ function bbChartPanel(node) {
     stack !== 50 ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart 50bb qui s'applique tel quel.`) : null,
     h('ul.chart-rows', rows.filter(([, v]) => v > 0).map(([label, v, color]) => h('li',
       h('span.swatch', { style: { background: color } }), label, h('span.mono', pct(v / tot, 1))))));
+}
+
+// Preflop spots with no chart of the user's: say where the strategy comes from.
+function modelNote(node) {
+  if (node.st.street !== 0 || isFirstIn(node) || bbChart(node.st)) return null;
+  return h('p.small.muted.model-note', 'Pas de chart fourni pour ce spot : stratégie du modèle Spotwise, construite à partir des ranges d\'open, de la position et du prix. C\'est une approximation, pas un calcul de solveur.');
 }
 
 function chartMarks(node) {

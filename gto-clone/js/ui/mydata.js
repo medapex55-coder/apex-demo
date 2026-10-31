@@ -2,9 +2,10 @@ import { h, mount, num, toast } from './dom.js';
 import { StatTile } from './components.js';
 import { WinningsChart } from './chart.js';
 import {
-  importFiles, getTournaments, getHandRecords, getImportSessions, setType, removeTournament, clearAll, getScreenNames, setScreenNames,
+  importFiles, getTournaments, getHandRecords, setType, removeTournament, clearAll, getScreenNames, setScreenNames,
 } from '../data/datastore.js';
 import { results, runZone, reliability } from '../data/handstats.js';
+import { playSessions, abi, SESSION_HOURS } from '../data/playsessions.js';
 import { recordImport } from '../data/progress.js';
 import { celebrate } from './gamify.js';
 import { getGateway } from '../data/datastore.js';
@@ -138,7 +139,7 @@ function render() {
       drop: (e) => { e.preventDefault(); drop.classList.remove('over'); readFiles(e.dataTransfer.files); },
     },
   }, input, h('strong', 'Dépose tes fichiers de tournoi ici, ou clique pour les choisir'),
-  h('span.muted.small', 'Deux fichiers .txt par tournoi : le résumé et l\'historique des mains. Ils sont lus dans ton navigateur et n\'en sortent jamais. Chaque import forme une session.'));
+  h('span.muted.small', 'Deux fichiers .txt par tournoi : le résumé et l\'historique des mains. Ils sont lus dans ton navigateur et n\'en sortent jamais. Tes tournois sont regroupés en sessions de jeu.'));
 
   mount(root, h('div.data-page',
     h('div.row.between', h('h1', 'Mes données'),
@@ -170,11 +171,12 @@ function render() {
     all.length ? h('div.stats-row.wide',
       StatTile('Tournois', m.done.length, list.length > m.done.length ? `${list.length - m.done.length} en cours` : null),
       StatTile('Total des buy-ins', eur(m.cost)),
+      StatTile('ABI', eur(abi(list)), 'buy-in moyen'),
       StatTile('Total gagné', eur(m.won)),
       StatTile('Bénéfice', h('span', { class: m.profit >= 0 ? 'pos' : 'neg' }, signed(m.profit))),
       StatTile('ROI', roiText(m), `ITM ${Math.round(m.itm * 100)} %`)) : null,
     all.length ? runPanel(recs) : null,
-    all.length ? sessionsView(list) : h('div.empty-state', h('p.muted', 'Aucun tournoi pour l\'instant. Importe tes fichiers pour voir tes résultats ici, puis ouvre Leakfinder.')),
+    all.length ? sessionsView(list, recs) : h('div.empty-state', h('p.muted', 'Aucun tournoi pour l\'instant. Importe tes fichiers pour voir tes résultats ici, puis ouvre Leakfinder.')),
   ));
 }
 
@@ -240,25 +242,24 @@ export function runPanel(recs) {
       h('p.small.muted', `Calculé sur ${plural(r.hands, 'main', 'mains')}. En dessous de 1 000 mains, le résultat dépend surtout de la chance : ne tire pas de conclusion trop vite.`)));
 }
 
-// ---------- import sessions ----------
-function sessionsView(list) {
-  const sessions = getImportSessions();
-  const ids = new Set(sessions.map((s) => s.id));
-  const groups = sessions.map((s) => ({ s, tours: list.filter((t) => t.session === s.id) })).filter((g) => g.tours.length);
-  const older = list.filter((t) => !ids.has(t.session));
-  if (older.length) groups.push({ s: null, tours: older });
+// ---------- play sessions (10h windows) ----------
+const hhmm = (x) => new Date(x).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+function sessionsView(list, recs) {
+  const groups = playSessions(list, recs);
   return h('div.sessions',
-    h('h2', 'Sessions d\'import'),
-    groups.map(({ s, tours }, i) => {
+    h('h2', 'Sessions de jeu'),
+    h('p.small.muted', `Une session commence à ton premier tournoi et regroupe tous ceux lancés dans les ${SESSION_HOURS} heures qui suivent (ex. de 17h à 5h du matin). L'heure de fin est celle de ta dernière main importée (sans historique de mains : celle du dernier tournoi lancé).`),
+    groups.map(({ start, end, tours }, i) => {
       const m = money(tours);
       const hands = tours.reduce((a, t) => a + (t.handsCount || 0), 0);
       return h('details.panel.import-session', { open: i === 0 },
         h('summary',
-          h('strong', s ? `Session du ${fmtDate(s.at)}` : 'Imports précédents'),
-          s ? h('span.small.muted', plural(s.files, 'fichier', 'fichiers')) : null,
+          h('strong', start ? `Session du ${new Date(start).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}` : 'Date inconnue'),
+          start ? h('span.small.muted', `${hhmm(start)} → ${hhmm(end)}`) : null,
           h('span.recap',
             h('span', h('b', tours.length), tours.length > 1 ? ' tournois' : ' tournoi'),
             h('span', h('b', hands), hands > 1 ? ' mains' : ' main'),
+            h('span', 'ABI ', h('b', eur(abi(tours)))),
             h('span', 'ROI ', h('b', { class: m.roi >= 0 ? 'pos' : 'neg' }, roiText(m))),
             h('span', 'Résultat net ', h('b', { class: m.profit >= 0 ? 'pos' : 'neg' }, signed(m.profit))))),
         h('div.session-body', tourTable(tours)));
