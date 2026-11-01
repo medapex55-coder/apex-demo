@@ -36,8 +36,19 @@ export const LEVELS = [
 ];
 // Where the villain can sit for each drill: the opener (vs open), the 3-bettor
 // (vs 3-bet), the opener the BB defends against (BB 50bb).
-const VILLAINS = { vsopen: [0, 1, 2, 3, 4], vs3bet: [1, 2, 3, 4, 5], bb50: [0, 1, 2, 3, 4] };
-const villainOk = (drill, hero, v) => (drill === 'vsopen' ? v < hero : drill === 'vs3bet' ? v > hero : true);
+// (postflop, multiway: the villain is a player in the pot with you).
+const VILLAINS = { vsopen: [0, 1, 2, 3, 4], vs3bet: [1, 2, 3, 4, 5], bb50: [0, 1, 2, 3, 4], postflop: [0, 1, 2, 3, 4, 5], multiway: [0, 1, 2, 3, 4, 5] };
+const villainOk = (drill, hero, v) => (drill === 'vsopen' ? v < hero : drill === 'vs3bet' ? v > hero : v !== hero);
+const CLASH = {
+  vsopen: 'Le vilain doit parler avant toi : choisis une position plus tôt.',
+  vs3bet: 'Le vilain doit parler après toi : choisis une position plus tard.',
+  postflop: 'Le vilain ne peut pas être à ta place.', multiway: 'Le vilain ne peut pas être à ta place.',
+};
+const NO_VILLAIN = {
+  rfi: 'Personne n\'a encore joué : tu ouvres face à toute la table. Pour cibler un vilain, choisis « Face à un open » ou « Face à un 3-bet ».',
+  srp: 'Toujours BTN contre BB : le vilain est l\'autre joueur.',
+  full: 'Main complète à six : tous les joueurs sont là.',
+};
 const COVERS = [{ value: 'equal', label: 'Stacks égaux' }, { value: 'hero', label: 'Tu couvres' }, { value: 'villain', label: 'Le vilain te couvre' }];
 // cfg.big: the hero covers everyone; cfg.short: everyone covers the hero.
 const coverCfg = (cover, hero) => (cover === 'hero' ? { big: hero } : cover === 'villain' ? { short: hero } : {});
@@ -94,9 +105,14 @@ function setupView() {
     h('div.panel.setup-opts',
       field('Difficulté', h('div', Segmented('Difficulté', LEVELS.map(({ value, label }) => ({ value, label })), c.level, set('level')), h('p.small.muted', level.desc))),
       field('Ta position', Segmented('Position', [{ value: 'any', label: 'Toutes' }, ...drill.heroes.map((p) => ({ value: p, label: POS[p] }))], c.hero, set('hero'))),
-      villains ? field('Position du vilain', h('div', Segmented('Position du vilain', [{ value: 'any', label: 'Toutes' }, ...villains.map((p) => ({ value: p, label: POS[p] }))], c.villain, set('villain')),
-        clash ? h('p.small.neg', c.drill === 'vsopen' ? 'Le vilain doit parler avant toi : choisis une position plus tôt.' : 'Le vilain doit parler après toi : choisis une position plus tard.') : null)) : null,
-      c.drill === 'rfi' ? null : field('Tapis', h('div', Segmented('Tapis', COVERS, c.cover, set('cover')),
+      field('Position du vilain', villains
+        ? h('div', Segmented('Position du vilain', [{ value: 'any', label: 'Toutes' }, ...villains.map((p) => ({ value: p, label: POS[p] }))], c.villain, set('villain')),
+          clash ? h('p.small.neg', CLASH[c.drill]) : null)
+        : h('p.small.muted', NO_VILLAIN[c.drill])),
+      field('Tapis', h('div',
+        h('div.radio-row', { role: 'radiogroup', 'aria-label': 'Tapis' }, COVERS.map((o) => h('label.check',
+          h('input', { type: 'radio', name: 'cover', value: o.value, checked: c.cover === o.value, on: { change: () => set('cover')(o.value) } }), ' ', o.label))),
+        c.drill === 'rfi' && c.cover !== 'equal' ? h('p.small.muted', 'En ouverture, ton chart s\'applique tel quel : le tapis compte dès qu\'un vilain relance ou paie.') : null,
         c.cover !== 'equal' && chipEV ? h('p.small.muted', 'En Vanilla au début du tournoi, couvrir ou être couvert ne change pas la stratégie (pas d\'ICM, pas de prime). Choisis KO ou un field plus avancé pour voir la différence.') : null)),
       c.drill === 'bb50' ? field('Spot', h('p.small.muted', 'Toujours 50bb, open 2.5bb (SB 3.5bb), Vanilla en début de tournoi : les réglages de tes charts.')) : null,
       c.drill === 'bb50' ? null : field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
@@ -187,10 +203,16 @@ const actOf = (st, ...types) => legalActions(st).find((a) => types.includes(a.ty
 // Preflop line that reaches the flop with the hero in the pot: a raised pot
 // (30% 3-bet pots) for "postflop", an open with 1 or 2 cold-callers (plus the
 // big blind sometimes) for "multiway". Null when the spot can't be built.
-function flopLine(st0, kind, heroPick) {
-  for (let tries = 0; tries < 40; tries++) {
+function flopLine(st0, kind, heroPick, villain = null) {
+  // Seats that must be in the pot: the hero (when fixed) and the villain.
+  const need = [heroPick, villain].filter((p) => p !== 'any' && p != null);
+  const first = need.length ? Math.min(...need) : 5;
+  for (let tries = 0; tries < 60; tries++) {
     let st = st0;
-    const opener = rand(kind === 'multiway' ? [0, 1, 2, 3] : [0, 1, 2, 3, 4]);
+    const openers = (kind === 'multiway' ? [0, 1, 2, 3] : [0, 1, 2, 3, 4]).filter((p) => p <= first);
+    if (!openers.length) return null;
+    // Heads-up with both seats known: the earlier one opens, the later one calls.
+    const opener = kind !== 'multiway' && need.length === 2 ? first : rand(openers);
     st = foldTo(st, opener);
     const open = actOf(st, 'raise');
     if (!open) return null;
@@ -198,7 +220,7 @@ function flopLine(st0, kind, heroPick) {
     let inPot = [opener];
     if (kind === 'multiway') {
       const later = [opener + 1, opener + 2, opener + 3, opener + 4, opener + 5].filter((p) => p <= 5);
-      const want = new Set([rand(later), rand(later), ...(Math.random() < 0.5 ? [5] : [])]);
+      const want = new Set([rand(later), rand(later), ...(Math.random() < 0.5 ? [5] : []), ...need.filter((p) => p !== opener)]);
       for (let guard = 0; guard < 8 && !st.needBoard && !st.terminal; guard++) {
         const p = st.toAct;
         const a = want.has(p) ? actOf(st, 'call', 'check') : actOf(st, 'fold', 'check');
@@ -207,7 +229,8 @@ function flopLine(st0, kind, heroPick) {
       }
       if (inPot.length < 3) continue;
     } else {
-      const caller = rand([1, 2, 3, 4, 5].filter((p) => p > opener));
+      const later = need.filter((p) => p > opener);
+      const caller = later.length ? later[0] : rand([1, 2, 3, 4, 5].filter((p) => p > opener));
       st = foldTo(st, caller);
       if (Math.random() < 0.3) {
         const three = actOf(st, 'raise');
@@ -224,8 +247,8 @@ function flopLine(st0, kind, heroPick) {
       inPot = [opener, caller];
     }
     if (!st.needBoard || inPot.some((p) => remaining(st, p) <= 0)) continue;
-    if (heroPick !== 'any' && !inPot.includes(heroPick)) continue;
-    return { st, hero: heroPick === 'any' ? rand(inPot) : heroPick };
+    if (need.some((p) => !inPot.includes(p))) continue;
+    return { st, hero: heroPick === 'any' ? rand(inPot.filter((p) => p !== villain)) : heroPick };
   }
   return null;
 }
@@ -274,7 +297,7 @@ function dealHand() {
   }
   if (drill.id === 'postflop' || drill.id === 'multiway') {
     // With a covering option the hero seat must be fixed before the line.
-    const line = flopLine(st, drill.id, P.cfg.cover !== 'equal' ? hero : P.cfg.hero);
+    const line = flopLine(st, drill.id, P.cfg.cover !== 'equal' ? hero : P.cfg.hero, vil);
     if (!line) { P.session.hands++; hand.over = true; hand.result = 'Spot impossible à ces réglages (stack trop court ?) : change le stack ou la position.'; render(); return; }
     hand.hero = hero = line.hero;
     dealFromRanges(hand, line.st);
@@ -591,7 +614,7 @@ function tableView() {
       st.cfg.big != null ? h('span.pill', 'Tu couvres') : st.cfg.short != null ? h('span.pill', 'Tu es couvert') : null,
       hand.rng ? h('span.dice', { title: 'RNG roll' }, '🎲 ' + hand.rng) : null,
       P.cfg.timebank && myTurn ? h('span.timer', P.timeLeft + 's') : null,
-      h('span.grow'), h('button.btn.ghost.sm', { type: 'button', on: { click: endSession } }, 'Terminer la session')),
+      h('span.grow'), h('button.btn.ghost.sm', { type: 'button', on: { click: () => endSession() } }, 'Terminer la session')),
     h('div.felt-wrap', h('div.felt',
       h('div.felt-center', h('div.board', st.board.map((c) => PlayingCard(c, 'md'))), h('div.pot', 'Pot ', h('strong', num(pot(st)) + 'bb')),
         hand.result ? h('div.result', hand.result) : null),

@@ -807,7 +807,7 @@ await test('F16-H1', 'practice: villain seat and covering are used', async () =>
   await sleep(50);
   doc().querySelector('[aria-label="Position du vilain"] button:nth-child(5)').click(); // BTN
   await sleep(50);
-  [...doc().querySelectorAll('[aria-label="Tapis"] button')].find((b) => b.textContent === 'Tu couvres').click();
+  doc().querySelector('[aria-label="Tapis"] input[value="hero"]').click();
   await sleep(50);
   doc().querySelector('[aria-label="Position"] button:nth-child(2)').click(); // HJ: before the BTN
   await sleep(50);
@@ -822,6 +822,27 @@ await test('F16-H1', 'practice: villain seat and covering are used', async () =>
     doc().querySelector('[aria-label="Tes actions"] button.act').click();
     await waitFor(() => doc().querySelector('.feedback'));
     byRole('button', 'Main suivante').click();
+  }
+  byRole('button', 'Terminer la session').click();
+});
+await test('F16-H2', 'practice: every drill shows the villain and Tapis fields; postflop deals the chosen villain', async () => {
+  await load('#/practice');
+  for (const d of ['Ouverture', 'BTN vs BB au flop', 'Mains complètes', 'Postflop']) {
+    byRole('button', d).click();
+    await sleep(30);
+    const labels = [...doc().querySelectorAll('.setup-opts .field-label')].map((l) => l.textContent);
+    assert(labels.includes('Position du vilain') && labels.includes('Tapis') && doc().querySelectorAll('[aria-label="Tapis"] input[type="radio"]').length === 3, `${d}: ${labels}`);
+  }
+  doc().querySelector('[aria-label="Position du vilain"] button:nth-child(7)').click(); // BB
+  await sleep(30);
+  byRole('button', 'Commencer la session').click();
+  for (let n = 0; n < 3; n++) {
+    await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act') || /impossible/.test(doc().querySelector('.result')?.textContent || ''));
+    const seats = [...doc().querySelectorAll('.seat:not(.folded) .seat-plate strong')].map((s) => s.textContent);
+    assert(seats.includes('BB') && !doc().querySelector('.seat.hero .seat-plate strong').textContent.includes('BB'), `BB is the villain (${seats})`);
+    byRole('button', 'Terminer la session').click();
+    await sleep(30);
+    byRole('button', 'Commencer la session').click();
   }
   byRole('button', 'Terminer la session').click();
 });

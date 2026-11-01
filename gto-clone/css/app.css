@@ -606,3 +606,4 @@ h1 { font-size: 26px; }
 }
 .cal-corner { position: sticky; top: 0; left: 0; z-index: 4; background: var(--surface-2); border-bottom: 1px solid var(--border); grid-column: 1; grid-row: 1; }
 .cal-hour { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.radio-row { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); }
