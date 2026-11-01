@@ -272,7 +272,8 @@ export function actionKey(act) {
 export function stateKey(st) {
   const fmt = (st.cfg.ko ? '/ko' : '') + (st.cfg.stage && st.cfg.stage !== '100' ? '/' + st.cfg.stage : '') + (st.cfg.bf != null ? '/bf' + st.cfg.bf.toFixed(3) : '');
   const pl = st.cfg.players ? '/p' + JSON.stringify(st.cfg.players) : '';
-  return `${st.cfg.stack}bb/${st.cfg.open}${fmt}${st.cfg.multiway ? '/mw' : ''}${pl}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
+  const cov = st.cfg.big != null ? '/big' + st.cfg.big : st.cfg.short != null ? '/short' + st.cfg.short : '';
+  return `${st.cfg.stack}bb/${st.cfg.open}${fmt}${st.cfg.multiway ? '/mw' : ''}${pl}${cov}#` + st.history.map((h) => h.kind === 'deal' ? '/' + h.cards.map(cardStr).join('') : POS[h.p] + ':' + actionKey(h.act)).join('|');
 }
 
 export function actionLabel(st, act, units = 'bb') {

@@ -21,9 +21,24 @@ import {
 // Bounties pay you for calling and isolating, so KO formats widen them.
 const KO_BONUS = { 100: 0.1, 50: 0.12, 25: 0.15, 10: 0.15, semi: 0.15, ft: 0.15, hu: 0.1 };
 export const spotBubbleFactor = (cfg) => cfg.bf ?? stageBubbleFactor(cfg.stage || '100');
-export function rangeScale(cfg) {
+// Covering (Practice option): cfg.big = the seat that covers everyone,
+// cfg.short = the seat everyone covers. The player who covers risks only part
+// of the stack (half the ICM pressure) and can win the bounty (1.5x the KO
+// bonus); the covered player risks busting (1.3x the pressure) and can't win
+// the coverer's bounty. In chip EV (no ICM, no bounty) it changes nothing.
+export function coverOf(cfg, p) {
+  if (p == null) return null;
+  if (cfg.big != null) return p === cfg.big ? 'covers' : 'covered';
+  if (cfg.short != null) return p === cfg.short ? 'covered' : 'covers';
+  return null;
+}
+export function rangeScale(cfg, p) {
   const s = cfg.stage || '100';
-  return spotBubbleFactor(cfg) ** -0.8 * (1 + (cfg.ko ? KO_BONUS[s] : 0));
+  const cover = coverOf(cfg, p);
+  const bf = spotBubbleFactor(cfg);
+  const BF = cover ? 1 + (bf - 1) * (cover === 'covers' ? 0.5 : 1.3) : bf;
+  const ko = cfg.ko ? KO_BONUS[s] * (cover === 'covers' ? 1.5 : cover === 'covered' ? 0 : 1) : 0;
+  return BF ** -0.8 * (1 + ko);
 }
 const HU_OPEN = 0.8; // heads-up, the button (SB) opens most hands
 
@@ -155,7 +170,7 @@ function preflopClassFreqs(st, actions, range) {
   // Facing an all-in with no raise left: call with the top of the range,
   // wider as stacks get shorter (better price relative to the stack).
   // k scales every range that faces a limp or a raise (ICM tightens, bounties widen).
-  const k = rangeScale(st.cfg);
+  const k = rangeScale(st.cfg, p);
   const hu = isHU(st);
   const shoveCall = Math.min(0.6, (0.025 + 2 / st.cfg.stack) * k);
   const facingShove = rl >= 1 && iR < 0 && st.lastAggr >= 0 && remaining(st, st.lastAggr) <= 0;

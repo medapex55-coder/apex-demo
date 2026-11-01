@@ -11,6 +11,7 @@ const DEFAULT = {
   sessions: [],
   drills: [],
   progress: EMPTY_PROGRESS(),
+  program: { slots: [] },
 };
 
 let state = load();
@@ -24,6 +25,7 @@ function load() {
       ...structuredClone(DEFAULT), ...s,
       settings: { ...DEFAULT.settings, ...(s.settings || {}) },
       progress: { ...EMPTY_PROGRESS(), ...(s.progress || {}) },
+      program: { slots: [], ...(s.program || {}) },
     };
   } catch {
     return structuredClone(DEFAULT);
@@ -59,5 +61,9 @@ export function clearSessions() { state.sessions = []; save(); emit(); }
 
 export const getProgress = () => state.progress;
 export function saveProgress(p) { state.progress = p; save(); emit(); }
+
+// Programme: booked training slots.
+export const getSlots = () => state.program.slots;
+export function saveSlots(slots) { state.program = { ...state.program, slots }; save(); emit(); }
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);

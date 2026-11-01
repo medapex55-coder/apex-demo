@@ -5,6 +5,7 @@ import { renderPractice, practiceKey, leavePractice } from './ui/practice.js';
 import { renderStats } from './ui/stats.js';
 import { renderMyData } from './ui/mydata.js';
 import { renderLeaks } from './ui/leakfinder.js';
+import { renderProgram } from './ui/program.js';
 import { getSettings, setSetting, onChange } from './store.js';
 import { CLASSES } from './engine/cards.js';
 import { setOpenStyle } from './engine/strategy.js';
@@ -20,6 +21,7 @@ const ROUTES = {
   stats: { label: 'Progression', icon: '🏆', render: renderStats },
   data: { label: 'Mes données', icon: '📊', render: renderMyData },
   leaks: { label: 'Leakfinder', icon: '🔍', render: renderLeaks },
+  program: { label: 'Programme', icon: '📅', render: renderProgram },
   design: { label: 'Design', render: renderDesign, hidden: true },
 };
 
@@ -45,7 +47,7 @@ function topNav(active) {
   return h('header.topnav',
     h('a.brand', { href: '#/study' }, Logo(), h('span', 'Spotwise')),
     h('nav', { 'aria-label': 'Navigation principale' }, Object.entries(ROUTES).filter(([, r]) => !r.hidden).map(([id, r]) =>
-      h('a.navtab' + (id === active ? '.active' : ''), { href: '#/' + id, 'aria-current': id === active ? 'page' : null }, h('span.nav-icon', { 'aria-hidden': 'true' }, r.icon), r.label))),
+      h('a.navtab' + (id === active ? '.active' : ''), { href: '#/' + id, title: r.label, 'aria-label': r.label, 'aria-current': id === active ? 'page' : null }, h('span.nav-icon', { 'aria-hidden': 'true' }, r.icon), h('span.nav-label', r.label)))),
     h('span.grow'),
     PlayerChip(),
     h('button.icon-btn', { type: 'button', 'aria-label': 'Réglages', title: 'Réglages', on: { click: openSettings } },

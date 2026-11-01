@@ -57,7 +57,7 @@ export function modal(title, body, { onClose } = {}) {
   const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); prev?.focus?.(); onClose?.(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   const dlg = h('div.modal', { role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
-    h('div.modal-head', h('h2', title), h('button.icon-btn', { 'aria-label': 'Close', on: { click: close } }, '✕')),
+    h('div.modal-head', h('h2', title), h('button.icon-btn', { 'aria-label': 'Fermer', on: { click: close } }, '✕')),
     h('div.modal-body', body));
   const wrap = h('div.overlay', { on: { mousedown: (e) => { if (e.target === wrap) close(); } } }, dlg);
   document.body.append(wrap);

@@ -6,6 +6,7 @@ import { evalHand, classify } from './engine/evaluator.js';
 import { rangeEquity, weightedMean } from './engine/equity.js';
 import { levelOf, streakOf } from './data/progress.js';
 import { playSessions, abi } from './data/playsessions.js';
+import { planSlots, overlaps } from './data/program.js';
 import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS, alive, isIP } from './engine/game.js';
 import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale } from './engine/strategy.js';
 import { icmEquities, bubbleFactor, requiredEquity } from './engine/icm.js';
@@ -540,6 +541,48 @@ await test('U33', 'player profile: looseness widens or narrows a range, custom s
   const f = n.actions.map((_, k) => overallFreqs(n).freqs[k]);
   near(f.reduce((a, b) => a + b, 0), 1, 1e-6, 'frequencies sum to 1');
 });
+await test('U34', 'covering: matters in KO and ICM, not in chip EV', () => {
+  const bb = (cfg) => { let st = foldTo(initialState({ stack: 30, open: '2.5', ...cfg }), 3); st = foldTo(act(st, 'raise'), 5); return 1 - share(analyze(st), 'fold'); };
+  const ko = { ko: true, stage: '100' };
+  const eq = bb(ko), big = bb({ ...ko, big: 5 }), short = bb({ ...ko, short: 5 });
+  assert(big > eq + 0.01 && short < eq - 0.01, `KO defend: covering ${big.toFixed(3)}, equal ${eq.toFixed(3)}, covered ${short.toFixed(3)}`);
+  const ft = { stage: 'ft' };
+  assert(bb({ ...ft, big: 5 }) > bb({ ...ft, short: 5 }), 'final table: the covered player defends tighter');
+  near(bb({ big: 5 }), bb({}), 1e-9, 'vanilla start: no difference');
+});
+await test('U35', 'difficulty: Facile groups actions, GTO max only accepts the RNG action', () => {
+  // A 3-bet node with exact sizes: find a hand that mixes call and 3-bet.
+  let st = foldTo(initialState({ stack: 100, open: '2.5' }), 2);
+  st = foldTo(act(st, 'raise'), 5);
+  const n = analyze(st);
+  const iC = n.actions.findIndex((a) => a.type === 'call'), iR = n.actions.findIndex((a) => a.type === 'raise');
+  const i = [...Array(1326).keys()].find((c) => n.ranges[5][c] > 0 && comboFreqs(n, c)[iC] > 0.25 && comboFreqs(n, c)[iR] > 0.25);
+  assert(i != null, 'a mixed call / 3-bet hand exists');
+  const f = comboFreqs(n, i);
+  const minor = f[iC] < f[iR] ? iC : iR;
+  assert(gradeDecision(n, i, minor, null, 'off', 'medium').grade === 'correct', 'Moyen: the less played action is correct');
+  const roll = minor === iC ? 100 : 1; // a roll that lands on the other action
+  const g = gradeDecision(n, i, minor, roll, 'high', 'gto');
+  assert(g.bestK !== minor && g.grade === 'inaccuracy', `GTO max: off-RNG action is an inaccuracy (${g.grade})`);
+  const fold = n.actions.findIndex((a) => a.type === 'fold');
+  const easy = gradeDecision(n, CLASS_BY_NAME.AA.combos[0], iR, null, 'off', 'easy');
+  assert(easy.grade === 'best', 'Facile: raising AA is best');
+  assert(['wrong', 'blunder'].includes(gradeDecision(n, CLASS_BY_NAME.AA.combos[0], fold, null, 'off', 'easy').grade), 'Facile: folding AA is a mistake');
+});
+await test('U36', 'programme: slots take the most urgent spots in time order; random takes all', () => {
+  const spots = ['a', 'b', 'c', 'd', 'e'].map((key) => ({ key }));
+  const at = (d, h) => `2026-11-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:00`;
+  const now = new Date(at(2, 12)).getTime();
+  const slots = [
+    { id: 'late', start: at(4, 18), hours: 2 }, { id: 'soon', start: at(3, 18), hours: 1 },
+    { id: 'rand', start: at(5, 18), hours: 1, random: true }, { id: 'old', start: at(1, 18), hours: 1 }, { id: 'done', start: at(6, 18), hours: 1, done: {} },
+  ];
+  const p = planSlots(slots, spots, now);
+  const keys = (id) => (p.get(id) || []).map((s) => s.key).join('');
+  assert(keys('soon') === 'ab' && keys('late') === 'cdea' && keys('rand') === 'abcde', `${keys('soon')} ${keys('late')} ${keys('rand')}`);
+  assert(!p.has('old') && !p.has('done'), 'past and done slots are not planned');
+  assert(overlaps(slots, new Date(at(4, 19)).getTime(), 1) && !overlaps(slots, new Date(at(4, 20)).getTime(), 1), 'overlap check');
+});
 
 // ---------- flows in the real app ----------
 const frame = document.getElementById('frame');
@@ -757,6 +800,53 @@ await test('F15-H1', 'study ⋯: make the BTN loose and add a 3.5bb open', async
   doc().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   await sleep(50);
   assert(!doc().querySelector('.popover'), 'Escape closes');
+});
+await test('F16-H1', 'practice: villain seat and covering are used', async () => {
+  await load('#/practice');
+  byRole('button', 'Face à un open').click();
+  await sleep(50);
+  doc().querySelector('[aria-label="Position du vilain"] button:nth-child(5)').click(); // BTN
+  await sleep(50);
+  [...doc().querySelectorAll('[aria-label="Tapis"] button')].find((b) => b.textContent === 'Tu couvres').click();
+  await sleep(50);
+  doc().querySelector('[aria-label="Position"] button:nth-child(2)').click(); // HJ: before the BTN
+  await sleep(50);
+  assert(doc().querySelector('.setup .neg') && byRole('button', 'Commencer la session').disabled, 'HJ cannot face a BTN open');
+  doc().querySelector('[aria-label="Position"] button:nth-child(1)').click(); // any
+  await sleep(50);
+  byRole('button', 'Commencer la session').click();
+  for (let n = 0; n < 3; n++) {
+    await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
+    const seats = [...doc().querySelectorAll('.seat:not(.folded) .seat-plate strong')].map((s) => s.textContent);
+    assert(seats.includes('BTN') && /Tu couvres/.test(doc().querySelector('.table-top').textContent), `villain BTN, covering (${seats})`);
+    doc().querySelector('[aria-label="Tes actions"] button.act').click();
+    await waitFor(() => doc().querySelector('.feedback'));
+    byRole('button', 'Main suivante').click();
+  }
+  byRole('button', 'Terminer la session').click();
+});
+await test('F17-H1', 'programme: book a slot, launch it on a spot, the slot is marked done', async () => {
+  await load('#/program');
+  const free = await waitFor(() => doc().querySelector('.cal-cell.free'));
+  free.click();
+  const dlg = await waitFor(() => doc().querySelector('.modal'));
+  [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Réserver').click();
+  await waitFor(() => doc().querySelector('.cal-slot'));
+  // No imported data in the test profile: launch the slot on a hand-made spot.
+  const store = await frame.contentWindow.eval(`import('${new URL('js/store.js', frame.contentWindow.location.href).href}')`);
+  const pr = await frame.contentWindow.eval(`import('${new URL('js/ui/practice.js', frame.contentWindow.location.href).href}')`);
+  const slot = store.getSlots()[0];
+  pr.startProgram({ slotId: slot.id, spots: [{ title: 'BB vs open BTN · 50–80bb', d: { sc: 'VO', hp: 5, vp: 3, s: 50, o: '2.5' } }], random: false });
+  frame.contentWindow.location.hash = '#/practice';
+  const btn = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
+  assert(/BB vs open BTN/.test(doc().querySelector('.table-top').textContent), 'programme spot shown');
+  btn.click();
+  await waitFor(() => doc().querySelector('.feedback .why'));
+  assert(/Ton chart 50bb \(BB vs open BTN\)/.test(doc().querySelector('.feedback .why').textContent), 'graded against the 50bb chart');
+  byRole('button', 'Terminer la session').click();
+  await sleep(200);
+  assert(store.getSlots()[0].done?.decisions === 1, 'slot done');
+  store.saveSlots([]);
 });
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {
