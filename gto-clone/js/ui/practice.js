@@ -26,6 +26,8 @@ export const DRILLS = [
   { id: 'full', name: 'Mains complètes', icon: '♠️', desc: 'À six joueurs, de la donne jusqu\'à l\'abattage.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
   // Launched from Programme only: the spots to fix from Leakfinder.
   { id: 'program', name: 'Programme', icon: '📅', desc: 'Tes spots à corriger, planifiés dans Programme.', heroes: [0, 1, 2, 3, 4, 5], mode: 'spot', hidden: true },
+  // Opened from Leakfinder's « Étudier » button: one spot to fix.
+  { id: 'target', name: 'Spot ciblé', icon: '🎯', desc: 'Un spot à corriger ouvert depuis Leakfinder.', heroes: [0, 1, 2, 3, 4, 5], mode: 'spot', hidden: true },
 ];
 const FIELD_STAGES = [['100', 'Début'], ['50', '50 %'], ['25', '25 %'], ['10', '10 %'], ['semi', 'Demi-finale'], ['ft', 'Table finale']];
 
@@ -54,6 +56,7 @@ const COVERS = [{ value: 'equal', label: 'Stacks égaux' }, { value: 'hero', lab
 const coverCfg = (cover, hero) => (cover === 'hero' ? { big: hero } : cover === 'villain' ? { short: hero } : {});
 const rngMode = () => (P.cfg.level === 'gto' && P.cfg.rng === 'off' ? 'high' : P.cfg.rng);
 const HANDS_PER_SPOT = 10; // Programme: hands on a spot before the next one
+const SPOT_DRILLS = new Set(['program', 'target']); // drills that train Leakfinder spots
 
 const DEFAULT_CFG = {
   drill: 'rfi', hero: 'any', villain: 'any', cover: 'equal', stack: 100, open: '2.5', format: 'vanilla', stage: '100', multiway: false,
@@ -91,36 +94,43 @@ function render() {
 function setupView() {
   const c = P.cfg;
   const drill = DRILLS.find((d) => d.id === c.drill);
-  const set = (k) => (v) => { c[k] = v; if (k === 'drill') { c.hero = 'any'; c.villain = 'any'; } render(); };
+  const set = (k) => (v) => { c[k] = v; if (k === 'drill') { c.hero = 'any'; c.villain = 'any'; P.program = null; } render(); };
   const field = (label, control) => h('div.field', h('div.field-label', label), control);
   const villains = VILLAINS[c.drill];
   const clash = villains && c.hero !== 'any' && c.villain !== 'any' && !villainOk(c.drill, c.hero, c.villain);
   const level = LEVELS.find((l) => l.value === c.level);
   const chipEV = c.drill === 'bb50' || (c.format === 'vanilla' && c.stage === '100');
+  const t = c.drill === 'target' ? P.program?.spots[0] : null; // spot opened from Leakfinder
   return h('div.setup',
     h('div.setup-head', h('h1', 'Entraînement'), h('p.muted', 'Choisis un exercice, joue le spot et compare ton choix à la stratégie. La référence est la même que dans Étude : tes charts quand il y en a un pour le spot, sinon le modèle Spotwise.')),
-    h('div.drills', DRILLS.filter((d) => !d.hidden).map((d) => h('button.drill' + (d.id === c.drill ? '.on' : ''), {
+    t ? h('section.panel.target-spot',
+      h('div.row.between', h('div', h('div.small.muted', '🎯 Spot à corriger, ouvert depuis Leakfinder'), h('h2', t.title)),
+        h('button.btn.ghost.sm', { type: 'button', on: { click: () => set('drill')('rfi') } }, 'Choisir un autre exercice')),
+      h('p.small', t.story),
+      t.metric ? h('p.small.muted', `${t.metric.label} : toi ${Math.round(t.metric.you * 100)} %, cible ${Math.round(t.metric.target * 100)} %. ${t.metric.tip}`) : null,
+      h('p.small.muted', 'Toutes les mains de la session se jouent dans ce spot. Règle la difficulté puis clique sur « Commencer la session ».')) : null,
+    t ? null : h('div.drills', DRILLS.filter((d) => !d.hidden).map((d) => h('button.drill' + (d.id === c.drill ? '.on' : ''), {
       type: 'button', title: d.name, 'aria-pressed': d.id === c.drill ? 'true' : 'false', on: { click: () => set('drill')(d.id) },
     }, h('span.drill-icon', { 'aria-hidden': 'true' }, d.icon), h('strong', d.name), h('span.muted.small', d.desc), h('span.pill', d.mode === 'full' ? 'Main complète' : 'Spot unique')))),
     h('div.panel.setup-opts',
       field('Difficulté', h('div', Segmented('Difficulté', LEVELS.map(({ value, label }) => ({ value, label })), c.level, set('level')), h('p.small.muted', level.desc))),
-      field('Ta position', Segmented('Position', [{ value: 'any', label: 'Toutes' }, ...drill.heroes.map((p) => ({ value: p, label: POS[p] }))], c.hero, set('hero'))),
-      field('Position du vilain', villains
+      t ? null : field('Ta position', Segmented('Position', [{ value: 'any', label: 'Toutes' }, ...drill.heroes.map((p) => ({ value: p, label: POS[p] }))], c.hero, set('hero'))),
+      t ? null : field('Position du vilain', villains
         ? h('div', Segmented('Position du vilain', [{ value: 'any', label: 'Toutes' }, ...villains.map((p) => ({ value: p, label: POS[p] }))], c.villain, set('villain')),
           clash ? h('p.small.neg', CLASH[c.drill]) : null)
         : h('p.small.muted', NO_VILLAIN[c.drill])),
-      field('Tapis', h('div',
+      t ? null : field('Tapis', h('div',
         h('div.radio-row', { role: 'radiogroup', 'aria-label': 'Tapis' }, COVERS.map((o) => h('label.check',
           h('input', { type: 'radio', name: 'cover', value: o.value, checked: c.cover === o.value, on: { change: () => set('cover')(o.value) } }), ' ', o.label))),
         c.drill === 'rfi' && c.cover !== 'equal' ? h('p.small.muted', 'En ouverture, ton chart s\'applique tel quel : le tapis compte dès qu\'un vilain relance ou paie.') : null,
         c.cover !== 'equal' && chipEV ? h('p.small.muted', 'En Vanilla au début du tournoi, couvrir ou être couvert ne change pas la stratégie (pas d\'ICM, pas de prime). Choisis KO ou un field plus avancé pour voir la différence.') : null)),
-      c.drill === 'bb50' ? field('Spot', h('p.small.muted', 'Toujours 50bb, open 2.5bb (SB 3.5bb), Vanilla en début de tournoi : les réglages de tes charts.')) : null,
-      c.drill === 'bb50' ? null : field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
-      c.drill === 'bb50' ? null : field('Field restant', Segmented('Field restant', FIELD_STAGES.map(([value, label]) => ({ value, label })), c.stage, set('stage'))),
+      t ? field('Spot', h('p.small.muted', 'Position, vilain, stack, taille d\'open et format : ceux du spot de Leakfinder.')) : c.drill === 'bb50' ? field('Spot', h('p.small.muted', 'Toujours 50bb, open 2.5bb (SB 3.5bb), Vanilla en début de tournoi : les réglages de tes charts.')) : null,
+      t || c.drill === 'bb50' ? null : field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
+      t || c.drill === 'bb50' ? null : field('Field restant', Segmented('Field restant', FIELD_STAGES.map(([value, label]) => ({ value, label })), c.stage, set('stage'))),
       c.drill === 'full' ? field('Multiway', h('label.check', h('input', { type: 'checkbox', checked: c.multiway, on: { change: (e) => { c.multiway = e.target.checked; } } }), ' Autoriser les coups à 3 joueurs ou plus')) : null,
-      c.drill === 'bb50' ? null : field('Stack effectif', h('label.pick-field', h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => { c.stack = +e.target.value; } } },
+      t || c.drill === 'bb50' ? null : field('Stack effectif', h('label.pick-field', h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => { c.stack = +e.target.value; } } },
         STACKS.map((s) => h('option', { value: String(s), selected: s === c.stack }, s + 'bb'))))),
-      c.drill === 'bb50' ? null : field('Taille d\'open', Segmented('Taille d\'open', [{ value: '2', label: '2bb' }, { value: '2.5', label: '2.5bb' }, { value: '4.5', label: '4.5bb' }], c.open, set('open'))),
+      t || c.drill === 'bb50' ? null : field('Taille d\'open', Segmented('Taille d\'open', [{ value: '2', label: '2bb' }, { value: '2.5', label: '2.5bb' }, { value: '4.5', label: '4.5bb' }], c.open, set('open'))),
       field('RNG', h('div', Segmented('RNG', [{ value: 'off', label: 'Désactivé' }, { value: 'high', label: 'Haut' }, { value: 'low', label: 'Bas' }], c.rng, set('rng')),
         c.level === 'gto' && c.rng === 'off' ? h('p.small.muted', 'En GTO max, le RNG est activé (Haut).') : null)),
       field('Temps par décision', Segmented('Timebank', [{ value: 0, label: 'Illimité' }, { value: 7, label: '7s' }, { value: 15, label: '15s' }, { value: 25, label: '25s' }], c.timebank, set('timebank'))),
@@ -142,9 +152,16 @@ function startSession() {
 // blocks of HANDS_PER_SPOT hands) or all the spots to fix at random.
 export function startProgram({ slotId, spots, random, until }) {
   if (P.session) endSession(true);
-  P.program = { slotId, spots, random, until, prevDrill: P.cfg.drill === 'program' ? 'rfi' : P.cfg.drill };
+  P.program = { slotId, spots, random, until, prevDrill: SPOT_DRILLS.has(P.cfg.drill) ? 'rfi' : P.cfg.drill };
   P.cfg = { ...P.cfg, drill: 'program', hero: 'any', villain: 'any' };
   startSession();
+}
+
+// Leakfinder « Étudier »: preload one spot; the session starts from the setup screen.
+export function prepareSpot(target) {
+  if (P.session) endSession(true);
+  P.program = { slotId: null, spots: [target], random: false, prevDrill: SPOT_DRILLS.has(P.cfg.drill) ? 'rfi' : P.cfg.drill };
+  P.cfg = { ...P.cfg, drill: 'target', hero: 'any', villain: 'any' };
 }
 
 function endSession(quiet = false) {
@@ -155,7 +172,7 @@ function endSession(quiet = false) {
     celebrate({ badges: recordSession(s) });
   }
   if (P.program) {
-    if (s?.decisionsCount) markSlotDone(P.program.slotId, { sessionId: s.id, at: new Date().toISOString(), decisions: s.decisionsCount, score: s.scoreSum / s.decisionsCount });
+    if (s?.decisionsCount && P.program.slotId) markSlotDone(P.program.slotId, { sessionId: s.id, at: new Date().toISOString(), decisions: s.decisionsCount, score: s.scoreSum / s.decisionsCount });
     P.cfg = { ...P.cfg, drill: P.program.prevDrill };
     P.program = null;
   }
@@ -285,14 +302,14 @@ function dealHand() {
   const heroes = drill.heroes.filter((p) => vil == null || villainOk(drill.id, p, vil));
   let hero = P.cfg.hero === 'any' ? rand(heroes) : P.cfg.hero;
   // Programme: the spot (and its stack, open size, format) comes from Leakfinder.
-  const prog = drill.id === 'program' ? programSpot() : null;
+  const prog = SPOT_DRILLS.has(drill.id) ? programSpot() : null;
   if (prog) hero = prog.st.toAct;
   const game = prog ? prog.st.cfg : { ...gameCfg(P.cfg), ...coverCfg(P.cfg.cover, hero) };
   const hand = { hero, hands: Array(6).fill(null), boardCards: [], st: initialState(game), decisions: [], over: false, mode: drill.mode, result: null, spotTitle: prog?.title };
   P.feedback = null;
   P.hand = hand;
   let st = initialState(game);
-  if (drill.id === 'program' && !prog) {
+  if (SPOT_DRILLS.has(drill.id) && !prog) {
     P.session.hands++; hand.over = true; hand.result = 'Ce spot ne peut plus être rejoué : retourne dans Programme.'; render(); return;
   }
   if (drill.id === 'postflop' || drill.id === 'multiway') {

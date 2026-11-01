@@ -869,6 +869,47 @@ await test('F17-H1', 'programme: book a slot, launch it on a spot, the slot is m
   assert(store.getSlots()[0].done?.decisions === 1, 'slot done');
   store.saveSlots([]);
 });
+await test('F18-H1', 'leakfinder: « Étudier » on a red spot opens it in Practice, ready to start', async () => {
+  // Three hands where the hero folds AA first in on the BTN: a clear weak spot.
+  const foldAA = (n) => `PokerStars Hand #${4000 + n}: Tournament #444, €4.50+€0.50 EUR Hold'em No Limit - Level II (50/100) - 2026/10/21 21:0${n}:00 CET [2026/10/21 15:0${n}:00 ET]
+Table '444 1' 6-max Seat #3 is the button
+Seat 1: V1 (5000 in chips)
+Seat 2: V2 (5000 in chips)
+Seat 3: Hero (3000 in chips)
+Seat 4: V4 (5000 in chips)
+Seat 5: V5 (5000 in chips)
+Seat 6: V6 (5000 in chips)
+V4: posts small blind 50
+V5: posts big blind 100
+*** HOLE CARDS ***
+Dealt to Hero [Ah Ad]
+V6: folds
+V1: folds
+V2: folds
+Hero: folds
+V4: folds
+Uncalled bet (50) returned to V5
+V5 collected 100 from pot
+*** SUMMARY ***
+Total pot 100 | Rake 0
+`;
+  await load('#/data');
+  const ds = await frame.contentWindow.eval(`import('${new URL('js/data/datastore.js', frame.contentWindow.location.href).href}')`);
+  ds.clearAll();
+  ds.importFiles([{ name: 'h444.txt', text: [1, 2, 3].map(foldAA).join('\n\n') }]);
+  await load('#/leaks');
+  (await waitFor(() => [...doc().querySelectorAll('[aria-label="Vue Leakfinder"] button')].find((b) => b.textContent === 'Mes spots'))).click();
+  const btn = await waitFor(() => doc().querySelector('tr.spot-row.v-weak button'));
+  assert(btn.textContent === 'Étudier' && !doc().querySelector('tr.spot-row:not(.v-weak) button'), 'only red spots get the button');
+  btn.click();
+  const panel = await waitFor(() => doc().querySelector('.target-spot'));
+  assert(/BTN first in/.test(panel.textContent) && frame.contentWindow.location.hash === '#/practice', 'spot preloaded in Practice');
+  byRole('button', 'Commencer la session').click();
+  await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
+  assert(doc().querySelector('.seat.hero .seat-plate strong').textContent === 'BTN' && /30bb/.test(doc().querySelector('.table-top').textContent), 'BTN first in at 30bb');
+  byRole('button', 'Terminer la session').click();
+  ds.clearAll();
+});
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {
   await load('#/study');

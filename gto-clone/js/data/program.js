@@ -17,13 +17,16 @@ export const urgencyOf = (sp) => (1 - sp.avg) * Math.sqrt(sp.n);
 // Weak spots from Leakfinder, most urgent first, with what Practice needs
 // to rebuild them (one of the real decisions: seats, stack, open size).
 export function rankSpots(spots) {
-  return spots.filter((s) => verdict(s) === 'weak').map((s) => {
-    const { sc, hp, vp, lp, s: stack, o, ko, r3 } = s.hands[0].d;
-    return {
-      key: s.key, title: `${spotTitle(s)} · ${s.group}`, story: spotStory(s), n: s.n, avg: s.avg, mistakes: s.mistakes,
-      urgency: urgencyOf(s), metric: keyMetric(s), d: { sc, hp, vp, lp, s: stack, o, ko, r3 },
-    };
-  }).sort((a, b) => b.urgency - a.urgency);
+  return spots.filter((s) => verdict(s) === 'weak').map(spotTarget).sort((a, b) => b.urgency - a.urgency);
+}
+
+// A Leakfinder spot as Practice trains it (Programme, or "Étudier").
+export function spotTarget(s) {
+  const { sc, hp, vp, lp, s: stack, o, ko, r3 } = s.hands[0].d;
+  return {
+    key: s.key, title: `${spotTitle(s)} · ${s.group}`, story: spotStory(s), n: s.n, avg: s.avg, mistakes: s.mistakes,
+    urgency: urgencyOf(s), metric: keyMetric(s), d: { sc, hp, vp, lp, s: stack, o, ko, r3 },
+  };
 }
 
 export function spotsToFix() {

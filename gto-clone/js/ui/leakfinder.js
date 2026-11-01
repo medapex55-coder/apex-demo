@@ -7,6 +7,8 @@ import { hudTotals, results } from '../data/handstats.js';
 import {
   analyzeDecisions, verdict, SCEN, STACK_GROUPS, spotTitle, spotStory, keyMetric, liveAction,
 } from '../data/leaks.js';
+import { spotTarget } from '../data/program.js';
+import { prepareSpot } from './practice.js';
 
 const filter = { type: 'all', scen: 'all', group: 'all', show: 'all', minN: 1 };
 const open = new Set();
@@ -178,11 +180,11 @@ function spotsView() {
         const v = verdict(s);
         const m = keyMetric(s);
         const isOpen = open.has(s.key);
-        const row = h('tr.spot-row.v-' + v, { tabindex: '0', 'aria-expanded': isOpen ? 'true' : 'false', on: { click: () => toggle(s.key), keydown: (e) => { if (e.key === 'Enter') toggle(s.key); } } },
+        const row = h('tr.spot-row.v-' + v, { tabindex: '0', 'aria-expanded': isOpen ? 'true' : 'false', on: { click: () => toggle(s.key), keydown: (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) toggle(s.key); } } },
           h('td', h('strong', spotTitle(s)), h('div.small.muted', spotStory(s))),
           h('td.mono', s.group), h('td.mono', s.n),
           h('td', m ? meter(m) : '–'),
-          h('td', h('span.verdict.verdict-' + v, VERDICT_TEXT[v])),
+          h('td', h('div.row.gap', h('span.verdict.verdict-' + v, VERDICT_TEXT[v]), v === 'weak' ? studyButton(s) : null)),
           h('td.mono', pct(s.avg, 0)));
         return isOpen ? [row, h('tr.detail', h('td', { colspan: '6' }, spotDetail(s)))] : [row];
       })))),
@@ -207,12 +209,21 @@ function meter(m) {
       h('span.meter-target', { style: { left: pct(m.target, 1) } })));
 }
 
+// « Étudier »: open this spot in Practice, ready to start.
+function studyButton(s) {
+  return h('button.btn.primary.sm', {
+    type: 'button', title: `S'entraîner sur ${spotTitle(s)}`,
+    on: { click: (e) => { e.stopPropagation(); prepareSpot(spotTarget(s)); location.hash = '#/practice'; } },
+  }, 'Étudier');
+}
+
 function coachItem(s) {
   const m = keyMetric(s);
   return h('div.coach-item',
     h('div.row.between', h('strong', spotTitle(s)), h('span.small.muted', `${s.group} · ${plural(s.n, 'main', 'mains')}`)),
     m ? h('div.small', metricLine(m)) : null,
-    m ? h('p.small.tip', m.tip) : null);
+    m ? h('p.small.tip', m.tip) : null,
+    verdict(s) === 'weak' ? h('div.row.end', studyButton(s)) : null);
 }
 
 function spotDetail(s) {
