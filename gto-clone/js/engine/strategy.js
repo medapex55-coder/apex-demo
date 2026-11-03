@@ -11,6 +11,7 @@ import { OPEN_CHARTS } from '../data/open-charts.js';
 import { OPEN_CHARTS_50, BB_CHARTS_50, BB_CODES } from '../data/charts-50.js';
 import { OPEN_CHARTS_25, OPEN_CHARTS_20, BB_CHARTS_25, BB_CHARTS_20 } from '../data/charts-short.js';
 import { stageBubbleFactor } from './icm.js';
+import { solutionAt, onSolution } from './solutions.js';
 import {
   POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, alive, SHOVE_STACK, isHU, seatCfg, jamOption,
 } from './game.js';
@@ -487,6 +488,8 @@ function makeNode(st, ranges) {
 }
 
 export const isCached = (st) => cache.has(stateKey(st));
+// A new solution changes nodes and the ranges below them: start over.
+onSolution(() => cache.clear());
 
 // Each player's range at this point of the hand (weights per combo), from the
 // parent decision's strategy. Works on states waiting for a board too.
@@ -521,6 +524,13 @@ export function analyze(st) {
     } else {
       node.freqs = postflopFreqs(node);
     }
+    // A solver solution for this node replaces the model (same actions).
+    const sol = solutionAt(key);
+    if (sol && sol.actions.join() === node.actions.map(actionKey).join()) {
+      node.freqs = sol.freqs;
+      node.evs = sol.evs;
+      node.solved = sol.meta;
+    }
   }
   cache.set(key, node);
   if (cache.size > MAX_CACHE) cache.delete(cache.keys().next().value);
@@ -535,6 +545,7 @@ export function comboFreqs(node, i) {
 // Estimated EV (bb) of each action for combo i. A simple model of pot equity,
 // realisation and fold equity, consistent with the generated strategy.
 export function comboEVs(node, i) {
+  if (node.evs) return node.actions.map((_, k) => node.evs[k][i]); // solved: exact EVs
   const st = node.st, p = st.toAct;
   const e = node.equity(p)[i];
   const P = pot(st);

@@ -7,7 +7,9 @@ import { rangeEquity, weightedMean } from './engine/equity.js';
 import { levelOf, streakOf } from './data/progress.js';
 import { playSessions, abi } from './data/playsessions.js';
 import { planSlots, overlaps } from './data/program.js';
-import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS, alive, isIP } from './engine/game.js';
+import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS, alive, isIP, stateKey } from './engine/game.js';
+import { solve } from './engine/solver.js';
+import { addSolution } from './engine/solutions.js';
 import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale, bbChart } from './engine/strategy.js';
 import { icmEquities, bubbleFactor, requiredEquity } from './engine/icm.js';
 import { gradeDecision } from './ui/practice.js';
@@ -550,6 +552,33 @@ await test('D11', 'leakfinder: real opens and SB limps are graded with your BB c
   const limp = spotState({ sc: 'VL', hp: 5, lp: [4], s: 25, o: 'limp', c: 'AsKd' });
   assert(bbChart(limp)?.title === 'BB vs limp SB', 'BB vs an SB limp uses the limp chart');
   assert(spotState({ sc: 'VL', hp: 3, lp: [0], s: 25, o: 'limp', c: 'AsKd' }).cfg.open === 'limp', 'other limps keep the limp config');
+});
+await test('U39', 'river solver: textbook bluff-catching equilibrium, then Study follows the solution', () => {
+  let st = foldTo(initialState({ stack: 100, open: '2.5' }), 3);
+  st = foldTo(act(st, 'raise'), 5);
+  st = act(st, 'call');
+  const b = ['As', 'Kd', '7c', '4h', '2s'].map(parseCard);
+  st = act(act(dealBoard(st, b.slice(0, 3)), 'check'), 'check');
+  st = act(act(dealBoard(st, [b[3]]), 'check'), 'check');
+  st = dealBoard(st, [b[4]]);
+  const r = POS.map(() => new Float32Array(1326));
+  for (const i of CLASS_BY_NAME.QQ.combos) r[5][i] = 1; // BB: bluff-catchers only
+  for (const i of [...CLASS_BY_NAME.KK.combos, ...CLASS_BY_NAME.JTs.combos]) r[3][i] = 1; // BTN: nuts or air
+  const res = solve(st, r, { target: 0.05, maxIters: 3000 });
+  assert(res.exploitability < 0.1, 'converges: ' + res.exploitability);
+  const node = (k) => res.nodes.find((n) => n.key === k);
+  const ipKey = stateKey(act(st, 'check'));
+  const ip = node(ipKey);
+  const big = ip.actions.findIndex((a) => a === 'R4.1');
+  const jt = CLASS_BY_NAME.JTs.combos[0], qq = CLASS_BY_NAME.QQ.combos[0];
+  const bluffs = 4 * ip.freqs[big][jt], ratio = bluffs / (3 + bluffs);
+  assert(Math.abs(ratio - 4.1 / (5.5 + 2 * 4.1)) < 0.02, 'bluff share of a 75% bet = B/(P+2B): ' + ratio);
+  const facing = node(ipKey + '|BTN:R4.1');
+  const callF = facing.freqs[facing.actions.indexOf('C')][qq];
+  assert(Math.abs(callF - 5.5 / 9.6) < 0.02, 'QQ calls P/(P+B): ' + callF);
+  addSolution(res, 3);
+  const n = analyze(act(st, 'check'));
+  assert(n.solved && Math.abs(n.freqs[big][jt] - ip.freqs[big][jt]) < 1e-6, 'Study node uses the solution');
 });
 await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
   const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });

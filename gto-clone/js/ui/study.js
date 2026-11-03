@@ -16,6 +16,7 @@ import {
 } from '../engine/strategy.js';
 import { getSettings, setSetting } from '../store.js';
 import { TAG_NAMES } from '../data/open-charts.js';
+import { solverPanel } from './solverpanel.js';
 import { scenarioReport, requiredEquity, riskPremium, STAGE_SCENARIOS, stageBubbleFactor, MAX_PLAYERS } from '../engine/icm.js';
 
 const ui = {
@@ -135,7 +136,7 @@ function render() {
   const node = analyze(st);
   mount(root, head, h('div.study-main',
     h('section.study-left', { 'aria-label': 'Vue stratégie' }, toolbar(node), mainView(node)),
-    h('aside.study-side', infoBox(node), icmPanel(), chartPanel(node), bbChartPanel(node), modelNote(node), actionsTable(node), handDetail(node), categoryFilters(node))));
+    h('aside.study-side', infoBox(node), solverPanel(node, render), icmPanel(), chartPanel(node), bbChartPanel(node), modelNote(node), actionsTable(node), handDetail(node), categoryFilters(node))));
 }
 const stateKeyNow = () => ui.history.length;
 
