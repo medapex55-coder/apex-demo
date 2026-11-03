@@ -6,6 +6,7 @@ import { renderStats } from './ui/stats.js';
 import { renderMyData } from './ui/mydata.js';
 import { renderLeaks } from './ui/leakfinder.js';
 import { renderProgram } from './ui/program.js';
+import { renderAnalysis } from './ui/analysis.js';
 import { getSettings, setSetting, onChange } from './store.js';
 import { CLASSES } from './engine/cards.js';
 import { setOpenStyle } from './engine/strategy.js';
@@ -22,6 +23,7 @@ const ROUTES = {
   data: { label: 'Mes données', icon: '📊', render: renderMyData },
   leaks: { label: 'Leakfinder', icon: '🔍', render: renderLeaks },
   program: { label: 'Programme', icon: '📅', render: renderProgram },
+  analysis: { label: 'Analyse de main', icon: '🔬', render: renderAnalysis },
   design: { label: 'Design', render: renderDesign, hidden: true },
 };
 

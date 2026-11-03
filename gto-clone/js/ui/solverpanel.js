@@ -13,7 +13,7 @@ const fr = (x, d) => num(x, d).replace('.', ',');
 // a full best response, is measured every 20 s there). The flop plays its
 // turns in a simplified way (one 2/3-pot bet and all-in) and checks the
 // river down: only its flop nodes are kept, the turn is solved afterwards.
-const SETTINGS = {
+export const SETTINGS = {
   3: { name: 'la river', start: 'de la river', target: 0.3, maxIters: 1500, every: 25, time: 'quelques secondes' },
   2: { name: 'la turn', start: 'de la turn', target: 0.5, maxIters: 100000, every: 5, timeLimit: 180000, checkEvery: 20000, time: '1 à 3 minutes' },
   1: { name: 'le flop', start: 'du flop', target: 1, maxIters: 100000, every: 5, timeLimit: 240000, checkEvery: 30000, time: '2 à 4 minutes' },

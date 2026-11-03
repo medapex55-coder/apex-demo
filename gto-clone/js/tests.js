@@ -18,6 +18,9 @@ import { gradeDecision } from './ui/practice.js';
 import { parseFile } from './data/parsers.js';
 import { extractDecisions } from './data/decisions.js';
 import { analyzeDecisions, keyMetric, practiceSpotKey, spotKey, liveAction, spotState } from './data/leaks.js';
+import { handIdFromLink, handUrl, parseWinamaxHand } from './data/winamax.js';
+import { replayHand } from './data/handanalysis.js';
+import { WINAMAX_HAND } from './fixture-winamax.js';
 import { contributions, handResult, equityShare, handFlags, handRecord, results as handTotals, hudTotals } from './data/handstats.js';
 
 // Synthetic PokerStars files (made up for the tests, same layout as the real ones).
@@ -635,6 +638,15 @@ await test('U43', 'custom postflop raise: a 2.5x size joins the default 3x when 
   assert(raises.join() === '3.8,4.5', 'raises: ' + raises.join());
   const n = analyze(st);
   assert(n.freqs.length === n.actions.length && [...Array(1326).keys()].every((i) => Math.abs(n.actions.reduce((s, _, k) => s + n.freqs[k][i], 0) - 1) < 1e-4 || n.dead[COMBOS[i][0]] || n.dead[COMBOS[i][1]]), 'strategy sums to 1');
+});
+await test('D12', 'Winamax replayer: link to data path, hand parsed and replayed with its real sizes', () => {
+  assert(handUrl(handIdFromLink('https://www.winamax.fr/replayer/replayer.html?2026-184462dccb944a7da17b5e034e9c621118d6aab18b5ef6f5c8f8c7746709afe7&lang=fr_FR')) === 'https://poker-assets.winamax.fr/replayer/hand/2026/18/44/184462dccb944a7da17b5e034e9c621118d6aab18b5ef6f5c8f8c7746709afe7', 'data URL');
+  const hand = parseWinamaxHand(WINAMAX_HAND);
+  assert(hand.hero === 'valuuebluuff' && hand.heroCards.join() === 'Td,Kd' && hand.bb === 300 && hand.ante === 35 && hand.ko, 'hero, blinds, KO');
+  const rep = replayHand(hand);
+  assert(rep.cfg.stack === 50 && !rep.unsupported, 'replayed at 50bb');
+  const mine = rep.steps.filter((s) => s.hero).map((s) => POS[s.p] + ':' + s.act.type + (s.act.to ? s.act.to : ''));
+  assert(mine.join() === 'BB:call,BB:check,BB:raise7.3,BB:bet15.1,BB:allin25.1', 'hero line: ' + mine.join());
 });
 await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
   const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });

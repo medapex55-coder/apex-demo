@@ -270,5 +270,6 @@ export function biggestGap(sp) {
 export function studyLink(st) {
   const line = st.history.map((e) => (e.kind === 'deal' ? 'd' + e.cards.map(cardStr).join('') : e.p + actionKey(e.act))).join('_');
   const stage = st.cfg.stage && st.cfg.stage !== '100' ? '&fs=' + st.cfg.stage : '';
-  return `#/study?s=${st.cfg.stack}&o=${st.cfg.open}${st.cfg.ko ? '&f=ko' : ''}${stage}${line ? '&l=' + line : ''}`;
+  const pp = st.cfg.players ? '&pp=' + encodeURIComponent(JSON.stringify(st.cfg.players)) : '';
+  return `#/study?s=${st.cfg.stack}&o=${st.cfg.open}${st.cfg.ko ? '&f=ko' : ''}${stage}${pp}${line ? '&l=' + line : ''}`;
 }

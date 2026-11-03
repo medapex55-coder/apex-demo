@@ -502,7 +502,7 @@ export function gradeDecision(node, i, k, roll, dir, level = 'medium') {
 }
 
 // Plain-language reason behind the numbers: equity vs. the price, and the hand.
-function explain(node, i) {
+export function explain(node, i) {
   const st = node.st;
   const eq = node.equity(st.toAct)[i];
   const call = toCallOf(st, st.toAct);

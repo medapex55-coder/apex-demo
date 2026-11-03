@@ -614,3 +614,15 @@ h1 { font-size: 26px; }
 .target-spot { border-color: var(--danger); }
 .target-spot h2 { margin: 2px 0 0; }
 .target-spot p { margin: var(--s1) 0 0; }
+
+/* Hand analysis */
+.analysis-form .row input.text { min-width: 0; }
+.analysis-street { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; margin: 18px 0 8px; }
+.analysis-street .board { display: inline-flex; gap: 4px; }
+.decision-card { display: grid; gap: 8px; border-left: 3px solid var(--border); }
+.decision-card.grade-border-best, .decision-card.grade-border-correct { border-left-color: var(--success); }
+.decision-card.grade-border-inaccuracy { border-left-color: var(--warning); }
+.decision-card.grade-border-wrong, .decision-card.grade-border-blunder { border-left-color: var(--danger); }
+.decision-card tr.chosen td { font-weight: 600; }
+.decision-card tr.best td:first-child { color: var(--success); }
+.hero-row td { font-weight: 600; }
