@@ -449,16 +449,18 @@ function postflopFreqs(node) {
       const R = street === 3 ? 1 : ip ? 1 : 0.92;
       const eff = eqShare[i] * R + d * 0.12;
       const cont = ramp(eff + jitter * 0.3, po - 0.05, po + 0.08);
-      const hasRaise = actions.length === 3;
+      const hasRaise = actions.length >= 3;
       let raise = 0;
       if (hasRaise) {
-        const facingBig = actions[2].type === 'allin';
+        const facingBig = actions.length === 3 && actions[2].type === 'allin';
         const raiseV = ramp(e, facingBig ? 0.88 : 0.84, facingBig ? 0.97 : 0.95) * 0.65;
         const raiseB = facingBig ? 0 : (street < 3 ? d * 0.3 : e < 0.12 ? 0.08 : 0) * (1 - cont);
         raise = clamp(raiseV * cont + raiseB);
       }
       const callF = clamp(cont - raise, 0, 1 - raise);
-      f = hasRaise ? [1 - raise - callF, callF, raise] : [1 - callF, callF];
+      // Several raise sizes (custom multipliers): the strongest hands take the biggest.
+      const nr = actions.length - 2, x = ramp(e, 0.84, 0.97) * (nr - 1);
+      f = hasRaise ? [1 - raise - callF, callF, ...actions.slice(2).map((_, j) => raise * (nr === 1 ? 1 : Math.max(0, 1 - Math.abs(x - j))))] : [1 - callF, callF];
     }
     prune(f);
     for (let k = 0; k < f.length; k++) freqs[k][i] = f[k];

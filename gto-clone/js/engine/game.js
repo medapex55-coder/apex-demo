@@ -98,10 +98,11 @@ function preflopSizes(st, p) {
   return st.cfg.stack;
 }
 
-// Per-player settings from the Study "⋯" menu: cfg.players[seat] =
-// { loose: 0..100 (50 neutral), sizes: { 1: [2.2], 2: [9], 3: [], post: [0.5] },
+// Per-player settings from the Study "â¯" menu: cfg.players[seat] =
+// { loose: 0..100 (50 neutral), sizes: { 1: [2.2], 2: [9], 3: [], post: [0.5], raise: [2.5] },
 // keep: { 1: false } }. sizes are bb totals preflop (level 1 open, 2 3-bet,
-// 3 4-bet) and pot fractions postflop; keep false drops the default size.
+// 3 4-bet), pot fractions for postflop bets and multipliers of the bet faced
+// for postflop raises (raise); keep false drops the default size.
 export const seatCfg = (cfg, p) => cfg.players?.[p] || {};
 function sizesFor(st, p, level, defaults) {
   const s = seatCfg(st.cfg, p);
@@ -165,9 +166,17 @@ export function legalActions(st) {
   acts.push({ type: 'fold' });
   acts.push({ type: 'call', amount: call });
   if (rem > call) {
-    const to = round(st.currentBet * 3);
-    if (st.streetRaises >= 2 || to >= (st.streetBet[p] + rem) * 0.6) acts.push({ type: 'allin', to: st.streetBet[p] + rem });
-    else acts.push({ type: 'raise', to });
+    // Raise to 3x the bet by default (the "⋯" menu adds or replaces multipliers);
+    // a third raise, or one that commits most of the stack, is all-in.
+    const max = st.streetBet[p] + rem;
+    const seen = new Set();
+    for (const m of sizesFor(st, p, 'raise', [3])) {
+      let to = round(st.currentBet * m);
+      if (st.streetRaises >= 2 || to >= max * 0.6) to = max;
+      if (seen.has(to)) continue;
+      seen.add(to);
+      acts.push({ type: to >= max ? 'allin' : 'raise', to });
+    }
   }
   return acts;
 }

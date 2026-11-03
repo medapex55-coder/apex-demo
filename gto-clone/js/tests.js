@@ -624,6 +624,18 @@ await test('U42', 'flop solver: simplified turns, parallel matches single-thread
   assert(Math.abs(e1 - e2) < 1e-6 * e1, 'same exploitability: ' + e1 + ' vs ' + e2);
   assert(path.length === 2 && path.every((n) => !n.key.includes('/9c')), 'only the flop nodes come back: ' + path.length);
 });
+await test('U43', 'custom postflop raise: a 2.5x size joins the default 3x when facing a bet', () => {
+  const cfg = { stack: 50, open: '2', players: { 5: { sizes: { raise: [2.5] } } } };
+  let st = foldTo(initialState(cfg), 2);
+  st = foldTo(act(st, 'raise'), 5);
+  st = act(st, 'call');
+  st = dealBoard(st, ['Qc', 'Js', '4d'].map(parseCard));
+  st = act(act(st, 'check'), 'bet'); // BB checks, CO bets 1.5
+  const raises = legalActions(st).filter((a) => a.type === 'raise').map((a) => a.to);
+  assert(raises.join() === '3.8,4.5', 'raises: ' + raises.join());
+  const n = analyze(st);
+  assert(n.freqs.length === n.actions.length && [...Array(1326).keys()].every((i) => Math.abs(n.actions.reduce((s, _, k) => s + n.freqs[k][i], 0) - 1) < 1e-4 || n.dead[COMBOS[i][0]] || n.dead[COMBOS[i][1]]), 'strategy sums to 1');
+});
 await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
   const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });
   const list = [
@@ -914,7 +926,7 @@ await test('F15-H1', 'study ⋯: make the BTN loose and add a 3.5bb open', async
   const slider = pop.querySelector('input[type="range"]');
   slider.value = '80';
   slider.dispatchEvent(new Event('change', { bubbles: true }));
-  const input = await waitFor(() => doc().querySelector('.popover [aria-label="Nouveau sizing Open (ou raise sur limp)"]'));
+  const input = await waitFor(() => doc().querySelector('.popover [aria-label="Nouveau sizing Open préflop (ou raise sur limp)"]'));
   input.value = '3.5';
   [...doc().querySelectorAll('.popover button')].find((b) => b.textContent === 'Ajouter').click();
   await waitFor(() => [...doc().querySelectorAll('.act-btn')].some((b) => b.textContent === 'Raise 3.5'));

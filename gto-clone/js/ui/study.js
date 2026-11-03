@@ -213,10 +213,11 @@ function spotBar(st) {
 // ---------- player profile (the "⋯" on a position) ----------
 // Looseness 0..100 and custom sizings for one seat, kept in ui.cfg.players.
 const SIZE_LEVELS = [
-  { level: 1, label: 'Open (ou raise sur limp)', unit: 'bb' },
-  { level: 2, label: '3-bet', unit: 'bb' },
-  { level: 3, label: '4-bet', unit: 'bb' },
+  { level: 1, label: 'Open préflop (ou raise sur limp)', unit: 'bb' },
+  { level: 2, label: '3-bet préflop', unit: 'bb' },
+  { level: 3, label: '4-bet préflop', unit: 'bb' },
   { level: 'post', label: 'Mises postflop', unit: '%' },
+  { level: 'raise', label: 'Relances postflop (face à une mise)', unit: '×' },
 ];
 const styleWord = (v) => (v <= 15 ? 'très tight' : v <= 35 ? 'tight' : v < 65 ? 'neutre' : v < 85 ? 'loose' : 'très loose');
 const isCustom = (s) => s && ((s.loose ?? 50) !== 50 || Object.values(s.sizes || {}).some((l) => l.length));
@@ -241,6 +242,7 @@ function defaultSize(level, p) {
   if (level === 1) return p === 5 ? 'open + 1bb par limper' : p === 4 && ui.cfg.open === '2.5' && ui.cfg.stage !== 'hu' ? '3.5bb' : p === 4 && ui.cfg.open === '2' && ui.cfg.stage !== 'hu' ? '3bb' : ui.cfg.open === 'limp' ? 'limp' : ui.cfg.open + 'bb';
   if (level === 2) return '3× l\'open en position, 4× hors position';
   if (level === 3) return '2,3× le 3-bet';
+  if (level === 'raise') return '3× la mise';
   return '33 % et 75 % du pot';
 }
 
@@ -272,10 +274,10 @@ function openPlayerMenu(p, anchor) {
         const list = s.sizes?.[level] || [];
         const keep = s.keep?.[level] !== false;
         const setList = (l, k = keep) => commit({ ...s, sizes: { ...(s.sizes || {}), [level]: l }, keep: { ...(s.keep || {}), [level]: k } });
-        const input = h('input.text.size-input', { type: 'number', min: unit === '%' ? 10 : 1, max: unit === '%' ? 300 : ui.cfg.stack, step: unit === '%' ? 5 : 0.1, placeholder: unit, 'aria-label': `Nouveau sizing ${label}` });
+        const input = h('input.text.size-input', { type: 'number', min: unit === '%' ? 10 : unit === '×' ? 2 : 1, max: unit === '%' ? 300 : unit === '×' ? 10 : ui.cfg.stack, step: unit === '%' ? 5 : 0.1, placeholder: unit, 'aria-label': `Nouveau sizing ${label}` });
         const add = () => {
           const v = parseFloat(String(input.value).replace(',', '.'));
-          const ok = unit === '%' ? v >= 10 && v <= 300 : v > 1 && v <= ui.cfg.stack;
+          const ok = unit === '%' ? v >= 10 && v <= 300 : unit === '×' ? v >= 2 && v <= 10 : v > 1 && v <= ui.cfg.stack;
           if (!ok || list.length >= 3) { input.classList.add('bad'); return; }
           const x = unit === '%' ? Math.round(v) / 100 : Math.round(v * 10) / 10;
           if (!list.includes(x)) setList([...list, x].sort((a, b) => a - b));
@@ -284,7 +286,7 @@ function openPlayerMenu(p, anchor) {
         return h('div.size-row',
           h('div.small', h('strong', label), h('span.muted', ` · par défaut : ${defaultSize(level, p)}`)),
           h('div.row.gap.wrap',
-            list.map((x) => h('span.size-tag', unit === '%' ? Math.round(x * 100) + ' %' : x + 'bb',
+            list.map((x) => h('span.size-tag', unit === '%' ? Math.round(x * 100) + ' %' : unit === '×' ? x + '×' : x + 'bb',
               h('button.icon-btn.sm', { type: 'button', 'aria-label': 'Retirer ce sizing', on: { click: () => setList(list.filter((y) => y !== x)) } }, '✕'))),
             list.length < 3 ? [input, h('button.btn.secondary.sm', { type: 'button', on: { click: add } }, 'Ajouter')] : null),
           list.length ? h('label.check.small', h('input', { type: 'checkbox', checked: keep, on: { change: (e) => setList(list, e.target.checked) } }),
