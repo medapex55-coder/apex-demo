@@ -85,4 +85,4 @@ export const OPEN_CHARTS = {
   ],
 };
 
-export const TAG_NAMES = { L: 'Loosifie', T: 'Tightfie', X: 'Raise / Tightfie', H: 'Raise / Limp' };
+export const TAG_NAMES = { L: 'Loosifie', T: 'Tightfie', X: 'Raise / Tightfie', H: 'Raise / Limp', a: 'All-in / Limp', m: 'Limp / Fold' };

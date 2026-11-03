@@ -18,7 +18,7 @@ import { HandRow, showHandReplay } from './handreplay.js';
 export const DRILLS = [
   { id: 'rfi', name: 'Ouverture', icon: '🚪', desc: 'Tout le monde a foldé jusqu\'à toi avant le flop. Ouvre ou couche-toi.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
   { id: 'vsopen', name: 'Face à un open', icon: '🛡️', desc: 'Un joueur a relancé en premier. Fold, call ou 3-bet.', heroes: [1, 2, 3, 4, 5], mode: 'spot' },
-  { id: 'bb50', name: 'Défense BB 50bb', icon: '🧱', desc: 'Tes charts BB à 50bb : face à un open (LJ à SB), au limp de la SB et à sa limp-relance.', heroes: [5], mode: 'spot' },
+  { id: 'bb50', name: 'Défense BB (tes charts)', icon: '🧱', desc: 'Tes charts BB à 50, 25 ou 20bb : face à un open, au limp de la SB et à sa limp-relance.', heroes: [5], mode: 'spot' },
   { id: 'vs3bet', name: 'Face à un 3-bet', icon: '⚔️', desc: 'Tu as ouvert et tu te fais relancer.', heroes: [0, 1, 2, 3, 4], mode: 'spot' },
   { id: 'srp', name: 'BTN vs BB au flop', icon: '🎯', desc: 'Pot relancé une fois, première décision au flop.', heroes: [3, 5], mode: 'spot' },
   { id: 'postflop', name: 'Postflop', icon: '🃏', desc: 'Pot relancé ou 3-bet : joue flop, turn et river jusqu\'à la fin du coup.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
@@ -37,7 +37,7 @@ export const LEVELS = [
   { value: 'gto', label: 'GTO max', desc: 'Tailles exactes, presque que des mains mixtes, et le dé (RNG) décide : seule l\'action tirée est le meilleur coup, toute autre est une imprécision.' },
 ];
 // Where the villain can sit for each drill: the opener (vs open), the 3-bettor
-// (vs 3-bet), the opener the BB defends against (BB 50bb).
+// (vs 3-bet), the opener the BB defends against (BB charts: the seats its depth has charts for).
 // (postflop, multiway: the villain is a player in the pot with you).
 const VILLAINS = { vsopen: [0, 1, 2, 3, 4], vs3bet: [1, 2, 3, 4, 5], bb50: [0, 1, 2, 3, 4], postflop: [0, 1, 2, 3, 4, 5], multiway: [0, 1, 2, 3, 4, 5] };
 const villainOk = (drill, hero, v) => (drill === 'vsopen' ? v < hero : drill === 'vs3bet' ? v > hero : v !== hero);
@@ -59,14 +59,20 @@ const HANDS_PER_SPOT = 10; // Programme: hands on a spot before the next one
 const SPOT_DRILLS = new Set(['program', 'target']); // drills that train Leakfinder spots
 
 const DEFAULT_CFG = {
-  drill: 'rfi', hero: 'any', villain: 'any', cover: 'equal', stack: 100, open: '2.5', format: 'vanilla', stage: '100', multiway: false,
+  drill: 'rfi', hero: 'any', villain: 'any', cover: 'equal', stack: 100, open: '2.5', format: 'vanilla', stage: '100', multiway: false, bbDepth: 50,
   level: 'medium', rng: 'off', timebank: 0, pause: 'always', autoNext: true,
 };
 // The engine config of a drill: format, field stage, multiway pots.
-// The BB 50bb drill plays the spots its charts are made for.
-const BB50_CFG = { stack: 50, open: '2.5', ko: false, stage: '100', multiway: false };
-const BB50_SPOTS = ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'limp', 'limp3bet'];
-const gameCfg = (c) => c.drill === 'bb50' ? { ...BB50_CFG } : ({ stack: c.stack, open: c.open, ko: c.format === 'ko', stage: c.stage, multiway: c.drill === 'multiway' || (c.drill === 'full' && c.multiway) });
+// The BB drill plays the spots its charts are made for, at the chosen depth.
+const BB_DRILL = {
+  50: { stack: 50, open: '2.5', note: 'open 2.5bb (SB 3.5bb)', spots: ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'limp', 'limp3bet'] },
+  25: { stack: 25, open: '2', note: 'open 2bb (SB 3bb)', spots: ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'limp', 'limp3bet', 'limpshove'] },
+  20: { stack: 20, open: '2', note: 'open 2bb', spots: ['LJ', 'HJ'] },
+};
+const bbDrill = (c) => BB_DRILL[c.bbDepth] || BB_DRILL[50];
+const SB_SPOT = (s) => s === 'SB' || s.startsWith('limp');
+const villainsOf = (c) => (c.drill === 'bb50' ? [0, 1, 2, 3, 4].filter((p) => bbDrill(c).spots.some((s) => (p === 4 ? SB_SPOT(s) : s === POS[p]))) : VILLAINS[c.drill]);
+const gameCfg = (c) => c.drill === 'bb50' ? { stack: bbDrill(c).stack, open: bbDrill(c).open, ko: false, stage: '100', multiway: false } : ({ stack: c.stack, open: c.open, ko: c.format === 'ko', stage: c.stage, multiway: c.drill === 'multiway' || (c.drill === 'full' && c.multiway) });
 
 const P = {
   cfg: { ...DEFAULT_CFG },
@@ -96,7 +102,7 @@ function setupView() {
   const drill = DRILLS.find((d) => d.id === c.drill);
   const set = (k) => (v) => { c[k] = v; if (k === 'drill') { c.hero = 'any'; c.villain = 'any'; P.program = null; } render(); };
   const field = (label, control) => h('div.field', h('div.field-label', label), control);
-  const villains = VILLAINS[c.drill];
+  const villains = villainsOf(c);
   const clash = villains && c.hero !== 'any' && c.villain !== 'any' && !villainOk(c.drill, c.hero, c.villain);
   const level = LEVELS.find((l) => l.value === c.level);
   const chipEV = c.drill === 'bb50' || (c.format === 'vanilla' && c.stage === '100');
@@ -124,7 +130,8 @@ function setupView() {
           h('input', { type: 'radio', name: 'cover', value: o.value, checked: c.cover === o.value, on: { change: () => set('cover')(o.value) } }), ' ', o.label))),
         c.drill === 'rfi' && c.cover !== 'equal' ? h('p.small.muted', 'En ouverture, ton chart s\'applique tel quel : le tapis compte dès qu\'un vilain relance ou paie.') : null,
         c.cover !== 'equal' && chipEV ? h('p.small.muted', 'En Vanilla au début du tournoi, couvrir ou être couvert ne change pas la stratégie (pas d\'ICM, pas de prime). Choisis KO ou un field plus avancé pour voir la différence.') : null)),
-      t ? field('Spot', h('p.small.muted', 'Position, vilain, stack, taille d\'open et format : ceux du spot de Leakfinder.')) : c.drill === 'bb50' ? field('Spot', h('p.small.muted', 'Toujours 50bb, open 2.5bb (SB 3.5bb), Vanilla en début de tournoi : les réglages de tes charts.')) : null,
+      t ? field('Spot', h('p.small.muted', 'Position, vilain, stack, taille d\'open et format : ceux du spot de Leakfinder.')) : c.drill === 'bb50' ? field('Profondeur', h('div', Segmented('Profondeur', [50, 25, 20].map((d) => ({ value: d, label: d + 'bb' })), bbDrill(c).stack, (v) => { c.bbDepth = v; c.villain = 'any'; render(); }),
+        h('p.small.muted', `${bbDrill(c).stack}bb, ${bbDrill(c).note}, Vanilla en début de tournoi : les réglages de tes charts.${bbDrill(c).stack === 20 ? ' À 20bb, tu as des charts BB contre LJ et HJ.' : ''}`))) : null,
       t || c.drill === 'bb50' ? null : field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
       t || c.drill === 'bb50' ? null : field('Field restant', Segmented('Field restant', FIELD_STAGES.map(([value, label]) => ({ value, label })), c.stage, set('stage'))),
       c.drill === 'full' ? field('Multiway', h('label.check', h('input', { type: 'checkbox', checked: c.multiway, on: { change: (e) => { c.multiway = e.target.checked; } } }), ' Autoriser les coups à 3 joueurs ou plus')) : null,
@@ -298,7 +305,7 @@ function dealHand() {
   stopTimer();
   const drill = DRILLS.find((d) => d.id === P.cfg.drill);
   // A chosen villain seat narrows the hero seats it works with.
-  const vil = VILLAINS[drill.id] && P.cfg.villain !== 'any' ? P.cfg.villain : null;
+  const vil = villainsOf(P.cfg)?.includes(P.cfg.villain) ? P.cfg.villain : null;
   const heroes = drill.heroes.filter((p) => vil == null || villainOk(drill.id, p, vil));
   let hero = P.cfg.hero === 'any' ? rand(heroes) : P.cfg.hero;
   // Programme: the spot (and its stack, open size, format) comes from Leakfinder.
@@ -335,11 +342,13 @@ function dealHand() {
   if (prog) st = prog.st;
   else if (drill.id === 'rfi') st = foldTo(st, hero);
   else if (drill.id === 'bb50') {
-    const spot = vil == null ? rand(BB50_SPOTS) : vil === 4 ? rand(['SB', 'limp', 'limp3bet']) : POS[vil];
+    const spots = bbDrill(P.cfg).spots;
+    const spot = vil == null ? rand(spots) : vil === 4 ? rand(spots.filter(SB_SPOT)) : POS[vil];
     const take = (s, t) => applyAction(s, legalActions(s).find((a) => a.type === t));
     if (spot.startsWith('limp')) {
       st = take(foldTo(st, 4), 'call'); // SB limps
       if (spot === 'limp3bet') st = take(take(st, 'raise'), 'raise'); // BB raises, SB re-raises
+      if (spot === 'limpshove') st = take(take(st, 'raise'), 'allin'); // BB raises, SB shoves
     } else {
       st = foldTo(take(foldTo(st, POS.indexOf(spot)), 'raise'), 5);
     }
@@ -510,7 +519,7 @@ function explain(node, i) {
       L: 'Loosifie (ouvre-la quand tu joues plus large)', T: 'Tightfie (jette-la quand tu joues plus serré)',
       X: 'moitié Raise, moitié Tightfie', H: 'raise ou limp, 50/50',
     }[code];
-    const plain = { R: 'toujours raise', M: 'limp', F: 'fold' }[code];
+    const plain = { R: 'toujours raise', A: 'tapis', a: 'tapis ou limp, 50/50', M: 'limp', m: 'limp ou fold, 50/50', F: 'fold' }[code];
     const name = `Ton chart ${chartDepth(st.cfg.stack)}bb`;
     parts.push(flex ? `${name} : ${flex}. Style : ${getOpenStyle()}.` : `${name} : ${plain}.`);
   }
@@ -520,8 +529,10 @@ function explain(node, i) {
     const text = {
       R: ch.raiseLabel.toLowerCase(), B: '3bet light (relance en bluff)', C: 'call', K: 'check', F: 'fold',
       c: 'call ou fold, 50/50', r: `${ch.raiseLabel.toLowerCase()} ou call, 50/50`,
+      A: 'tapis', a: 'tapis ou call, 50/50', j: `tapis ou ${ch.raiseLabel.toLowerCase()}, 50/50`, n: 'hors de ta range',
+      q: st.raiseLevel === 0 ? `check, parfois ${ch.raiseLabel.toLowerCase()} (15 %)` : `call, parfois ${ch.raiseLabel.toLowerCase()} (15 %)`,
     }[code];
-    parts.push(`Ton chart 50bb (${ch.title}) : ${text}.`);
+    parts.push(`Ton chart ${chartDepth(st.cfg.stack)}bb (${ch.title}) : ${text}.`);
   }
   if (st.street === 0 && !firstIn && !ch) parts.push('Référence : pas de chart pour ce spot, c\'est le modèle Spotwise (le même que dans Étude).');
   return parts.join(' ');

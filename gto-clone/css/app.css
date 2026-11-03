@@ -273,6 +273,8 @@ table.data.compact td { padding: 2px var(--s2); }
 .mark-X { background: linear-gradient(90deg, var(--act-bet-m) 50%, var(--tag-tight) 50%); }
 .mark-H { background: linear-gradient(90deg, var(--act-bet-m) 50%, var(--act-call) 50%); }
 .mark-B { background: var(--tag-light); }
+.mark-a { background: linear-gradient(90deg, var(--act-allin) 50%, var(--act-call) 50%); }
+.mark-m { background: linear-gradient(90deg, var(--act-call) 50%, var(--act-fold) 50%); }
 .chart-panel .segmented { margin-top: var(--s2); }
 .chart-rows { list-style: none; margin: var(--s2) 0 0; padding: 0; font-size: var(--fs-sm); }
 .chart-rows li { display: flex; align-items: center; gap: var(--s2); padding: 2px 0; }

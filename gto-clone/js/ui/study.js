@@ -8,7 +8,7 @@ import {
   aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey, STACKS, OPEN_SIZES, DEFAULT_CFG, STAGES, seatCfg,
 } from '../engine/game.js';
 
-const OPEN_LABELS = { limp: 'Limp 1bb', 2: '2bb', 2.5: '2.5bb (SB 3.5)', 4.5: '4.5bb' };
+const OPEN_LABELS = { limp: 'Limp 1bb', 2: '2bb (SB 3)', 2.5: '2.5bb (SB 3.5)', 4.5: '4.5bb' };
 const STAGE_LABELS = { 100: 'Début (100 %)', 50: '50 % restants', 25: '25 % restants', 10: '10 % restants', semi: 'Demi-finale', ft: 'Table finale', hu: 'Heads-up' };
 import {
   analyze, isCached, classSummary, overallFreqs, comboFreqs, comboEVs, classAverage, rangeCombos,
@@ -229,7 +229,7 @@ function setPlayer(p, s) {
 }
 
 function defaultSize(level, p) {
-  if (level === 1) return p === 5 ? 'open + 1bb par limper' : p === 4 && ui.cfg.open === '2.5' && ui.cfg.stage !== 'hu' ? '3.5bb' : ui.cfg.open === 'limp' ? 'limp' : ui.cfg.open + 'bb';
+  if (level === 1) return p === 5 ? 'open + 1bb par limper' : p === 4 && ui.cfg.open === '2.5' && ui.cfg.stage !== 'hu' ? '3.5bb' : p === 4 && ui.cfg.open === '2' && ui.cfg.stage !== 'hu' ? '3bb' : ui.cfg.open === 'limp' ? 'limp' : ui.cfg.open + 'bb';
   if (level === 2) return '3× l\'open en position, 4× hors position';
   if (level === 3) return '2,3× le 3-bet';
   return '33 % et 75 % du pot';
@@ -577,11 +577,11 @@ function chartPanel(node) {
     const k = chartCode(p, c, node.st.cfg.stack);
     share[k] = (share[k] || 0) + c.combos.length / 1326;
   }
-  const open = node.actions.find((a) => a.type === 'raise' || a.type === 'allin');
+  const open = node.actions.find((a) => a.type === 'raise') || node.actions.find((a) => a.type === 'allin');
   const raiseLabel = open ? `Raise ${open.to}` : 'Limp (taille d\'open)';
   const rows = p === 4
-    ? [[raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Fold', 'F', 'var(--act-fold)']]
-    : [[raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']];
+    ? [['All-in', 'A', 'var(--act-allin)'], ['All-in / Limp', 'a', null], [raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Limp / Fold', 'm', null], ['Fold', 'F', 'var(--act-fold)']]
+    : [['All-in', 'A', 'var(--act-allin)'], [raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']];
   const style = getOpenStyle();
   const stack = node.st.cfg.stack, depth = chartDepth(stack);
   return h('section.panel.chart-panel', { 'aria-label': 'Ton chart d\'open' },
@@ -596,33 +596,35 @@ function chartPanel(node) {
     p === 4 ? null : h('p.small.muted', style === 'tight' ? 'Tight : les mains Tightfie se couchent.' : style === 'loose' ? 'Loose : les mains Loosifie s\'ouvrent aussi.' : 'Standard : les mains Tightfie s\'ouvrent, les Loosifie se couchent.'));
 }
 
-// The BB's 50bb chart for this spot, when there is one. Split cells count
+// The BB's chart for this spot (50, 25 or 20bb), when there is one. Split cells count
 // half to each side. Shares count only the hands still in the BB's range
 // (all of them, except vs a limp-reraise).
 function bbChartPanel(node) {
   const ch = bbChart(node.st);
   if (!ch) return null;
   const w = node.ranges[node.actor];
-  const s = { raise: 0, light: 0, call: 0, fold: 0 };
+  const s = { jam: 0, raise: 0, light: 0, call: 0, fold: 0 };
   let tot = 0;
   for (const c of CLASSES) {
     const k = bbCode(ch, c), f = BB_CODES[k];
     const n = c.combos.reduce((a, i) => a + w[i], 0);
     tot += n;
     if (k === 'B') { s.light += n; continue; }
-    s.raise += n * f.raise;
+    s.jam += n * (f.jam || 0);
+    s.raise += n * (f.raise - (f.jam || 0));
     s.call += n * (k === 'K' ? 1 : f.call);
     s.fold += n * (k === 'K' ? 0 : 1 - f.raise - f.call);
   }
   const passive = node.st.raiseLevel === 0 ? 'Check' : 'Call';
   const rows = [
-    [ch.raiseLabel, s.raise, 'var(--act-bet-m)'], ['3bet light', s.light, 'var(--tag-light)'],
+    ...(ch.raiseLabel === 'Tapis' ? [] : [['All-in', s.jam, 'var(--act-allin)']]),
+    [ch.raiseLabel, s.raise + (ch.raiseLabel === 'Tapis' ? s.jam : 0), 'var(--act-bet-m)'], ['3bet light', s.light, 'var(--tag-light)'],
     [passive, s.call, 'var(--act-call)'], ['Fold', s.fold, 'var(--act-fold)'],
   ];
-  const stack = node.st.cfg.stack;
+  const stack = node.st.cfg.stack, depth = chartDepth(stack);
   return h('section.panel.chart-panel', { 'aria-label': 'Ton chart BB' },
-    h('div.panel-title', `Ton chart 50bb · ${ch.title}`),
-    stack !== 50 ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart 50bb qui s'applique tel quel.`) : null,
+    h('div.panel-title', `Ton chart ${depth}bb · ${ch.title}`),
+    stack !== depth ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart ${depth}bb qui s'applique tel quel.`) : null,
     h('ul.chart-rows', rows.filter(([, v]) => v > 0).map(([label, v, color]) => h('li',
       h('span.swatch', { style: { background: color } }), label, h('span.mono', pct(v / tot, 1))))));
 }
@@ -634,7 +636,7 @@ function modelNote(node) {
 }
 
 function chartMarks(node) {
-  if (isFirstIn(node)) return (i) => { const k = chartCode(node.actor, CLASSES[i], node.st.cfg.stack); return 'LTXH'.includes(k) ? k : null; };
+  if (isFirstIn(node)) return (i) => { const k = chartCode(node.actor, CLASSES[i], node.st.cfg.stack); return 'LTXHam'.includes(k) ? k : null; };
   const ch = bbChart(node.st);
   return ch ? (i) => (bbCode(ch, CLASSES[i]) === 'B' ? 'B' : null) : null;
 }

@@ -84,6 +84,9 @@ export const OPEN_CHARTS_50 = {
 
 // The BB's charts. Codes: F fold, C call, R 3bet (or iso-raise, or all-in),
 // B 3bet light (a bluff 3bet), K check, c call or fold 50/50, r raise or call 50/50.
+// The 25bb and 20bb charts (charts-short.js) add A all-in, a all-in or call 50/50,
+// j all-in or raise 50/50, q call (or check) with a 15% raise, n not in the range.
+// raise counts every aggressive action, jam the all-in part of it.
 export const BB_CODES = {
   F: { raise: 0, call: 0 },
   C: { raise: 0, call: 1 },
@@ -92,6 +95,11 @@ export const BB_CODES = {
   K: { raise: 0, call: 0 },
   c: { raise: 0, call: 0.5 },
   r: { raise: 0.5, call: 0.5 },
+  A: { raise: 1, call: 0, jam: 1 },
+  a: { raise: 0.5, call: 0.5, jam: 0.5 },
+  j: { raise: 1, call: 0, jam: 0.5 },
+  q: { raise: 0.15, call: 0.85 },
+  n: { raise: 0, call: 0 },
 };
 
 export const BB_CHARTS_50 = {

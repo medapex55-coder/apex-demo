@@ -6,12 +6,12 @@ import { cardStr } from './cards.js';
 
 export const POS = ['LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
 export const STACKS = [200, 100, 80, 70, 50, 40, 30, 25, 20, 15, 10];
-export const OPEN_SIZES = ['limp', '2', '2.5', '4.5']; // '2.5' means the SB opens 3.5
+export const OPEN_SIZES = ['limp', '2', '2.5', '4.5']; // '2.5' means the SB opens 3.5, '2' the SB opens 3
 // Tournament stage = how much of the field is left. 'hu' is heads-up: only the
 // SB (who is also the button) and the BB are dealt in.
 export const STAGES = ['100', '50', '25', '10', 'semi', 'ft', 'hu'];
 export const DEFAULT_CFG = Object.freeze({ stack: 100, open: '2.5', ko: false, stage: '100' });
-export const SHOVE_STACK = 20; // at or below this depth, preflop all-in becomes a strategy
+export const SHOVE_STACK = 25; // at or below this depth, preflop all-in is always an option (the 25bb charts use it)
 export const STREETS = ['Preflop', 'Flop', 'Turn', 'River'];
 const POSTFLOP_ORDER = [4, 5, 0, 1, 2, 3]; // SB first
 const HU_POSTFLOP_ORDER = [5, 4, 0, 1, 2, 3]; // heads-up: the SB has the button and acts last
@@ -84,11 +84,14 @@ function preflopSizes(st, p) {
     // Iso-raise: the base open size plus 1bb for each player who limped before.
     if (st.limpers.length) return round((st.cfg.open === 'limp' ? 2 : +st.cfg.open) + st.limpers.length);
     if (st.cfg.open === '2.5' && p === 4 && !isHU(st)) return 3.5;
+    if (st.cfg.open === '2' && p === 4 && !isHU(st)) return 3;
     return st.cfg.open === 'limp' ? 2.5 : +st.cfg.open;
   }
   if (st.raiseLevel === 1) {
     const open = st.currentBet;
     const ip = postflopOrder(st).indexOf(p) > postflopOrder(st).indexOf(opener);
+    // Short stacks: a limper re-raises small (2.5x, 7.5bb over 3bb at 25bb) so it stays a raise.
+    if (st.limpers.includes(p) && st.cfg.stack <= SHOVE_STACK) return round(open * 2.5);
     return round(open * (ip ? 3 : 4));
   }
   if (st.raiseLevel === 2) return round(Math.round(st.currentBet * 2.3 * 2) / 2);

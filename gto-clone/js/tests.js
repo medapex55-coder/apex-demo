@@ -275,8 +275,8 @@ await test('U23', 'iso sizing: base open + 1bb per limper', () => {
 });
 await test('U24', 'all-in strategy at 20bb and less', () => {
   const kinds = (stack) => legalActions(foldTo(initialState({ stack, open: '2.5' }), 3)).map((a) => a.type).join();
-  assert(kinds(25) === 'fold,raise', 'no shove option at 25bb');
-  assert(kinds(20) === 'fold,raise,allin', 'shove option at 20bb');
+  assert(kinds(30) === 'fold,raise', 'no shove option at 30bb');
+  assert(kinds(25) === 'fold,raise,allin', 'shove option at 25bb');
   const n = analyze(foldTo(initialState({ stack: 12, open: '2.5' }), 3));
   const iA = n.actions.findIndex((a) => a.type === 'allin');
   const f = comboFreqs(n, CLASS_BY_NAME.A5o.combos[0]);
@@ -505,6 +505,28 @@ await test('U31', '50bb charts: opens and every BB spot follow the user charts',
   st = act(act(st, 'raise'), 'raise'); // BB raises 3.5, SB re-raises
   assert(f(st, 'AKs').allin === 1 && f(st, 'AA').call === 1 && f(st, 'KTo').fold === 1, 'vs limp-reraise: AKs shove, AA call, KTo fold');
   assert(f(foldTo(act(foldTo(initialState({ ...cfg, stack: 100 }), 3), 'raise'), 5), 'K4o').raise !== 1, 'no 50bb chart at 100bb');
+});
+await test('U37', '25bb and 20bb charts: 2bb opens, SB 3bb, all-ins from the charts', () => {
+  const f = (st, name) => {
+    const n = analyze(st);
+    const fr = comboFreqs(n, CLASS_BY_NAME[name].combos[0]);
+    return Object.fromEntries(n.actions.map((a, k) => [a.type, fr[k]]));
+  };
+  const c25 = { stack: 25, open: '2' }, c20 = { stack: 20, open: '2' };
+  assert(legalActions(foldTo(initialState(c25), 4)).find((a) => a.type === 'raise').to === 3, 'SB opens 3bb');
+  assert(f(foldTo(initialState(c25), 0), 'K5s').raise < 0.5 && f(foldTo(initialState(c25), 0), 'A2s').raise > 0.5, 'LJ 25bb: K5s Loosifie, A2s Raise / Tightfie');
+  assert(f(foldTo(initialState(c20), 3), 'A5s').allin === 1 && f(foldTo(initialState(c20), 3), 'AA').raise === 1, 'BTN 20bb: A5s shoves, AA raises');
+  assert(f(foldTo(initialState(c20), 4), 'A9o').allin === 1 && f(foldTo(initialState(c20), 4), '72o').fold === 1, 'SB 20bb: A9o shoves, 72o folds');
+  const vsOpen = (cfg, p) => foldTo(act(foldTo(initialState(cfg), p), 'raise'), 5);
+  assert(f(vsOpen(c25, 0), 'AQo').allin === 1 && f(vsOpen(c25, 0), 'AA').raise === 1 && f(vsOpen(c25, 0), 'A3o').raise === 1, 'BB vs LJ 25bb: AQo all-in, AA 3bet, A3o 3bet light');
+  assert(f(vsOpen(c25, 3), 'K6s').allin === 1 && f(vsOpen(c25, 3), '94o').fold === 1, 'BB vs BTN 25bb: K6s all-in, 94o fold');
+  assert(f(vsOpen(c20, 1), 'AJs').allin === 1 && f(vsOpen(c20, 1), 'JJ').allin === 1, 'BB vs HJ 20bb: AJs and JJ all-in');
+  let st = act(foldTo(initialState(c25), 4), 'call'); // SB limps
+  assert(f(st, '55').allin === 1 && f(st, 'K2o').check === 1 && f(st, 'T5o').raise === 1, 'BB vs limp 25bb: 55 all-in, K2o check, T5o raise');
+  st = act(st, 'raise'); // BB raises to 3
+  assert(f(act(st, 'raise'), 'AKs').allin === 1 && f(act(st, 'raise'), 'KK').call === 1, 'vs limp-reraise 25bb: AKs all-in, KK call');
+  assert(f(act(st, 'allin'), 'AA').call === 1 && f(act(st, 'allin'), 'A6s').fold === 1, 'vs limp-shove 25bb: AA call, A6s fold');
+  assert(f(vsOpen({ stack: 25, open: '2.5' }, 0), 'AQo').allin !== 1, 'no 25bb BB chart with a 2.5bb open');
 });
 await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
   const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });
@@ -770,18 +792,22 @@ await test('F13-H1', 'progression page shows the level, XP and badges', async ()
   await waitFor(() => doc().querySelector('.hero-card'));
   assert(doc().querySelectorAll('.badge-card.on').length >= 1 && doc().querySelector('.player-chip .level-badge'), 'badge earned, player chip');
 });
-await test('F14-H1', 'BB 50bb drill: the BB plays its 50bb chart, explained', async () => {
-  await load('#/practice');
-  byRole('button', 'Défense BB 50bb').click();
-  byRole('button', 'Commencer la session').click();
-  for (let n = 0; n < 4; n++) {
-    const btn = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
-    btn.click();
-    const why = await waitFor(() => doc().querySelector('.feedback .why'));
-    assert(/Ton chart 50bb \(BB vs/.test(why.textContent), why.textContent);
-    byRole('button', 'Main suivante').click();
+await test('F14-H1', 'BB charts drill: the BB plays its 50bb, then 25bb chart, explained', async () => {
+  for (const depth of [50, 25]) {
+    await load('#/practice');
+    byRole('button', 'Défense BB (tes charts)').click();
+    await waitFor(() => doc().querySelector('[aria-label="Profondeur"]'));
+    byRole('button', depth + 'bb').click();
+    byRole('button', 'Commencer la session').click();
+    for (let n = 0; n < 3; n++) {
+      const btn = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
+      btn.click();
+      const why = await waitFor(() => doc().querySelector('.feedback .why'));
+      assert(why.textContent.includes(`Ton chart ${depth}bb (BB vs`), why.textContent);
+      byRole('button', 'Main suivante').click();
+    }
+    byRole('button', 'Terminer la session').click();
   }
-  byRole('button', 'Terminer la session').click();
 });
 await test('F15-H1', 'study ⋯: make the BTN loose and add a 3.5bb open', async () => {
   await load('#/study');
