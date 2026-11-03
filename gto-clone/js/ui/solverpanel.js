@@ -1,5 +1,5 @@
-// Study's solver panel: solve a heads-up postflop street (river, or turn with
-// every river) in a Web Worker, show the progress, then the solution's
+// Study's solver panel: solve a heads-up postflop street (river; turn with
+// every river; flop with simplified turns) in Web Workers, show the progress, then the solution's
 // quality. The worker keeps the solution; Study loads its nodes on demand
 // through the provider registered in engine/solutions.js.
 import { h, num } from './dom.js';
@@ -10,11 +10,15 @@ import { addNodes, setProvider } from '../engine/solutions.js';
 const fr = (x, d) => num(x, d).replace('.', ',');
 // Solve settings per street. The river is solved in seconds; the turn deals
 // every river and stops at its target or its time limit (the exploitability,
-// a full best response, is measured every 20 s there).
+// a full best response, is measured every 20 s there). The flop plays its
+// turns in a simplified way (one 2/3-pot bet and all-in) and checks the
+// river down: only its flop nodes are kept, the turn is solved afterwards.
 const SETTINGS = {
-  3: { name: 'la river', target: 0.3, maxIters: 1500, every: 25, time: 'quelques secondes' },
-  2: { name: 'la turn', target: 0.5, maxIters: 100000, every: 5, timeLimit: 180000, checkEvery: 20000, time: '1 à 3 minutes' },
+  3: { name: 'la river', start: 'de la river', target: 0.3, maxIters: 1500, every: 25, time: 'quelques secondes' },
+  2: { name: 'la turn', start: 'de la turn', target: 0.5, maxIters: 100000, every: 5, timeLimit: 180000, checkEvery: 20000, time: '1 à 3 minutes' },
+  1: { name: 'le flop', start: 'du flop', target: 1, maxIters: 100000, every: 5, timeLimit: 240000, checkEvery: 30000, time: '2 à 4 minutes' },
 };
+const FROM = { 1: 'le flop', 2: 'la turn', 3: 'la river' };
 let worker = null;
 let job = null; // { id, key, iterations, exploitability, ms }
 let nextId = 1;
@@ -77,7 +81,7 @@ function done(j, m) {
 }
 
 function start(root) {
-  const { name, time, ...opts } = SETTINGS[root.street];
+  const { name, start: _s, time, ...opts } = SETTINGS[root.street];
   setProvider(null); // the worker drops its previous solution
   const id = nextId++;
   job = { id, key: stateKey(root), street: root.street, iterations: 0, exploitability: null, ms: 0 };
@@ -103,13 +107,13 @@ export function solverPanel(node, onChange) {
   if (node.solved) {
     const m = node.solved;
     return h('section.panel.solver-panel.solved', { 'aria-label': 'Solver' }, title,
-      h('p.small', h('strong', `Stratégie résolue (CFR, depuis ${m.street === 2 ? 'la turn' : 'la river'}).`), ' Équilibre calculé pour les ranges qui arrivent ici, issues de tes charts au preflop. Les EV affichées sont celles de la solution.'),
+      h('p.small', h('strong', `Stratégie résolue (CFR, depuis ${FROM[m.street]}).`), ' Équilibre calculé pour les ranges qui arrivent ici, issues de tes charts au preflop. Les EV affichées sont celles de la solution.'),
+      m.street === 1 ? h('p.small.muted', 'Au flop, la suite est simplifiée pour tenir dans le navigateur : à la turn une seule taille (2/3 du pot) et le tapis, la river jouée jusqu\'à l\'abattage. Pour la turn exacte, résous-la une fois arrivé dessus.') : null,
       h('p.small.muted', `Exploitabilité ${fr(m.exploitability, 2)} % du pot · ${m.iterations} itérations · ${fr(m.ms / 1000, 1)} s`));
   }
   if (!solvable(st)) {
-    const why = alive(st).length > 2 ? 'Le solver travaille en heads-up : ce pot multiway reste sur le modèle Spotwise.'
-      : 'Le solver de flop arrive bientôt : pour l\'instant, le flop suit le modèle Spotwise (approximation, pas un calcul d\'équilibre). Tu peux résoudre la turn et la river.';
-    return h('section.panel.solver-panel', { 'aria-label': 'Solver' }, title, h('p.small.muted', why));
+    return h('section.panel.solver-panel', { 'aria-label': 'Solver' }, title,
+      h('p.small.muted', 'Le solver travaille en heads-up : ce pot multiway reste sur le modèle Spotwise (approximation, pas un calcul d\'équilibre).'));
   }
   const root = streetRoot(st);
   const key = stateKey(root);
@@ -122,7 +126,8 @@ export function solverPanel(node, onChange) {
       h('button.btn.ghost.sm', { type: 'button', on: { click: stop } }, 'Arrêter'));
   }
   return h('section.panel.solver-panel', { 'aria-label': 'Solver' }, title,
-    h('p.small.muted', `Cette street suit le modèle Spotwise. Le solver calcule l'équilibre (CFR) depuis le début de ${s.name}${root.street === 2 ? ', toutes les rivers comprises' : ''}, avec les ranges qui arrivent ici (tes charts au preflop) et les tailles de mise de l'arbre. Durée : ${s.time}.`),
+    h('p.small.muted', `Cette street suit le modèle Spotwise. Le solver calcule l'équilibre (CFR) depuis le début ${s.start}${root.street === 2 ? ', toutes les rivers comprises' : ''}, avec les ranges qui arrivent ici (tes charts au preflop) et les tailles de mise de l'arbre. Durée : ${s.time}.`),
+    root.street === 1 ? h('p.small.muted', 'Au flop, la turn est jouée simplement (2/3 du pot ou tapis) et la river jusqu\'à l\'abattage : un arbre complet ne tiendrait pas dans le navigateur.') : null,
     job ? h('p.small.muted', 'Un autre calcul est en cours.') : null,
     h('button.btn.primary.sm', { type: 'button', disabled: !!job, on: { click: () => start(root) } }, `Résoudre ${s.name}`));
 }

@@ -18,7 +18,9 @@ self.onmessage = async (e) => {
       current = null;
       const t0 = Date.now();
       const cores = Math.max(1, (self.navigator?.hardwareConcurrency || 2) - 1);
-      const solver = root.street === 2 && cores > 1 ? await createParallelSolver(root, ranges, Math.min(cores, 8)) : createSolver(root, ranges);
+      // Flop: simplified turns (absTurn). Turn and flop run on several workers.
+      const flop = root.street === 1;
+      const solver = root.street <= 2 && cores > 1 ? await createParallelSolver(root, ranges, Math.min(cores, 8), { flop }) : createSolver(root, ranges, { flop });
       const res = await solveWith(solver, {
         ...opts, keep: true,
         onProgress: (iterations, exploitability, ms) => self.postMessage({ id, type: 'progress', iterations, exploitability, ms }),

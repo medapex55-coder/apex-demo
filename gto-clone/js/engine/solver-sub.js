@@ -14,9 +14,9 @@ self.onmessage = (e) => {
   const m = e.data;
   try {
     if (m.type === 'init') {
-      const { ctx, ix0 } = setup(m.root, m.ranges, { cards: new Set(m.cards) });
+      const { ctx, ix0 } = setup(m.root, m.ranges, { cards: new Set(m.cards), flop: m.flop });
       // The coordinator's chance nodes, in the same order (same tree, same build).
-      const top = setup(m.root, m.ranges, { stopAtChance: true });
+      const top = setup(m.root, m.ranges, { stopAtChance: true, flop: m.flop });
       buildTree(m.root, top.ctx, top.ix0);
       chances = top.ctx.chances.map((c) => buildTree(c.state, ctx, ix0));
       K = makeKernel(ctx);

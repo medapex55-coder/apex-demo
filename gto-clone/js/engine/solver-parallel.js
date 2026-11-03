@@ -30,8 +30,8 @@ function rpc(worker) {
   };
 }
 
-export async function createParallelSolver(root, ranges, workers) {
-  const { reach0, ix0, ctx, pot0, players } = setup(root, ranges, { stopAtChance: true });
+export async function createParallelSolver(root, ranges, workers, { flop = false } = {}) {
+  const { reach0, ix0, ctx, pot0, players } = setup(root, ranges, { stopAtChance: true, flop });
   const tree = buildTree(root, ctx, ix0);
   const K = makeKernel(ctx);
   const chances = ctx.chances;
@@ -40,7 +40,7 @@ export async function createParallelSolver(root, ranges, workers) {
   const W = Math.max(1, Math.min(workers, cards.length));
   const subs = Array.from({ length: W }, () => rpc(new Worker(new URL('./solver-sub.js', import.meta.url), { type: 'module' })));
   const owner = new Map(cards.map((c, k) => [c, k % W]));
-  const inits = await Promise.all(subs.map((s, w) => s.call({ type: 'init', root, ranges, cards: cards.filter((_, k) => k % W === w) })));
+  const inits = await Promise.all(subs.map((s, w) => s.call({ type: 'init', root, ranges, flop, cards: cards.filter((_, k) => k % W === w) })));
   const stats = { ...ctx.stats, workers: W, nodes: ctx.stats.nodes + inits.reduce((a, r) => a + r.stats.nodes, 0) };
   const pairs = pairWeight(reach0, ix0);
   const rangeValue = (p, cfv) => { let x = 0; for (const i of ix0[p]) x += reach0[p][i] * cfv[i]; return x / pairs; };
@@ -118,7 +118,8 @@ export async function createParallelSolver(root, ranges, workers) {
         for (const i of node.ix[st.q]) reach[st.q][i] *= st.freqs[k][i];
         node = node.children[k];
       }
-      if (node.kind === 'chance') {
+      // Flop solves: the turns below are simplified, not Study nodes.
+      if (node.kind === 'chance' && !flop) {
         const card = cards.find((c) => K.leads(key, { key: stateKey(dealBoard(node.state, [c])) }));
         if (card == null) return out;
         const r = await subs[owner.get(card)].call({ type: 'path', index: node.index, card, key, reach });

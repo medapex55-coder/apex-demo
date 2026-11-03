@@ -608,6 +608,22 @@ await test('U41', 'push/fold Nash at 10bb: SB shoves about 58%, BB calls about 3
   assert(f[n.actions.findIndex((a) => a.type === 'allin')] === 1, 'SB shoves K2o at 10bb');
   assert(!pushFoldSpot(foldTo(initialState({ stack: 10, open: '2.5', ko: true }), 4)), 'KO keeps the model');
 });
+await test('U42', 'flop solver: simplified turns, parallel matches single-thread, flop nodes only', async () => {
+  let st = foldTo(initialState({ stack: 100, open: '2.5' }), 3);
+  st = foldTo(act(st, 'raise'), 5);
+  st = act(st, 'call');
+  st = dealBoard(st, ['Ks', '7h', '2d'].map(parseCard));
+  const ranges = rangesOf(st);
+  const one = createSolver(st, ranges, { flop: true });
+  one.run(1);
+  const par = await createParallelSolver(st, ranges, 3, { flop: true });
+  await par.run(1);
+  const [e1, e2] = [one.exploitability(), await par.exploitability()];
+  const path = await par.path(stateKey(act(dealBoard(act(act(st, 'check'), 'check'), [parseCard('9c')]), 'check')));
+  par.close();
+  assert(Math.abs(e1 - e2) < 1e-6 * e1, 'same exploitability: ' + e1 + ' vs ' + e2);
+  assert(path.length === 2 && path.every((n) => !n.key.includes('/9c')), 'only the flop nodes come back: ' + path.length);
+});
 await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
   const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });
   const list = [

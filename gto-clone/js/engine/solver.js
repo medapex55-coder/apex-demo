@@ -83,9 +83,10 @@ function union(a, b) {
 // the reaches at the start (each player's range without the board), the
 // combos in each range (ix0) and the build context.
 // opts.stopAtChance: chance nodes keep no children (the parallel solver's
-// coordinator: workers own the rivers). opts.cards: build only these river cards.
+// coordinator: workers own the cards). opts.cards: build only these cards.
+// opts.flop: a flop subgame, its turns played in the simplified way of absTurn.
 export function setup(root, ranges, opts = {}) {
-  if (root.street < 2 || root.needBoard || root.toAct < 0) throw new Error('turn or river subgame only');
+  if (root.street < (opts.flop ? 1 : 2) || root.needBoard || root.toAct < 0) throw new Error('flop, turn or river subgame only');
   if (alive(root).length !== 2) throw new Error('heads-up only');
   const players = [root.toAct, alive(root).find((p) => p !== root.toAct)];
   const onBoard = (i) => root.board.includes(C0[i]) || root.board.includes(C1[i]);
@@ -114,9 +115,10 @@ function buildNode(st, ctx, ix) {
     return { kind: 'show', put, pot: pot(st), ix, order: ctx.orders.get(bk) };
   }
   if (st.needBoard) {
-    if (st.needBoard !== 1 || st.street !== 3) throw new Error('turn or river subgame only');
+    const turn = st.street === 2 && ctx.flop;
+    if (st.needBoard !== 1 || !(st.street === 3 || turn)) throw new Error('flop, turn or river subgame only');
     stats.chance++;
-    // Given both hands, the river comes from the 52 - 4 board - 4 hole cards.
+    // Given both hands, the card comes from the 52 - board - 4 hole cards.
     const node = { kind: 'chance', kids: [], ix, share: 1 / (52 - st.board.length - 4), index: ctx.chances.length, state: st };
     ctx.chances.push(node);
     if (ctx.stopAtChance) return node;
@@ -124,7 +126,8 @@ function buildNode(st, ctx, ix) {
       if (st.board.includes(c) || (ctx.cards && !ctx.cards.has(c))) continue;
       const key = st.board.join() + ',' + c;
       if (!ctx.ix.has(key)) ctx.ix.set(key, [without(ix[0], c), without(ix[1], c)]);
-      node.kids.push({ card: c, node: buildTree(dealBoard(st, [c]), ctx, ctx.ix.get(key)) });
+      const next = dealBoard(st, [c]);
+      node.kids.push({ card: c, node: turn ? absTurn(next, ctx, ctx.ix.get(key)) : buildTree(next, ctx, ctx.ix.get(key)) });
     }
     return node;
   }
@@ -139,6 +142,62 @@ function buildNode(st, ctx, ix) {
   ctx.maxActions = Math.max(ctx.maxActions, actions.length);
   stats.nodes++;
   return node;
+}
+
+// Flop solves: a full turn and river tree under every flop line would need
+// gigabytes, so the turn is played with one bet size (2/3 of the pot, all-in
+// when that commits most of the stack) and an all-in raise, and the river is
+// checked down: each player's share of the pot over every river card.
+const TURN_BET = 2 / 3;
+function absTurn(st, ctx, ix) {
+  const { players, inv0, stats } = ctx;
+  const S = st.cfg.stack;
+  const base = players.map((p) => st.invested[p]);
+  const dead = pot(st) - base[0] - base[1];
+  const board = st.board.slice();
+  const orders = riverOrders(ctx, board, ix);
+  const put = (add) => [0, 1].map((q) => base[q] + add[q] - inv0[players[q]]);
+  const total = (add) => dead + base[0] + base[1] + add[0] + add[1];
+  const eq = (add) => { stats.terminals++; return { kind: 'eq', put: put(add), pot: total(add), ix, orders, share: 1 / (52 - board.length - 4) }; };
+  if (st.toAct < 0) return eq([0, 0]); // all-in before the turn: run it out
+  function rec(p, add, checked) {
+    const toCall = add[1 - p] - add[p];
+    const rem = S - base[p] - add[p];
+    const actions = [], children = [];
+    const go = (type, a2, child) => { actions.push({ type, to: a2[p] }); children.push(child); };
+    if (toCall > 0) {
+      stats.terminals++;
+      go('fold', add, { kind: 'fold', win: 1 - p, put: put(add), pot: total(add), ix });
+      const call = add.slice(); call[p] += Math.min(toCall, rem);
+      go('call', call, eq(call));
+      if (rem > toCall) { const jam = add.slice(); jam[p] += rem; go('allin', jam, rec(1 - p, jam, false)); }
+    } else {
+      go('check', add, checked ? eq(add) : rec(1 - p, add, true));
+      let b = Math.round(total(add) * TURN_BET * 2) / 2;
+      if (b >= rem * 0.67) b = rem;
+      if (b > 0) { const bet = add.slice(); bet[p] += b; go(b >= rem ? 'allin' : 'bet', bet, rec(1 - p, bet, false)); }
+    }
+    stats.nodes++;
+    ctx.maxActions = Math.max(ctx.maxActions, actions.length);
+    return {
+      kind: 'act', p, actions, ix, put: put(add), children,
+      regret: new Float32Array(actions.length * N), sum: new Float32Array(actions.length * N),
+    };
+  }
+  return rec(0, [0, 0], false);
+}
+// The showdown order of every river on a turn board (shared by its terminals).
+function riverOrders(ctx, board, ix) {
+  const key = 'r' + board.join();
+  if (!ctx.orders.has(key)) {
+    const list = [];
+    for (let c = 0; c < 52; c++) {
+      if (board.includes(c)) continue;
+      list.push({ card: c, order: showdownOrder([...board, c], union(without(ix[0], c), without(ix[1], c))) });
+    }
+    ctx.orders.set(key, list);
+  }
+  return ctx.orders.get(key);
 }
 
 // The CFR machinery on a tree built with ctx. A chance node with node.ext set
@@ -157,8 +216,31 @@ export function makeKernel(ctx) {
   const sigs = [];
   const sigAt = (d) => sigs[d] ??= new Float64Array(ctx.maxActions * N);
 
+  // River checked down (flop solves): the showdown over every river card. cut:
+  // the opponent's reach without the combos holding that card (per player,
+  // only ever written at that player's combos).
+  const cut = [F(), F()];
+  function checkdown(node, p, opp, out) {
+    const mine = node.ix[p], theirs = node.ix[1 - p], w = cut[1 - p];
+    const uW = node.pot - node.put[p], uL = -node.put[p], uT = node.pot / 2 - node.put[p];
+    for (let j = 0; j < mine.length; j++) out[mine[j]] = 0;
+    for (const { card, order } of node.orders) {
+      for (let j = 0; j < theirs.length; j++) { const i = theirs[j]; w[i] = C0[i] === card || C1[i] === card ? 0 : opp[i]; }
+      const tot = cardSums(w, theirs);
+      winLose(order, w, win, lose);
+      for (let j = 0; j < mine.length; j++) {
+        const i = mine[j];
+        if (C0[i] === card || C1[i] === card) continue;
+        const tie = tot - CS[C0[i]] - CS[C1[i]] + w[i] - win[i] - lose[i];
+        out[i] += node.share * (uW * win[i] + uL * lose[i] + uT * tie);
+      }
+    }
+    return out;
+  }
+
   // Counterfactual values of player p's combos at a terminal, given the opponent's reach.
   function terminal(node, p, opp, out) {
+    if (node.kind === 'eq') return checkdown(node, p, opp, out);
     const mine = node.ix[p];
     const tot = cardSums(opp, node.ix[1 - p]);
     if (node.kind === 'fold') {
@@ -310,7 +392,7 @@ export function makeKernel(ctx) {
   // children (returned as at, with the reaches there).
   function pathFrom(node, key, reach) {
     const out = [];
-    while (node && node.kind !== 'fold' && node.kind !== 'show') {
+    while (node && (node.kind === 'act' || node.kind === 'chance')) {
       if (node.kind === 'chance') {
         const kid = node.kids.find((k) => leads(key, k.node));
         if (!kid) return { nodes: out, at: node, reach };
@@ -341,8 +423,8 @@ export function pairWeight(reach0, ix0) {
   return x;
 }
 
-export function createSolver(root, ranges) {
-  const { players, reach0, ix0, ctx, pot0 } = setup(root, ranges);
+export function createSolver(root, ranges, opts = {}) {
+  const { players, reach0, ix0, ctx, pot0 } = setup(root, ranges, opts);
   const tree = buildTree(root, ctx, ix0);
   const K = makeKernel(ctx);
   const pairs = pairWeight(reach0, ix0);
@@ -382,7 +464,7 @@ export function createSolver(root, ranges) {
         if (node.kind !== 'act') return;
         const st = K.stepOf(node, reach, []);
         const evs = node.children.map((c) => K.evOf(node, st, K.evaluate(c, st.q, st.opp, false, 0)));
-        nodes.push({ key: node.key, actions: node.actions.map(actionKey), freqs: st.freqs, evs });
+        if (node.key) nodes.push({ key: node.key, actions: node.actions.map(actionKey), freqs: st.freqs, evs }); // not the simplified turns
         node.children.forEach((c, k) => {
           const r = reach.map((x) => x.slice());
           for (const i of node.ix[st.q]) r[st.q][i] *= st.freqs[k][i];
