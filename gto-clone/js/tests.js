@@ -8,12 +8,12 @@ import { levelOf, streakOf } from './data/progress.js';
 import { playSessions, abi } from './data/playsessions.js';
 import { planSlots, overlaps } from './data/program.js';
 import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS, alive, isIP } from './engine/game.js';
-import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale } from './engine/strategy.js';
+import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale, bbChart } from './engine/strategy.js';
 import { icmEquities, bubbleFactor, requiredEquity } from './engine/icm.js';
 import { gradeDecision } from './ui/practice.js';
 import { parseFile } from './data/parsers.js';
 import { extractDecisions } from './data/decisions.js';
-import { analyzeDecisions, keyMetric, practiceSpotKey, spotKey, liveAction } from './data/leaks.js';
+import { analyzeDecisions, keyMetric, practiceSpotKey, spotKey, liveAction, spotState } from './data/leaks.js';
 import { contributions, handResult, equityShare, handFlags, handRecord, results as handTotals, hudTotals } from './data/handstats.js';
 
 // Synthetic PokerStars files (made up for the tests, same layout as the real ones).
@@ -541,6 +541,15 @@ await test('U38', 'between chart depths the two charts are blended hand by hand'
   const bb = f(foldTo(act(foldTo(initialState({ stack: 40, open: '2.5' }), 3), 'raise'), 5), 'AJs');
   assert(Math.abs(bb.allin - 0.4) < 0.01 && Math.abs(bb.raise - 0.6) < 0.01, 'BB vs BTN 40bb: AJs all-in 40% (25bb chart), 3bet 60% (50bb chart)');
   assert(f(foldTo(initialState({ stack: 70, open: '2.5' }), 0), 'A9o').raise < 0.15, 'LJ A9o at 70bb leans to the 100bb fold');
+});
+await test('D11', 'leakfinder: real opens and SB limps are graded with your BB charts', () => {
+  const vsSB = spotState({ sc: 'VO', hp: 5, vp: 4, s: 25, o: '2.5', c: 'AsKd' }); // SB opened 3bb at 25bb
+  assert(vsSB.cfg.open === '2' && bbChart(vsSB)?.title === 'BB vs open SB', 'a 3bb SB open at 25bb uses the 25bb chart');
+  const vsCO = spotState({ sc: 'VO', hp: 5, vp: 2, s: 50, o: '2', c: 'AsKd' }); // CO opened 2.2bb at 50bb
+  assert(vsCO.cfg.open === '2.5' && bbChart(vsCO)?.title === 'BB vs open CO', 'a 2.2bb open at 50bb uses the 50bb chart');
+  const limp = spotState({ sc: 'VL', hp: 5, lp: [4], s: 25, o: 'limp', c: 'AsKd' });
+  assert(bbChart(limp)?.title === 'BB vs limp SB', 'BB vs an SB limp uses the limp chart');
+  assert(spotState({ sc: 'VL', hp: 3, lp: [0], s: 25, o: 'limp', c: 'AsKd' }).cfg.open === 'limp', 'other limps keep the limp config');
 });
 await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
   const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });

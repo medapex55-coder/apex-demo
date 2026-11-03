@@ -24,9 +24,20 @@ export const stackGroup = (s) => STACK_GROUPS.find((g) => g.test(s))?.id || s + 
 const find = (st, type) => legalActions(st).find((a) => a.type === type);
 const aggressive = (st, allin) => (allin ? find(st, 'allin') || find(st, 'raise') : find(st, 'raise') || find(st, 'allin'));
 
+// The open size the user's BB charts are made for at this stack (2bb up to
+// 37bb, 2.5bb up to 74bb; none deeper). Real opens of 2 to 3.75bb count as
+// that size so the charts apply, and a lone SB limp facing the BB is replayed
+// in that config too (the "limp" open size has no BB chart).
+const chartOpen = (stack) => (stack < 37.5 ? '2' : '2.5');
+export function spotOpen(d) {
+  if (d.s >= 75) return d.o || '2.5';
+  if (d.sc === 'VL') return d.hp === 5 && d.lp.length === 1 && d.lp[0] === 4 ? chartOpen(d.s) : 'limp';
+  return !d.o || d.o === '2' || d.o === '2.5' ? chartOpen(d.s) : d.o;
+}
+
 // Rebuild the engine state where the hero decides. Returns null if the tree can't express it.
 export function spotState(d) {
-  const cfg = { stack: d.s, open: d.o || '2.5', ko: !!d.ko, stage: '100' };
+  const cfg = { stack: d.s, open: spotOpen(d), ko: !!d.ko, stage: '100' };
   let st = initialState(cfg);
   try {
     if (d.sc === 'RFI') st = foldTo(st, d.hp);
