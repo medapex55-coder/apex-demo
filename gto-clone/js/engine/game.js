@@ -90,8 +90,8 @@ function preflopSizes(st, p) {
   if (st.raiseLevel === 1) {
     const open = st.currentBet;
     const ip = postflopOrder(st).indexOf(p) > postflopOrder(st).indexOf(opener);
-    // Short stacks: a limper re-raises small (2.5x, 7.5bb over 3bb at 25bb) so it stays a raise.
-    if (st.limpers.includes(p) && st.cfg.stack <= SHOVE_STACK) return round(open * 2.5);
+    // Below 50bb a limper re-raises small (2.5x, 7.5bb over 3bb at 25bb) so it stays a raise.
+    if (st.limpers.includes(p) && st.cfg.stack < 50) return round(open * 2.5);
     return round(open * (ip ? 3 : 4));
   }
   if (st.raiseLevel === 2) return round(Math.round(st.currentBet * 2.3 * 2) / 2);
@@ -109,6 +109,11 @@ function sizesFor(st, p, level, defaults) {
   const list = s.keep?.[level] === false && custom.length ? custom : [...defaults, ...custom];
   return [...new Set(list)].sort((a, b) => a - b);
 }
+
+// Whether preflop all-in is offered next to the raise: always at 25bb and
+// less, and below 50bb once someone limped or raised (the 25bb charts' all-ins
+// fade out up to 50bb).
+export const jamOption = (st) => st.cfg.stack <= SHOVE_STACK || (st.cfg.stack < 50 && (st.raiseLevel >= 1 || st.limpers.length > 0));
 
 export function legalActions(st) {
   if (st.terminal || st.needBoard || st.toAct < 0) return [];
@@ -137,9 +142,9 @@ export function legalActions(st) {
         acts.push({ type: to >= max ? 'allin' : 'raise', to, level });
       }
     }
-    // 20bb and shorter: shoving is always an option, next to the raise or limp.
+    // Shoving next to the raise or limp (see jamOption).
     const jam = st.streetBet[p] + rem;
-    if (st.cfg.stack <= SHOVE_STACK && st.raiseLevel <= 3 && rem > call && !acts.some((a) => a.type === 'allin')) {
+    if (jamOption(st) && st.raiseLevel <= 3 && rem > call && !acts.some((a) => a.type === 'allin')) {
       acts.push({ type: 'allin', to: jam, level: st.raiseLevel + 1 });
     }
     return acts;

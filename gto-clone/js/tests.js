@@ -434,7 +434,8 @@ await test('D10', 'HUD counters: RFI and steal from the BTN, fold in the BB to a
   assert(t.VPIP.opp === 2 && t.VPIP.hit === 1 && t.FBS.hit === 1, 'totals');
 });
 const share = (node, type) => { const o = overallFreqs(node); return node.actions.reduce((a, x, k) => a + (x.type === type ? o.freqs[k] : 0), 0); };
-const bbVsBtn = (cfg) => { let st = foldTo(initialState({ stack: 30, open: '2.5', ...cfg }), 3); st = foldTo(act(st, 'raise'), 5); return analyze(st); };
+// A 4.5bb open: no chart of the user's covers it, so the model's adjustments show.
+const bbVsBtn = (cfg) => { let st = foldTo(initialState({ stack: 30, open: '4.5', ...cfg }), 3); st = foldTo(act(st, 'raise'), 5); return analyze(st); };
 await test('U25', 'KO widens the BB defence, the final table tightens it', () => {
   const base = 1 - share(bbVsBtn({}), 'fold');
   const ko = 1 - share(bbVsBtn({ ko: true }), 'fold');
@@ -527,6 +528,19 @@ await test('U37', '25bb and 20bb charts: 2bb opens, SB 3bb, all-ins from the cha
   assert(f(act(st, 'raise'), 'AKs').allin === 1 && f(act(st, 'raise'), 'KK').call === 1, 'vs limp-reraise 25bb: AKs all-in, KK call');
   assert(f(act(st, 'allin'), 'AA').call === 1 && f(act(st, 'allin'), 'A6s').fold === 1, 'vs limp-shove 25bb: AA call, A6s fold');
   assert(f(vsOpen({ stack: 25, open: '2.5' }, 0), 'AQo').allin !== 1, 'no 25bb BB chart with a 2.5bb open');
+});
+await test('U38', 'between chart depths the two charts are blended hand by hand', () => {
+  const f = (st, name) => {
+    const n = analyze(st);
+    const fr = comboFreqs(n, CLASS_BY_NAME[name].combos[0]);
+    return Object.fromEntries(n.actions.map((a, k) => [a.type, fr[k]]));
+  };
+  const lj = (stack) => f(foldTo(initialState({ stack, open: '2.5' }), 0), 'A9o').raise;
+  assert(Math.abs(lj(30) - (0.8 * 0.925 + 0.2 * 0.15)) < 0.01, 'LJ A9o at 30bb: 80% the 25bb Raise / Tightfie, 20% the 50bb Loosifie');
+  assert(lj(30) > lj(40) && lj(40) > lj(50), 'A9o opens less as stacks get deeper');
+  const bb = f(foldTo(act(foldTo(initialState({ stack: 40, open: '2.5' }), 3), 'raise'), 5), 'AJs');
+  assert(Math.abs(bb.allin - 0.4) < 0.01 && Math.abs(bb.raise - 0.6) < 0.01, 'BB vs BTN 40bb: AJs all-in 40% (25bb chart), 3bet 60% (50bb chart)');
+  assert(f(foldTo(initialState({ stack: 70, open: '2.5' }), 0), 'A9o').raise < 0.15, 'LJ A9o at 70bb leans to the 100bb fold');
 });
 await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
   const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });

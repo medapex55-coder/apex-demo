@@ -12,7 +12,7 @@ import { OPEN_CHARTS_50, BB_CHARTS_50, BB_CODES } from '../data/charts-50.js';
 import { OPEN_CHARTS_25, OPEN_CHARTS_20, BB_CHARTS_25, BB_CHARTS_20 } from '../data/charts-short.js';
 import { stageBubbleFactor } from './icm.js';
 import {
-  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, alive, SHOVE_STACK, isHU, seatCfg,
+  POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, alive, SHOVE_STACK, isHU, seatCfg, jamOption,
 } from './game.js';
 
 // Tournament pressure. ICM: the bubble factor (BF) says how much more a chip
@@ -88,26 +88,38 @@ export const chartDepth = (stack) => (stack < 22.5 ? 20 : stack < 37.5 ? 25 : st
 // Close enough to the chart's depth to use its all-ins and the BB's charts
 // (shorter than that, the model's shoving ranges apply).
 export const chartFits = (stack) => stack >= 0.8 * chartDepth(stack) && stack <= 1.4 * chartDepth(stack);
+// Between two chart depths (25-50bb, 50-100bb) the charts are blended: each
+// hand's frequencies move in a straight line from the lower chart (t = 0) to
+// the upper one (t = 1). 30bb is 80% the 25bb chart, 40bb 60% the 50bb one.
+export function chartBlend(stack) {
+  if (stack > 25 && stack < 50) return { lo: 25, hi: 50, t: (stack - 25) / 25 };
+  if (stack > 50 && stack < 100) return { lo: 50, hi: 100, t: (stack - 50) / 50 };
+  return null;
+}
 const OPEN_BY_DEPTH = { 20: OPEN_CHARTS_20, 25: OPEN_CHARTS_25, 50: OPEN_CHARTS_50, 100: OPEN_CHARTS };
 // The BB's charts at each depth, and the open size they are made for.
 const BB_BY_DEPTH = { 20: { open: '2', charts: BB_CHARTS_20 }, 25: { open: '2', charts: BB_CHARTS_25 }, 50: { open: '2.5', charts: BB_CHARTS_50 } };
 
-export function chartCode(p, cls, stack = 100) {
-  const ch = OPEN_BY_DEPTH[chartDepth(stack)][POS[p]];
+export function chartCodeAt(p, cls, depth) {
+  const ch = OPEN_BY_DEPTH[depth][POS[p]];
   return ch ? ch[cls.row][cls.col] : null;
 }
+export const chartCode = (p, cls, stack = 100) => chartCodeAt(p, cls, chartDepth(stack));
 
-// The BB's chart for this spot, or null: vs a limp from the SB, vs a single
-// open (not an all-in) with nobody else in, and vs the SB's limp-reraise or
-// limp-shove after the BB raised. 6-max, at the open size of the chart set
-// (2.5bb at 50bb, 2bb at 25 and 20bb), from 0.8x to 1.4x its depth (40-70bb
-// for 50bb), in chip-EV spots only: with bounties or ICM pressure the model's
-// adjusted ranges apply.
-export function bbChart(st) {
-  const { cfg } = st;
-  const set = BB_BY_DEPTH[chartDepth(cfg.stack)];
-  if (st.street !== 0 || st.toAct !== 5 || isHU(st) || !set || cfg.open !== set.open || !chartFits(cfg.stack)) return null;
-  if (Math.abs(rangeScale(cfg) - 1) > 0.005) return null;
+const mix = (a, b, t) => Object.fromEntries(['raise', 'limp', 'fold', 'jam'].map((k) => [k, (1 - t) * (a[k] || 0) + t * (b[k] || 0)]));
+// First-in frequencies of a hand: its chart, or the blend of the two charts around the stack.
+export function openFreqs(p, cls, stack) {
+  const b = chartBlend(stack);
+  if (!b) return codeFreqs(chartCode(p, cls, stack));
+  return mix(codeFreqs(chartCodeAt(p, cls, b.lo)), codeFreqs(chartCodeAt(p, cls, b.hi)), b.t);
+}
+
+// The BB's chart at one depth for this spot, or null: vs a limp from the SB,
+// vs a single open (not an all-in) with nobody else in, and vs the SB's
+// limp-reraise or limp-shove after the BB raised.
+function bbChartAt(st, depth) {
+  const set = BB_BY_DEPTH[depth];
+  if (!set) return null;
   const sbLimp = st.limpers.length === 1 && st.limpers[0] === 4;
   if (st.raiseLevel === 0) return sbLimp ? set.charts.vsLimp || null : null;
   if (st.raiseLevel === 1 && !st.limpers.length) {
@@ -117,7 +129,42 @@ export function bbChart(st) {
   if (st.raiseLevel === 2 && sbLimp && st.lastAggr === 4) return (remaining(st, 4) <= 0 && set.charts.vsLimpShove) || set.charts.vsLimp3bet || null;
   return null;
 }
-export const bbCode = (chart, cls) => chart.grid[cls.row][cls.col];
+
+// The BB's chart(s) for this spot, or null: { title, raiseLabel, parts:
+// [{ chart, depth, w }], blend }. 6-max, chip-EV spots only (with bounties or
+// ICM pressure the model's adjusted ranges apply). One chart at its open size
+// (2.5bb at 50bb, 2bb at 25 and 20bb) from 0.8x to 1.4x its depth; between 25
+// and 50bb the two charts blended, for a 2 or 2.5bb open, when both cover the spot.
+export function bbChart(st) {
+  const { cfg } = st;
+  if (st.street !== 0 || st.toAct !== 5 || isHU(st)) return null;
+  if (Math.abs(rangeScale(cfg) - 1) > 0.005) return null;
+  const b = chartBlend(cfg.stack);
+  if (b && b.hi === 50) {
+    if (cfg.open !== '2' && cfg.open !== '2.5') return null;
+    const lo = bbChartAt(st, 25), hi = bbChartAt(st, 50);
+    if (!lo || !hi) return null;
+    const raiseLabel = lo.raiseLabel === hi.raiseLabel ? lo.raiseLabel : 'Raise';
+    return { title: hi.title, raiseLabel, blend: b, parts: [{ chart: lo, depth: 25, w: 1 - b.t }, { chart: hi, depth: 50, w: b.t }] };
+  }
+  const depth = chartDepth(cfg.stack);
+  if (!BB_BY_DEPTH[depth] || cfg.open !== BB_BY_DEPTH[depth].open || !chartFits(cfg.stack)) return null;
+  const ch = bbChartAt(st, depth);
+  return ch ? { title: ch.title, raiseLabel: ch.raiseLabel, blend: null, parts: [{ chart: ch, depth, w: 1 }] } : null;
+}
+// The chart's code for a hand when one chart applies (null when blended).
+export const bbCode = (spot, cls) => (spot.parts.length === 1 ? spot.parts[0].chart.grid[cls.row][cls.col] : null);
+// The BB's frequencies for a hand: raise counts every aggressive action, jam
+// the all-in part, light the 3bet-light part.
+export function bbFreqs(spot, cls) {
+  const f = { raise: 0, call: 0, jam: 0, light: 0 };
+  for (const { chart, w } of spot.parts) {
+    const code = chart.grid[cls.row][cls.col], c = BB_CODES[code];
+    f.raise += w * c.raise; f.call += w * c.call; f.jam += w * (c.jam || 0);
+    if (code === 'B') f.light += w;
+  }
+  return f;
+}
 
 // raise counts every aggressive action, jam the all-in part of it (A, a).
 export function codeFreqs(code) {
@@ -149,7 +196,7 @@ function openWidth(p, stack) {
   if (p === 5) return 0.18; // BB isolating a limp
   if (!OPEN_CHARTS[POS[p]]) return 0.4;
   let s = 0;
-  for (const c of CLASSES) s += codeFreqs(chartCode(p, c, stack)).raise * c.combos.length;
+  for (const c of CLASSES) s += openFreqs(p, c, stack).raise * c.combos.length;
   return s / 1326;
 }
 
@@ -173,8 +220,8 @@ function preflopClassFreqs(st, actions, range) {
   // sizes: the aggressive actions, smallest first (several when the player
   // has custom sizings; the all-in counts as one when it is just the biggest).
   // iR: where the raising frequency is computed, then split across sizes.
-  // iA: a separate all-in option next to a raise (20bb and shorter).
-  const short = st.cfg.stack <= SHOVE_STACK && idx('raise') >= 0;
+  // iA: a separate all-in option next to a raise (see jamOption).
+  const short = jamOption(st) && idx('raise') >= 0;
   const sizes = actions.map((_, j) => j).filter((j) => actions[j].type === 'raise' || (actions[j].type === 'allin' && !short));
   const iR = sizes.length ? sizes[0] : -1;
   const iA = short ? idx('allin') : -1;
@@ -197,12 +244,11 @@ function preflopClassFreqs(st, actions, range) {
     let raise = 0, call = 0;
     let jam = null; // the all-in part of raise when a chart says it
     if (bbc) {
-      const b = BB_CODES[bbCode(bbc, c)]; // the BB's chart
-      raise = b.raise; call = b.call; jam = b.jam || 0;
+      ({ raise, call, jam } = bbFreqs(bbc, c)); // the BB's chart(s)
     } else if (rl === 0 && p <= 4 && !facingLimp) {
       // First in: the user's chart (heads-up, the button opens most hands).
       // With the "limp" open size, the raising range limps.
-      const f = hu && p === 4 ? { raise: within(pc, HU_OPEN, 0.03), limp: 0 } : codeFreqs(chartCode(p, c, st.cfg.stack));
+      const f = hu && p === 4 ? { raise: within(pc, HU_OPEN, 0.03), limp: 0 } : openFreqs(p, c, st.cfg.stack);
       if (st.cfg.open === 'limp') {
         // Limp mode: the raising range limps, except the part that shoves at 20bb and less.
         raise = iR >= 0 ? f.raise * shoveShare(c, st.cfg.stack, true) : 0;

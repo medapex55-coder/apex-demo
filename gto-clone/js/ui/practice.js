@@ -7,7 +7,7 @@ import {
   POS, STREETS, initialState, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
   aggression, pot, remaining, alive, toCallOf, STACKS,
 } from '../engine/game.js';
-import { analyze, comboFreqs, comboEVs, classSummary, chartCode, getOpenStyle, rangesOf, chartDepth, bbChart, bbCode } from '../engine/strategy.js';
+import { analyze, comboFreqs, comboEVs, classSummary, chartCode, chartCodeAt, chartBlend, getOpenStyle, rangesOf, chartDepth, bbChart, bbCode } from '../engine/strategy.js';
 import { saveSession, uid, getSettings, getProgress } from '../store.js';
 import { practiceSpotKey, studyLink, spotState } from '../data/leaks.js';
 import { markSlotDone } from '../data/program.js';
@@ -513,26 +513,35 @@ function explain(node, i) {
   if (Number.isFinite(eq)) parts.push(players > 2 ? `À ${players} joueurs, ta part estimée du pot est de ${pct(eq)} (la moyenne serait de ${Math.round(100 / players)} %).` : `Ton équité contre sa range est de ${pct(eq)}.`);
   if (call > 0 && st.raiseLevel > 0) parts.push(`Payer coûte ${num(call)}bb pour un pot de ${num(pot(st))}bb : il te faut environ ${pct(call / (pot(st) + call))} d'équité pour être rentable, avant position et mises futures.`);
   const firstIn = st.street === 0 && st.raiseLevel === 0 && !st.limpers.length && st.toAct <= 4 && st.cfg.stage !== 'hu';
+  const cls = CLASSES[CLASS_OF_COMBO[i]];
+  const mixNote = (b) => `mélangés à ${st.cfg.stack}bb (${Math.round((1 - b.t) * 100)} % / ${Math.round(b.t * 100)} %)`;
   if (firstIn) {
-    const code = chartCode(st.toAct, CLASSES[CLASS_OF_COMBO[i]], st.cfg.stack);
-    const flex = {
+    const text = (code) => ({
       L: 'Loosifie (ouvre-la quand tu joues plus large)', T: 'Tightfie (jette-la quand tu joues plus serré)',
       X: 'moitié Raise, moitié Tightfie', H: 'raise ou limp, 50/50',
-    }[code];
-    const plain = { R: 'toujours raise', A: 'tapis', a: 'tapis ou limp, 50/50', M: 'limp', m: 'limp ou fold, 50/50', F: 'fold' }[code];
-    const name = `Ton chart ${chartDepth(st.cfg.stack)}bb`;
-    parts.push(flex ? `${name} : ${flex}. Style : ${getOpenStyle()}.` : `${name} : ${plain}.`);
+      R: 'toujours raise', A: 'tapis', a: 'tapis ou limp, 50/50', M: 'limp', m: 'limp ou fold, 50/50',
+    }[code] || 'fold');
+    const flex = (code) => 'LTX'.includes(code);
+    const b = chartBlend(st.cfg.stack);
+    if (b) {
+      const lo = chartCodeAt(st.toAct, cls, b.lo), hi = chartCodeAt(st.toAct, cls, b.hi);
+      parts.push(`Tes charts ${b.lo}bb (${text(lo)}) et ${b.hi}bb (${text(hi)}), ${mixNote(b)}.${flex(lo) || flex(hi) ? ` Style : ${getOpenStyle()}.` : ''}`);
+    } else {
+      const code = chartCode(st.toAct, cls, st.cfg.stack);
+      parts.push(`Ton chart ${chartDepth(st.cfg.stack)}bb : ${text(code)}.${flex(code) ? ` Style : ${getOpenStyle()}.` : ''}`);
+    }
   }
   const ch = bbChart(st);
   if (ch) {
-    const code = bbCode(ch, CLASSES[CLASS_OF_COMBO[i]]);
-    const text = {
-      R: ch.raiseLabel.toLowerCase(), B: '3bet light (relance en bluff)', C: 'call', K: 'check', F: 'fold',
-      c: 'call ou fold, 50/50', r: `${ch.raiseLabel.toLowerCase()} ou call, 50/50`,
-      A: 'tapis', a: 'tapis ou call, 50/50', j: `tapis ou ${ch.raiseLabel.toLowerCase()}, 50/50`, n: 'hors de ta range',
-      q: st.raiseLevel === 0 ? `check, parfois ${ch.raiseLabel.toLowerCase()} (15 %)` : `call, parfois ${ch.raiseLabel.toLowerCase()} (15 %)`,
-    }[code];
-    parts.push(`Ton chart ${chartDepth(st.cfg.stack)}bb (${ch.title}) : ${text}.`);
+    const label = ch.raiseLabel.toLowerCase();
+    const text = (code) => ({
+      R: label, B: '3bet light (relance en bluff)', C: 'call', K: 'check', F: 'fold',
+      c: 'call ou fold, 50/50', r: `${label} ou call, 50/50`,
+      A: 'tapis', a: 'tapis ou call, 50/50', j: `tapis ou ${label}, 50/50`, n: 'hors de ta range',
+      q: st.raiseLevel === 0 ? `check, parfois ${label} (15 %)` : `call, parfois ${label} (15 %)`,
+    }[code]);
+    const codes = ch.parts.map((pt) => `${pt.depth}bb ${text(pt.chart.grid[cls.row][cls.col])}`);
+    parts.push(ch.blend ? `Tes charts BB (${ch.title}) : ${codes.join(', ')}, ${mixNote(ch.blend)}.` : `Ton chart ${ch.parts[0].depth}bb (${ch.title}) : ${text(bbCode(ch, cls))}.`);
   }
   if (st.street === 0 && !firstIn && !ch) parts.push('Référence : pas de chart pour ce spot, c\'est le modèle Spotwise (le même que dans Étude).');
   return parts.join(' ');

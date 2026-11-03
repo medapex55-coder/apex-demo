@@ -12,11 +12,10 @@ const OPEN_LABELS = { limp: 'Limp 1bb', 2: '2bb (SB 3)', 2.5: '2.5bb (SB 3.5)', 
 const STAGE_LABELS = { 100: 'Début (100 %)', 50: '50 % restants', 25: '25 % restants', 10: '10 % restants', semi: 'Demi-finale', ft: 'Table finale', hu: 'Heads-up' };
 import {
   analyze, isCached, classSummary, overallFreqs, comboFreqs, comboEVs, classAverage, rangeCombos,
-  chartCode, codeFreqs, getOpenStyle, setOpenStyle, chartDepth, bbChart, bbCode,
+  chartCode, chartCodeAt, openFreqs, chartBlend, getOpenStyle, setOpenStyle, chartDepth, bbChart, bbCode, bbFreqs,
 } from '../engine/strategy.js';
 import { getSettings, setSetting } from '../store.js';
 import { TAG_NAMES } from '../data/open-charts.js';
-import { BB_CODES } from '../data/charts-50.js';
 import { scenarioReport, requiredEquity, riskPremium, STAGE_SCENARIOS, stageBubbleFactor, MAX_PLAYERS } from '../engine/icm.js';
 
 const ui = {
@@ -567,65 +566,84 @@ function handDetail(node) {
 
 const isFirstIn = (node) => node.st.street === 0 && node.st.raiseLevel === 0 && node.actor <= 4 && node.st.cfg.stage !== 'hu';
 
+// Between two chart depths: which charts, and how much each one weighs.
+const blendNote = (b, stack) => h('p.small.muted', `Pas de chart à ${stack}bb : mélange de tes charts ${b.lo}bb (${Math.round((1 - b.t) * 100)} %) et ${b.hi}bb (${Math.round(b.t * 100)} %), main par main.`);
+const OPEN_NAMES = { R: 'Raise', A: 'All-in', M: 'Limp', F: 'Fold', ...TAG_NAMES };
+
 // The user's open chart for this seat: its zones and the style that decides
-// how the flex zones (Loosifie / Tightfie) are played.
+// how the flex zones (Loosifie / Tightfie) are played. Between two depths,
+// the blended frequencies.
 function chartPanel(node) {
   if (!isFirstIn(node)) return null;
   const p = node.actor;
-  const share = {};
-  for (const c of CLASSES) {
-    const k = chartCode(p, c, node.st.cfg.stack);
-    share[k] = (share[k] || 0) + c.combos.length / 1326;
-  }
+  const stack = node.st.cfg.stack, depth = chartDepth(stack), b = chartBlend(stack);
   const open = node.actions.find((a) => a.type === 'raise') || node.actions.find((a) => a.type === 'allin');
   const raiseLabel = open ? `Raise ${open.to}` : 'Limp (taille d\'open)';
-  const rows = p === 4
-    ? [['All-in', 'A', 'var(--act-allin)'], ['All-in / Limp', 'a', null], [raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Limp / Fold', 'm', null], ['Fold', 'F', 'var(--act-fold)']]
-    : [['All-in', 'A', 'var(--act-allin)'], [raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']];
+  let rows;
+  if (b) {
+    const s = { jam: 0, raise: 0, limp: 0, fold: 0 };
+    for (const c of CLASSES) {
+      const f = openFreqs(p, c, stack), n = c.combos.length / 1326;
+      s.jam += n * f.jam; s.raise += n * (f.raise - f.jam); s.limp += n * f.limp; s.fold += n * f.fold;
+    }
+    rows = [['All-in', s.jam, 'var(--act-allin)'], [raiseLabel, s.raise, 'var(--act-bet-m)'], ['Limp', s.limp, 'var(--act-call)'], ['Fold', s.fold, 'var(--act-fold)']]
+      .map(([label, v, color]) => [label, v, color, null]);
+  } else {
+    const share = {};
+    for (const c of CLASSES) {
+      const k = chartCode(p, c, stack);
+      share[k] = (share[k] || 0) + c.combos.length / 1326;
+    }
+    rows = (p === 4
+      ? [['All-in', 'A', 'var(--act-allin)'], ['All-in / Limp', 'a', null], [raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Limp', 'H', null], ['Limp', 'M', 'var(--act-call)'], ['Limp / Fold', 'm', null], ['Fold', 'F', 'var(--act-fold)']]
+      : [['All-in', 'A', 'var(--act-allin)'], [raiseLabel, 'R', 'var(--act-bet-m)'], ['Raise / Tightfie', 'X', null], ['Tightfie', 'T', 'var(--tag-tight)'], ['Loosifie', 'L', 'var(--tag-loose)'], ['Fold', 'F', 'var(--act-fold)']])
+      .map(([label, k, color]) => [label, share[k] || 0, color, k]);
+  }
   const style = getOpenStyle();
-  const stack = node.st.cfg.stack, depth = chartDepth(stack);
   return h('section.panel.chart-panel', { 'aria-label': 'Ton chart d\'open' },
-    h('div.panel-title', `Ton chart ${depth}bb · ${POS[p]} first in`),
-    stack !== depth ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart ${depth}bb qui s'applique tel quel.`) : null,
-    h('ul.chart-rows', rows.filter(([, k]) => share[k]).map(([label, k, color]) => h('li',
+    h('div.panel-title', b ? `Tes charts ${b.lo}bb ↔ ${b.hi}bb · ${POS[p]} first in` : `Ton chart ${depth}bb · ${POS[p]} first in`),
+    b ? blendNote(b, stack) : stack !== depth ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart ${depth}bb qui s'applique tel quel.`) : null,
+    h('ul.chart-rows', rows.filter(([, v]) => v > 0.0005).map(([label, v, color, k]) => h('li',
       color ? h('span.swatch', { style: { background: color } }) : h('span.swatch.mark-' + k),
-      label, h('span.mono', pct(share[k], 1))))),
+      label, h('span.mono', pct(v, 1))))),
     p === 4 ? null : Segmented('Style d\'open', [
       { value: 'tight', label: 'Tight' }, { value: 'standard', label: 'Standard' }, { value: 'loose', label: 'Loose' },
     ], style, (v) => { setSetting('openStyle', v); setOpenStyle(v); render(); }),
     p === 4 ? null : h('p.small.muted', style === 'tight' ? 'Tight : les mains Tightfie se couchent.' : style === 'loose' ? 'Loose : les mains Loosifie s\'ouvrent aussi.' : 'Standard : les mains Tightfie s\'ouvrent, les Loosifie se couchent.'));
 }
 
-// The BB's chart for this spot (50, 25 or 20bb), when there is one. Split cells count
-// half to each side. Shares count only the hands still in the BB's range
-// (all of them, except vs a limp-reraise).
+// The BB's chart for this spot (50, 25 or 20bb, or the 25bb and 50bb charts
+// blended in between), when there is one. Split cells count half to each
+// side. Shares count only the hands still in the BB's range (all of them,
+// except vs a limp-reraise).
 function bbChartPanel(node) {
   const ch = bbChart(node.st);
   if (!ch) return null;
   const w = node.ranges[node.actor];
+  const vsLimp = node.st.raiseLevel === 0;
   const s = { jam: 0, raise: 0, light: 0, call: 0, fold: 0 };
   let tot = 0;
   for (const c of CLASSES) {
-    const k = bbCode(ch, c), f = BB_CODES[k];
+    const f = bbFreqs(ch, c);
     const n = c.combos.reduce((a, i) => a + w[i], 0);
     tot += n;
-    if (k === 'B') { s.light += n; continue; }
-    s.jam += n * (f.jam || 0);
-    s.raise += n * (f.raise - (f.jam || 0));
-    s.call += n * (k === 'K' ? 1 : f.call);
-    s.fold += n * (k === 'K' ? 0 : 1 - f.raise - f.call);
+    s.light += n * f.light;
+    s.jam += n * f.jam;
+    s.raise += n * (f.raise - f.jam - f.light);
+    s.call += n * (vsLimp ? 1 - f.raise : f.call); // vs a limp, not raising is a check
+    s.fold += n * (vsLimp ? 0 : 1 - f.raise - f.call);
   }
-  const passive = node.st.raiseLevel === 0 ? 'Check' : 'Call';
+  const tapis = ch.raiseLabel === 'Tapis';
   const rows = [
-    ...(ch.raiseLabel === 'Tapis' ? [] : [['All-in', s.jam, 'var(--act-allin)']]),
-    [ch.raiseLabel, s.raise + (ch.raiseLabel === 'Tapis' ? s.jam : 0), 'var(--act-bet-m)'], ['3bet light', s.light, 'var(--tag-light)'],
-    [passive, s.call, 'var(--act-call)'], ['Fold', s.fold, 'var(--act-fold)'],
+    ...(tapis ? [] : [['All-in', s.jam, 'var(--act-allin)']]),
+    [ch.raiseLabel, s.raise + (tapis ? s.jam : 0), 'var(--act-bet-m)'], ['3bet light', s.light, 'var(--tag-light)'],
+    [vsLimp ? 'Check' : 'Call', s.call, 'var(--act-call)'], ['Fold', s.fold, 'var(--act-fold)'],
   ];
-  const stack = node.st.cfg.stack, depth = chartDepth(stack);
+  const stack = node.st.cfg.stack, depth = ch.parts[0].depth;
   return h('section.panel.chart-panel', { 'aria-label': 'Ton chart BB' },
-    h('div.panel-title', `Ton chart ${depth}bb · ${ch.title}`),
-    stack !== depth ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart ${depth}bb qui s'applique tel quel.`) : null,
-    h('ul.chart-rows', rows.filter(([, v]) => v > 0).map(([label, v, color]) => h('li',
+    h('div.panel-title', ch.blend ? `Tes charts ${ch.blend.lo}bb ↔ ${ch.blend.hi}bb · ${ch.title}` : `Ton chart ${depth}bb · ${ch.title}`),
+    ch.blend ? blendNote(ch.blend, stack) : stack !== depth ? h('p.small.muted', `Pas de chart à ${stack}bb : c'est ton chart ${depth}bb qui s'applique tel quel.`) : null,
+    h('ul.chart-rows', rows.filter(([, v]) => v > 0.0005 * tot).map(([label, v, color]) => h('li',
       h('span.swatch', { style: { background: color } }), label, h('span.mono', pct(v / tot, 1))))));
 }
 
@@ -635,18 +653,32 @@ function modelNote(node) {
   return h('p.small.muted.model-note', 'Pas de chart fourni pour ce spot : stratégie du modèle Spotwise, construite à partir des ranges d\'open, de la position et du prix. C\'est une approximation, pas un calcul de solveur.');
 }
 
+// Split and flex cells marked on the grid (one chart only: blended grids
+// already show the mix in their frequencies).
 function chartMarks(node) {
-  if (isFirstIn(node)) return (i) => { const k = chartCode(node.actor, CLASSES[i], node.st.cfg.stack); return 'LTXHam'.includes(k) ? k : null; };
+  if (isFirstIn(node)) {
+    if (chartBlend(node.st.cfg.stack)) return null;
+    return (i) => { const k = chartCode(node.actor, CLASSES[i], node.st.cfg.stack); return 'LTXHam'.includes(k) ? k : null; };
+  }
   const ch = bbChart(node.st);
-  return ch ? (i) => (bbCode(ch, CLASSES[i]) === 'B' ? 'B' : null) : null;
+  return ch && !ch.blend ? (i) => (bbCode(ch, CLASSES[i]) === 'B' ? 'B' : null) : null;
 }
 
 function chartNote(node, cls) {
   if (isFirstIn(node)) {
+    const b = chartBlend(node.st.cfg.stack);
+    if (b) {
+      const at = (d) => OPEN_NAMES[chartCodeAt(node.actor, cls, d)] || 'Fold';
+      return h('p.small.tag-note', 'Dans tes charts : ', h('strong', `${b.lo}bb ${at(b.lo)}`), ' · ', h('strong', `${b.hi}bb ${at(b.hi)}`));
+    }
     const t = TAG_NAMES[chartCode(node.actor, cls, node.st.cfg.stack)];
     return t ? h('p.small.tag-note', 'Dans ton chart : ', h('strong', t)) : null;
   }
   const ch = bbChart(node.st);
+  if (ch?.blend) {
+    const name = (code) => ({ R: ch.raiseLabel, B: '3bet light', C: 'Call', K: 'Check', F: 'Fold', c: 'Call / Fold', r: `${ch.raiseLabel} / Call`, A: 'All-in', a: 'All-in / Call', j: 'All-in / Raise', q: 'Call ou check, parfois raise', n: 'Hors range' })[code];
+    return h('p.small.tag-note', 'Dans tes charts : ', ...ch.parts.flatMap((pt, k) => [k ? ' · ' : null, h('strong', `${pt.depth}bb ${name(pt.chart.grid[cls.row][cls.col])}`)]));
+  }
   return ch && bbCode(ch, cls) === 'B' ? h('p.small.tag-note', 'Dans ton chart : ', h('strong', '3bet light (bluff)')) : null;
 }
 
