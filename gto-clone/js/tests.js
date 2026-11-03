@@ -8,9 +8,11 @@ import { levelOf, streakOf } from './data/progress.js';
 import { playSessions, abi } from './data/playsessions.js';
 import { planSlots, overlaps } from './data/program.js';
 import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS, alive, isIP, stateKey } from './engine/game.js';
-import { solve } from './engine/solver.js';
+import { solve, createSolver } from './engine/solver.js';
+import { createParallelSolver } from './engine/solver-parallel.js';
 import { addSolution } from './engine/solutions.js';
-import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale, bbChart } from './engine/strategy.js';
+import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale, bbChart, rangesOf, pushFoldSpot } from './engine/strategy.js';
+import { pushFoldNash, comboShare } from './engine/pushfold.js';
 import { icmEquities, bubbleFactor, requiredEquity } from './engine/icm.js';
 import { gradeDecision } from './ui/practice.js';
 import { parseFile } from './data/parsers.js';
@@ -579,6 +581,32 @@ await test('U39', 'river solver: textbook bluff-catching equilibrium, then Study
   addSolution(res, 3);
   const n = analyze(act(st, 'check'));
   assert(n.solved && Math.abs(n.freqs[big][jt] - ip.freqs[big][jt]) < 1e-6, 'Study node uses the solution');
+});
+await test('U40', 'turn solver: the parallel solver matches the single-thread one', async () => {
+  let st = foldTo(initialState({ stack: 100, open: '2.5' }), 3);
+  st = foldTo(act(st, 'raise'), 5);
+  st = act(st, 'call');
+  const b = ['Ks', '7h', '2d', '9c'].map(parseCard);
+  st = act(act(dealBoard(st, b.slice(0, 3)), 'check'), 'check');
+  st = dealBoard(st, [b[3]]);
+  const ranges = rangesOf(st);
+  const one = createSolver(st, ranges);
+  one.run(2);
+  const par = await createParallelSolver(st, ranges, 3);
+  await par.run(2);
+  const [e1, e2] = [one.exploitability(), await par.exploitability()];
+  par.close();
+  assert(Math.abs(e1 - e2) < 1e-6 * e1, 'same exploitability: ' + e1 + ' vs ' + e2);
+});
+await test('U41', 'push/fold Nash at 10bb: SB shoves about 58%, BB calls about 37%; Study and Practice use it', () => {
+  const nash = pushFoldNash(10);
+  const sb = comboShare(nash.push[4]), bb = comboShare(nash.call[4][5]);
+  assert(Math.abs(sb - 0.58) < 0.02 && Math.abs(bb - 0.37) < 0.02, 'SB ' + sb + ', BB ' + bb);
+  assert(comboShare(nash.push[0]) < comboShare(nash.push[3]), 'LJ shoves tighter than the BTN');
+  const n = analyze(foldTo(initialState({ stack: 10, open: '2.5' }), 4));
+  const f = comboFreqs(n, CLASS_BY_NAME.K2o.combos[0]);
+  assert(f[n.actions.findIndex((a) => a.type === 'allin')] === 1, 'SB shoves K2o at 10bb');
+  assert(!pushFoldSpot(foldTo(initialState({ stack: 10, open: '2.5', ko: true }), 4)), 'KO keeps the model');
 });
 await test('U32', 'play sessions: 10h windows keep a 17h-5h night together; ABI', () => {
   const t = (tid, startedAt, buyin) => ({ tid, startedAt, buyin });

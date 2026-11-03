@@ -7,7 +7,7 @@ import {
   POS, STREETS, initialState, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
   aggression, pot, remaining, alive, toCallOf, STACKS,
 } from '../engine/game.js';
-import { analyze, comboFreqs, comboEVs, classSummary, chartCode, chartCodeAt, chartBlend, getOpenStyle, rangesOf, chartDepth, bbChart, bbCode } from '../engine/strategy.js';
+import { analyze, comboFreqs, comboEVs, classSummary, chartCode, chartCodeAt, chartBlend, getOpenStyle, rangesOf, chartDepth, bbChart, bbCode, pushFoldSpot } from '../engine/strategy.js';
 import { saveSession, uid, getSettings, getProgress } from '../store.js';
 import { practiceSpotKey, studyLink, spotState } from '../data/leaks.js';
 import { markSlotDone } from '../data/program.js';
@@ -515,7 +515,12 @@ function explain(node, i) {
   const firstIn = st.street === 0 && st.raiseLevel === 0 && !st.limpers.length && st.toAct <= 4 && st.cfg.stage !== 'hu';
   const cls = CLASSES[CLASS_OF_COMBO[i]];
   const mixNote = (b) => `mélangés à ${st.cfg.stack}bb (${Math.round((1 - b.t) * 100)} % / ${Math.round(b.t * 100)} %)`;
-  if (firstIn) {
+  const pf = pushFoldSpot(st);
+  if (pf) {
+    const s = pf.kind === 'push' ? pf.nash.push[pf.i] : pf.nash.call[pf.i][pf.j];
+    parts.push(`Équilibre tapis / fold (Nash, chip EV) à ${st.cfg.stack}bb : ${pf.kind === 'push' ? 'tapis' : 'call'} ${pct(s[cls.id], 0)} du temps avec cette main.`);
+  }
+  if (firstIn && !pf) {
     const text = (code) => ({
       L: 'Loosifie (ouvre-la quand tu joues plus large)', T: 'Tightfie (jette-la quand tu joues plus serré)',
       X: 'moitié Raise, moitié Tightfie', H: 'raise ou limp, 50/50',
@@ -543,7 +548,7 @@ function explain(node, i) {
     const codes = ch.parts.map((pt) => `${pt.depth}bb ${text(pt.chart.grid[cls.row][cls.col])}`);
     parts.push(ch.blend ? `Tes charts BB (${ch.title}) : ${codes.join(', ')}, ${mixNote(ch.blend)}.` : `Ton chart ${ch.parts[0].depth}bb (${ch.title}) : ${text(bbCode(ch, cls))}.`);
   }
-  if (st.street === 0 && !firstIn && !ch) parts.push('Référence : pas de chart pour ce spot, c\'est le modèle Spotwise (le même que dans Étude).');
+  if (st.street === 0 && !firstIn && !ch && !pf) parts.push('Référence : pas de chart pour ce spot, c\'est le modèle Spotwise (le même que dans Étude).');
   return parts.join(' ');
 }
 

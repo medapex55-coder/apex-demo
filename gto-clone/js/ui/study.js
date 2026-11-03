@@ -5,18 +5,20 @@ import { MADE, DRAWS, catFr } from '../engine/evaluator.js';
 import { weightedMean } from '../engine/equity.js';
 import {
   POS, STREETS, replay, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
-  aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey, STACKS, OPEN_SIZES, DEFAULT_CFG, STAGES, seatCfg,
+  aggression, pot, toCallOf, remaining, opponentOf, alive, actionKey, stateKey, STACKS, OPEN_SIZES, DEFAULT_CFG, STAGES, seatCfg,
 } from '../engine/game.js';
 
 const OPEN_LABELS = { limp: 'Limp 1bb', 2: '2bb (SB 3)', 2.5: '2.5bb (SB 3.5)', 4.5: '4.5bb' };
 const STAGE_LABELS = { 100: 'Début (100 %)', 50: '50 % restants', 25: '25 % restants', 10: '10 % restants', semi: 'Demi-finale', ft: 'Table finale', hu: 'Heads-up' };
 import {
   analyze, isCached, classSummary, overallFreqs, comboFreqs, comboEVs, classAverage, rangeCombos,
-  chartCode, chartCodeAt, openFreqs, chartBlend, getOpenStyle, setOpenStyle, chartDepth, bbChart, bbCode, bbFreqs,
+  chartCode, chartCodeAt, openFreqs, chartBlend, getOpenStyle, setOpenStyle, chartDepth, bbChart, bbCode, bbFreqs, pushFoldSpot,
 } from '../engine/strategy.js';
 import { getSettings, setSetting } from '../store.js';
 import { TAG_NAMES } from '../data/open-charts.js';
 import { solverPanel } from './solverpanel.js';
+import { pendingAt } from '../engine/solutions.js';
+import { comboShare } from '../engine/pushfold.js';
 import { scenarioReport, requiredEquity, riskPremium, STAGE_SCENARIOS, stageBubbleFactor, MAX_PLAYERS } from '../engine/icm.js';
 
 const ui = {
@@ -124,6 +126,13 @@ function render() {
   const st = replay(ui.history, ui.cfg);
   const decision = !st.terminal && !st.needBoard && st.toAct >= 0;
   const head = spotBar(st);
+  // A solved turn lives in the solver's worker: load this node from it first.
+  const pending = decision ? pendingAt(stateKey(st)) : null;
+  if (pending) {
+    mount(root, head, h('div.study-main', h('div.panel.loading', { 'aria-busy': 'true' }, h('div.spinner'), 'Chargement de la solution du solver…')));
+    pending.fetch(stateKey(st)).then(() => { if (stateKeyNow() === st.history.length) render(); });
+    return;
+  }
   if (decision && !isCached(st)) {
     mount(root, head, h('div.study-main', h('div.panel.loading', { 'aria-busy': 'true' }, h('div.spinner'), 'Calcul de la stratégie…')));
     setTimeout(() => { analyze(st); if (stateKeyNow() === st.history.length) render(); }, 20);
@@ -136,7 +145,7 @@ function render() {
   const node = analyze(st);
   mount(root, head, h('div.study-main',
     h('section.study-left', { 'aria-label': 'Vue stratégie' }, toolbar(node), mainView(node)),
-    h('aside.study-side', infoBox(node), solverPanel(node, render), icmPanel(), chartPanel(node), bbChartPanel(node), modelNote(node), actionsTable(node), handDetail(node), categoryFilters(node))));
+    h('aside.study-side', infoBox(node), solverPanel(node, render), icmPanel(), pushFoldPanel(node), chartPanel(node), bbChartPanel(node), modelNote(node), actionsTable(node), handDetail(node), categoryFilters(node))));
 }
 const stateKeyNow = () => ui.history.length;
 
@@ -575,7 +584,7 @@ const OPEN_NAMES = { R: 'Raise', A: 'All-in', M: 'Limp', F: 'Fold', ...TAG_NAMES
 // how the flex zones (Loosifie / Tightfie) are played. Between two depths,
 // the blended frequencies.
 function chartPanel(node) {
-  if (!isFirstIn(node)) return null;
+  if (!isFirstIn(node) || pushFoldSpot(node.st)) return null;
   const p = node.actor;
   const stack = node.st.cfg.stack, depth = chartDepth(stack), b = chartBlend(stack);
   const open = node.actions.find((a) => a.type === 'raise') || node.actions.find((a) => a.type === 'allin');
@@ -648,15 +657,33 @@ function bbChartPanel(node) {
       h('span.swatch', { style: { background: color } }), label, h('span.mono', pct(v / tot, 1))))));
 }
 
+// Push/fold equilibrium (15bb and less): what it is and how wide each side plays.
+function pushFoldPanel(node) {
+  const pf = pushFoldSpot(node.st);
+  if (!pf) return null;
+  const s = pf.kind === 'push' ? pf.nash.push[pf.i] : pf.nash.call[pf.i][pf.j];
+  const share = comboShare(s);
+  return h('section.panel.chart-panel.solver-panel.solved', { 'aria-label': 'Équilibre tapis ou fold' },
+    h('div.panel-title', `Équilibre tapis / fold · ${node.st.cfg.stack}bb`),
+    h('p.small', h('strong', 'Stratégie résolue (Nash, chip EV).'), pf.kind === 'push'
+      ? ` Premier à parler, ${POS[pf.i]} part à tapis ou se couche. Chaque joueur derrière paie le tapis avec sa range d'équilibre.`
+      : ` ${POS[pf.j]} paie ou se couche face au tapis de ${POS[pf.i]}, dont la range est celle de l'équilibre.`),
+    h('ul.chart-rows',
+      h('li', h('span.swatch', { style: { background: pf.kind === 'push' ? 'var(--act-allin)' : 'var(--act-call)' } }), pf.kind === 'push' ? 'Tapis' : 'Call', h('span.mono', pct(share, 1))),
+      h('li', h('span.swatch', { style: { background: 'var(--act-fold)' } }), 'Fold', h('span.mono', pct(1 - share, 1)))),
+    h('p.small.muted', 'Pas de chart à cette profondeur : équilibre calculé par Spotwise sur les 169 mains, avec les équités préflop (±0,4 %). Sans ICM ni prime : en KO ou près de l\'argent, c\'est le modèle qui s\'applique.'));
+}
+
 // Preflop spots with no chart of the user's: say where the strategy comes from.
 function modelNote(node) {
-  if (node.st.street !== 0 || isFirstIn(node) || bbChart(node.st)) return null;
+  if (node.st.street !== 0 || isFirstIn(node) || bbChart(node.st) || pushFoldSpot(node.st)) return null;
   return h('p.small.muted.model-note', 'Pas de chart fourni pour ce spot : stratégie du modèle Spotwise, construite à partir des ranges d\'open, de la position et du prix. C\'est une approximation, pas un calcul de solveur.');
 }
 
 // Split and flex cells marked on the grid (one chart only: blended grids
 // already show the mix in their frequencies).
 function chartMarks(node) {
+  if (pushFoldSpot(node.st)) return null;
   if (isFirstIn(node)) {
     if (chartBlend(node.st.cfg.stack)) return null;
     return (i) => { const k = chartCode(node.actor, CLASSES[i], node.st.cfg.stack); return 'LTXHam'.includes(k) ? k : null; };
@@ -666,6 +693,7 @@ function chartMarks(node) {
 }
 
 function chartNote(node, cls) {
+  if (pushFoldSpot(node.st)) return null;
   if (isFirstIn(node)) {
     const b = chartBlend(node.st.cfg.stack);
     if (b) {

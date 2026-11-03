@@ -12,6 +12,7 @@ import { OPEN_CHARTS_50, BB_CHARTS_50, BB_CODES } from '../data/charts-50.js';
 import { OPEN_CHARTS_25, OPEN_CHARTS_20, BB_CHARTS_25, BB_CHARTS_20 } from '../data/charts-short.js';
 import { stageBubbleFactor } from './icm.js';
 import { solutionAt, onSolution } from './solutions.js';
+import { pushFoldNash, PUSH_FOLD_STACK } from './pushfold.js';
 import {
   POS, legalActions, stateKey, replay, actionKey, pot, toCallOf, isIP, opponentOf, remaining, alive, SHOVE_STACK, isHU, seatCfg, jamOption,
 } from './game.js';
@@ -153,6 +154,18 @@ export function bbChart(st) {
   const ch = bbChartAt(st, depth);
   return ch ? { title: ch.title, raiseLabel: ch.raiseLabel, blend: null, parts: [{ chart: ch, depth, w: 1 }] } : null;
 }
+// Push/fold equilibrium spots (engine/pushfold.js): 15bb and less, 6-max, chip
+// EV, no limper; first in (push or fold), or facing a first-in all-in.
+export function pushFoldSpot(st) {
+  const { cfg } = st;
+  if (st.street !== 0 || isHU(st) || cfg.stack > PUSH_FOLD_STACK || st.limpers.length || st.toAct < 0) return null;
+  if (Math.abs(rangeScale(cfg) - 1) > 0.005) return null;
+  const p = st.toAct;
+  if (st.raiseLevel === 0 && p <= 4) return { kind: 'push', i: p, nash: pushFoldNash(cfg.stack) };
+  if (st.raiseLevel === 1 && remaining(st, st.lastAggr) <= 0 && p > st.lastAggr) return { kind: 'call', i: st.lastAggr, j: p, nash: pushFoldNash(cfg.stack) };
+  return null;
+}
+
 // The chart's code for a hand when one chart applies (null when blended).
 export const bbCode = (spot, cls) => (spot.parts.length === 1 ? spot.parts[0].chart.grid[cls.row][cls.col] : null);
 // The BB's frequencies for a hand: raise counts every aggressive action, jam
@@ -237,14 +250,19 @@ function preflopClassFreqs(st, actions, range) {
   const shoveCall = Math.min(0.6, (0.025 + 2 / st.cfg.stack) * k);
   const facingShove = rl >= 1 && iR < 0 && st.lastAggr >= 0 && remaining(st, st.lastAggr) <= 0;
   const width = (q) => (hu && q === 4 ? HU_OPEN : openWidth(q, st.cfg.stack));
-  const bbc = bbChart(st);
+  const pf = pushFoldSpot(st);
+  const bbc = pf ? null : bbChart(st);
   // Players who already called the open (multiway spots only).
   const callers = rl === 1 ? alive(st).filter((i) => i !== p && i !== st.lastAggr && st.streetBet[i] >= st.currentBet).length : 0;
   for (const c of CLASSES) {
     const pc = PERCENTILE[c.id];
     let raise = 0, call = 0;
     let jam = null; // the all-in part of raise when a chart says it
-    if (bbc) {
+    if (pf) {
+      // Push/fold equilibrium: all-in or fold first in, call or fold facing it.
+      if (pf.kind === 'push') raise = jam = pf.nash.push[pf.i][c.id];
+      else call = pf.nash.call[pf.i][pf.j][c.id];
+    } else if (bbc) {
       ({ raise, call, jam } = bbFreqs(bbc, c)); // the BB's chart(s)
     } else if (rl === 0 && p <= 4 && !facingLimp) {
       // First in: the user's chart (heads-up, the button opens most hands).

@@ -1,17 +1,24 @@
-// Study's solver panel: solve the current street of a heads-up postflop spot
-// (the river for now) in a Web Worker, show the progress, then the solution's
-// quality. The solution replaces the model through engine/solutions.js.
+// Study's solver panel: solve a heads-up postflop street (river, or turn with
+// every river) in a Web Worker, show the progress, then the solution's
+// quality. The worker keeps the solution; Study loads its nodes on demand
+// through the provider registered in engine/solutions.js.
 import { h, num } from './dom.js';
 import { replay, alive, stateKey } from '../engine/game.js';
 import { rangesOf } from '../engine/strategy.js';
-import { addSolution } from '../engine/solutions.js';
+import { addNodes, setProvider } from '../engine/solutions.js';
 
-const TARGET = 0.3; // stop below 0.3% of the pot
 const fr = (x, d) => num(x, d).replace('.', ',');
-const MAX_ITERS = 1500;
+// Solve settings per street. The river is solved in seconds; the turn deals
+// every river and stops at its target or its time limit (the exploitability,
+// a full best response, is measured every 20 s there).
+const SETTINGS = {
+  3: { name: 'la river', target: 0.3, maxIters: 1500, every: 25, time: 'quelques secondes' },
+  2: { name: 'la turn', target: 0.5, maxIters: 100000, every: 5, timeLimit: 180000, checkEvery: 20000, time: '1 à 3 minutes' },
+};
 let worker = null;
-let job = null; // { id, key, iterations, exploitability }
+let job = null; // { id, key, iterations, exploitability, ms }
 let nextId = 1;
+const waiting = new Map(); // request id -> { resolve, reject }
 let rerender = () => {};
 
 // The state at the start of the street (right after its card), where a solve starts.
@@ -21,27 +28,70 @@ function streetRoot(st) {
   return replay(st.history.slice(0, k + 1), st.cfg);
 }
 
-const solvable = (st) => st.street === 3 && alive(st).length === 2;
+const solvable = (st) => SETTINGS[st.street] && alive(st).length === 2;
 
-function start(root) {
-  worker ??= new Worker(new URL('../engine/solver-worker.js', import.meta.url), { type: 'module' });
-  const id = nextId++;
-  job = { id, key: stateKey(root), iterations: 0, exploitability: null };
+function getWorker() {
+  if (worker) return worker;
+  worker = new Worker(new URL('../engine/solver-worker.js', import.meta.url), { type: 'module' });
   worker.onmessage = (e) => {
     const m = e.data;
+    if (waiting.has(m.id)) {
+      const w = waiting.get(m.id);
+      waiting.delete(m.id);
+      if (m.type === 'path') w.resolve(m.nodes); else w.reject(new Error(m.message));
+      return;
+    }
     if (!job || m.id !== job.id) return;
-    if (m.type === 'progress') { job.iterations = m.iterations; job.exploitability = m.exploitability; rerender(); }
-    else if (m.type === 'done') { job = null; addSolution(m, root.street); rerender(); }
-    else { job = { ...job, error: m.message }; rerender(); }
+    if (m.type === 'progress') { Object.assign(job, { iterations: m.iterations, exploitability: m.exploitability, ms: m.ms }); rerender(); }
+    else if (m.type === 'done') done(job, m);
+    else { job.error = m.message; rerender(); }
   };
-  worker.postMessage({ id, root, ranges: rangesOf(root), target: TARGET, maxIters: MAX_ITERS });
+  return worker;
+}
+
+// The solve is over: the worker holds the solution; register how to fetch it.
+function done(j, m) {
+  const meta = { street: j.street, exploitability: m.exploitability, iterations: m.iterations, ms: m.ms };
+  const inflight = new Map();
+  const provider = {
+    prefix: j.key, meta, missing: new Set(),
+    fetch(key) {
+      if (inflight.has(key)) return inflight.get(key);
+      const id = nextId++;
+      const p = new Promise((resolve, reject) => waiting.set(id, { resolve, reject }))
+        .then((nodes) => {
+          if (!nodes.some((n) => n.key === key)) provider.missing.add(key);
+          addNodes(nodes, meta);
+        })
+        .catch(() => { setProvider(null); })
+        .finally(() => inflight.delete(key));
+      inflight.set(key, p);
+      worker.postMessage({ type: 'path', id, solveId: j.id, key });
+      return p;
+    },
+  };
+  job = null;
+  setProvider(provider);
+  // Load the street's first node right away, then show it.
+  provider.fetch(j.key).then(() => rerender());
+}
+
+function start(root) {
+  const { name, time, ...opts } = SETTINGS[root.street];
+  setProvider(null); // the worker drops its previous solution
+  const id = nextId++;
+  job = { id, key: stateKey(root), street: root.street, iterations: 0, exploitability: null, ms: 0 };
+  getWorker().postMessage({ type: 'solve', id, root, ranges: rangesOf(root), ...opts });
   rerender();
 }
 
 function stop() {
   worker?.terminate();
   worker = null;
+  for (const w of waiting.values()) w.reject(new Error('stopped'));
+  waiting.clear();
   job = null;
+  setProvider(null);
   rerender();
 }
 
@@ -53,25 +103,26 @@ export function solverPanel(node, onChange) {
   if (node.solved) {
     const m = node.solved;
     return h('section.panel.solver-panel.solved', { 'aria-label': 'Solver' }, title,
-      h('p.small', h('strong', 'Stratégie résolue (CFR).'), ` Équilibre calculé pour les ranges qui arrivent ici, issues de tes charts au preflop. Les EV affichées sont celles de la solution.`),
+      h('p.small', h('strong', `Stratégie résolue (CFR, depuis ${m.street === 2 ? 'la turn' : 'la river'}).`), ' Équilibre calculé pour les ranges qui arrivent ici, issues de tes charts au preflop. Les EV affichées sont celles de la solution.'),
       h('p.small.muted', `Exploitabilité ${fr(m.exploitability, 2)} % du pot · ${m.iterations} itérations · ${fr(m.ms / 1000, 1)} s`));
   }
   if (!solvable(st)) {
     const why = alive(st).length > 2 ? 'Le solver travaille en heads-up : ce pot multiway reste sur le modèle Spotwise.'
-      : 'Le solver de flop et de turn arrive bientôt : pour l\'instant, cette street suit le modèle Spotwise (approximation, pas un calcul d\'équilibre).';
+      : 'Le solver de flop arrive bientôt : pour l\'instant, le flop suit le modèle Spotwise (approximation, pas un calcul d\'équilibre). Tu peux résoudre la turn et la river.';
     return h('section.panel.solver-panel', { 'aria-label': 'Solver' }, title, h('p.small.muted', why));
   }
   const root = streetRoot(st);
   const key = stateKey(root);
+  const s = SETTINGS[root.street];
   if (job && job.key === key) {
+    const ex = Number.isFinite(job.exploitability) ? ` · exploitabilité ${fr(job.exploitability, 2)} % du pot` : '';
     return h('section.panel.solver-panel', { 'aria-label': 'Solver', 'aria-busy': 'true' }, title,
       job.error ? h('p.small.neg', 'Le calcul a échoué : ' + job.error)
-        : h('p.small', h('span.spinner.sm'), ` Calcul de l'équilibre… ${job.iterations} itérations`,
-          job.exploitability != null ? ` · exploitabilité ${fr(job.exploitability, 2)} % du pot` : ''),
+        : h('p.small', h('span.spinner.sm'), ` Calcul de l'équilibre… ${job.iterations} itérations · ${Math.round(job.ms / 1000)} s${ex}`),
       h('button.btn.ghost.sm', { type: 'button', on: { click: stop } }, 'Arrêter'));
   }
   return h('section.panel.solver-panel', { 'aria-label': 'Solver' }, title,
-    h('p.small.muted', 'Cette river suit le modèle Spotwise. Le solver calcule l\'équilibre (CFR) pour cette river, avec les ranges qui arrivent ici (tes charts au preflop) et les tailles de mise de l\'arbre. Quelques secondes.'),
+    h('p.small.muted', `Cette street suit le modèle Spotwise. Le solver calcule l'équilibre (CFR) depuis le début de ${s.name}${root.street === 2 ? ', toutes les rivers comprises' : ''}, avec les ranges qui arrivent ici (tes charts au preflop) et les tailles de mise de l'arbre. Durée : ${s.time}.`),
     job ? h('p.small.muted', 'Un autre calcul est en cours.') : null,
-    h('button.btn.primary.sm', { type: 'button', disabled: !!job, on: { click: () => start(root) } }, 'Résoudre la river'));
+    h('button.btn.primary.sm', { type: 'button', disabled: !!job, on: { click: () => start(root) } }, `Résoudre ${s.name}`));
 }
