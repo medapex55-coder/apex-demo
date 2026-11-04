@@ -7,7 +7,7 @@ import {
   POS, STREETS, initialState, applyAction, dealBoard, foldTo, legalActions, actionLabel, actionRole,
   aggression, pot, remaining, alive, toCallOf, STACKS,
 } from '../engine/game.js';
-import { analyze, comboFreqs, comboEVs, classSummary, chartCode, chartCodeAt, chartBlend, getOpenStyle, rangesOf, chartDepth, bbChart, bbCode, pushFoldSpot } from '../engine/strategy.js';
+import { analyze, comboFreqs, comboEVs, classSummary, chartCode, chartCodeAt, chartBlend, getOpenStyle, rangesOf, chartDepth, bbChart, bbCode, pushFoldSpot, liveLine } from '../engine/strategy.js';
 import { saveSession, uid, getSettings, getProgress } from '../store.js';
 import { practiceSpotKey, studyLink, spotState } from '../data/leaks.js';
 import { markSlotDone } from '../data/program.js';
@@ -242,6 +242,16 @@ function sampleCombo(node, p, used) {
 
 const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const actOf = (st, ...types) => legalActions(st).find((a) => types.includes(a.type));
+// The opener's or 3-bettor's aggressive action, as often as the strategy plays
+// each (raise, or shove when short): null when it never raises here.
+function aggrAct(st) {
+  const node = analyze(st);
+  const w = node.ranges[st.toAct];
+  const ks = node.actions.map((a, k) => k).filter((k) => ['raise', 'allin'].includes(node.actions[k].type));
+  const ws = ks.map((k) => node.freqs[k].reduce((s, f, i) => s + f * w[i], 0));
+  const j = pickWeighted(ws);
+  return j < 0 || !(ws[j] > 0.5) ? null : node.actions[ks[j]];
+}
 
 // Preflop line that reaches the flop with the hero in the pot: a raised pot
 // (30% 3-bet pots) for "postflop", an open with 1 or 2 cold-callers (plus the
@@ -291,6 +301,7 @@ function flopLine(st0, kind, heroPick, villain = null) {
     }
     if (!st.needBoard || inPot.some((p) => remaining(st, p) <= 0)) continue;
     if (need.some((p) => !inPot.includes(p))) continue;
+    if (!liveLine(st)) continue; // e.g. a min-raise at 15bb, where the strategy only shoves
     return { st, hero: heroPick === 'any' ? rand(inPot.filter((p) => p !== villain)) : heroPick };
   }
   return null;
@@ -318,6 +329,41 @@ function programSpot() {
   const sp = pr.random ? rand(pr.spots) : pr.spots[Math.floor(P.session.hands / HANDS_PER_SPOT) % pr.spots.length];
   const st = spotState(sp.d);
   return st ? { st, title: sp.title } : null;
+}
+
+// The preflop line of a single-spot drill, played the way the strategy plays
+// it (the opener raises or shoves as often as it does). Null when the strategy
+// never plays this line at these settings.
+function spotLine(id, c, st, hero, vil) {
+  const take = (s, t) => { const a = s && legalActions(s).find((x) => x.type === t); return a ? applyAction(s, a) : null; };
+  const aggr = (s) => { const a = s && aggrAct(s); return a ? applyAction(s, a) : null; };
+  if (id === 'rfi') st = foldTo(st, hero);
+  else if (id === 'bb50') {
+    const spots = bbDrill(c).spots;
+    const spot = vil == null ? rand(spots) : vil === 4 ? rand(spots.filter(SB_SPOT)) : POS[vil];
+    if (spot.startsWith('limp')) {
+      st = take(foldTo(st, 4), 'call'); // SB limps
+      if (spot === 'limp3bet') st = take(take(st, 'raise'), 'raise'); // BB raises, SB re-raises
+      if (spot === 'limpshove') st = take(take(st, 'raise'), 'allin'); // BB raises, SB shoves
+    } else {
+      st = take(foldTo(st, POS.indexOf(spot)), 'raise');
+      st = st && foldTo(st, 5);
+    }
+  } else if (id === 'vsopen') {
+    const opener = vil ?? rand([0, 1, 2, 3, 4].filter((p) => p < hero));
+    st = aggr(foldTo(st, opener)); // short: the opener shoves
+    st = st && foldTo(st, hero);
+  } else if (id === 'vs3bet') {
+    const villain = vil ?? rand([1, 2, 3, 4, 5].filter((p) => p > hero));
+    st = take(foldTo(st, hero), 'raise');
+    st = aggr(st && foldTo(st, villain));
+  } else if (id === 'srp') {
+    st = take(foldTo(st, 3), 'raise');
+    st = take(st && foldTo(st, 5), 'call');
+    st = st && dealBoard(st, shuffledDeck().slice(0, 3));
+  }
+  // The BB drill plays the spots of your charts as they are.
+  return st && !st.terminal && (id === 'bb50' || liveLine(st)) ? st : null;
 }
 
 function dealHand() {
@@ -352,7 +398,7 @@ function dealHand() {
       st = initialState({ ...gameCfg(c), ...coverCfg(c.cover, hero) });
       line = flopLine(st, drill.id, c.cover !== 'equal' ? hero : c.hero, vil);
     }
-    if (!line) { P.session.hands++; hand.over = true; hand.result = 'Spot impossible à ces réglages (stack trop court ?) : change le stack ou la position.'; render(); return; }
+    if (!line) { P.session.hands++; hand.over = true; hand.result = c.stack <= 15 ? `À ${c.stack}bb, la stratégie joue tapis ou fold avant le flop : il n'y a pas de spot postflop. Choisis 20bb ou plus.` : 'Spot impossible à ces réglages : change le stack ou la position.'; render(); return; }
     hand.hero = hero = line.hero;
     dealFromRanges(hand, line.st);
     hand.st = line.st;
@@ -370,36 +416,19 @@ function dealHand() {
     return;
   }
   if (prog) st = prog.st;
-  else if (drill.id === 'rfi') st = foldTo(st, hero);
-  else if (drill.id === 'bb50') {
-    const spots = bbDrill(c).spots;
-    const spot = vil == null ? rand(spots) : vil === 4 ? rand(spots.filter(SB_SPOT)) : POS[vil];
-    const take = (s, t) => applyAction(s, legalActions(s).find((a) => a.type === t));
-    if (spot.startsWith('limp')) {
-      st = take(foldTo(st, 4), 'call'); // SB limps
-      if (spot === 'limp3bet') st = take(take(st, 'raise'), 'raise'); // BB raises, SB re-raises
-      if (spot === 'limpshove') st = take(take(st, 'raise'), 'allin'); // BB raises, SB shoves
-    } else {
-      st = foldTo(take(foldTo(st, POS.indexOf(spot)), 'raise'), 5);
+  else {
+    st = spotLine(drill.id, c, st, hero, vil);
+    // Spots aléatoires: a line the random stack doesn't play (a min-raise at
+    // 15bb, where the strategy shoves or folds) is dealt at 100bb instead.
+    if (!st && P.cfg.drill === 'mix') {
+      c = { ...c, stack: 100, bbDepth: 50 };
+      st = spotLine(drill.id, c, initialState(drill.id === 'bb50' ? gameCfg(c) : { ...gameCfg(c), ...coverCfg(c.cover, hero) }), hero, vil);
     }
-  } else if (drill.id === 'vsopen') {
-    const opener = vil ?? rand([0, 1, 2, 3, 4].filter((p) => p < hero));
-    st = foldTo(st, opener);
-    st = applyAction(st, legalActions(st).find((a) => a.type === 'raise'));
-    st = foldTo(st, hero);
-  } else if (drill.id === 'vs3bet') {
-    const villain = vil ?? rand([1, 2, 3, 4, 5].filter((p) => p > hero));
-    st = foldTo(st, hero);
-    st = applyAction(st, legalActions(st).find((a) => a.type === 'raise'));
-    st = foldTo(st, villain);
-    st = applyAction(st, legalActions(st).find((a) => a.type === 'raise' || a.type === 'allin'));
-  } else if (drill.id === 'srp') {
-    st = foldTo(st, 3);
-    st = applyAction(st, legalActions(st).find((a) => a.type === 'raise'));
-    st = foldTo(st, 5);
-    st = applyAction(st, legalActions(st).find((a) => a.type === 'call'));
-    const deck = shuffledDeck();
-    st = dealBoard(st, deck.slice(0, 3));
+    if (!st) {
+      P.session.hands++; hand.over = true;
+      hand.result = `Ce spot n'existe pas dans la stratégie à ${c.stack}bb (à 15bb et moins, on ouvre à tapis ou on se couche, sans relance) : change le stack ou la position.`;
+      render(); return;
+    }
   }
   hand.st = st;
   P.session.hands++;

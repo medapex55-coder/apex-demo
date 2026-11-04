@@ -11,7 +11,7 @@ import { initialState, applyAction, legalActions, foldTo, dealBoard, replay, POS
 import { solve, createSolver } from './engine/solver.js';
 import { createParallelSolver } from './engine/solver-parallel.js';
 import { addSolution } from './engine/solutions.js';
-import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale, bbChart, rangesOf, pushFoldSpot } from './engine/strategy.js';
+import { analyze, comboFreqs, overallFreqs, rangeCombos, setOpenStyle, rangeScale, bbChart, rangesOf, pushFoldSpot, liveLine } from './engine/strategy.js';
 import { pushFoldNash, comboShare } from './engine/pushfold.js';
 import { icmEquities, bubbleFactor, requiredEquity } from './engine/icm.js';
 import { gradeDecision } from './ui/practice.js';
@@ -692,6 +692,20 @@ await test('U34', 'covering: matters in KO and ICM, not in chip EV', () => {
   assert(bb({ ...ft, big: 5 }) > bb({ ...ft, short: 5 }), 'final table: the covered player defends tighter');
   near(bb({ big: 5 }), bb({}), 1e-9, 'vanilla start: no difference');
 });
+await test('U44', 'off-strategy line (BTN min-raise at 15bb): flagged, range never empty, no NaN', () => {
+  let st = foldTo(initialState({ stack: 15, open: '2.5', ko: false, stage: '100', multiway: false }), 3);
+  st = applyAction(st, legalActions(st).find((a) => a.type === 'raise'));
+  st = foldTo(st, 5);
+  st = applyAction(st, legalActions(st).find((a) => a.type === 'call'));
+  assert(!liveLine(st), '15bb BTN min-raise is not a line the strategy plays');
+  st = dealBoard(st, ['6h', 'Qh', '6c'].map(parseCard));
+  assert(rangeCombos(rangesOf(st)[3]) > 1, 'BTN keeps a range');
+  const f = comboFreqs(analyze(st), comboIndex(parseCard('Ac'), parseCard('Ad')));
+  assert(f.every(Number.isFinite) && Math.abs(f.reduce((a, b) => a + b, 0) - 1) < 1e-3, `freqs: ${f.join(',')}`);
+  let ok = foldTo(initialState({ stack: 100, open: '2.5', ko: false, stage: '100', multiway: false }), 3);
+  ok = applyAction(ok, legalActions(ok).find((a) => a.type === 'raise'));
+  assert(liveLine(ok), '100bb BTN open is played');
+});
 await test('U35', 'difficulty: Facile groups actions, GTO max only accepts the RNG action', () => {
   // A 3-bet node with exact sizes: find a hand that mixes call and 3-bet.
   let st = foldTo(initialState({ stack: 100, open: '2.5' }), 2);
@@ -893,6 +907,33 @@ await test('F11-H2', 'played hand opens a street-by-street replay', async () => 
   const rep = await waitFor(() => doc().querySelector('.replay'));
   assert(rep.querySelectorAll('.replay-street').length >= 2 && rep.querySelector('.ra-decision'), 'streets and graded decision');
   doc().querySelector('.modal-head button').click();
+  byRole('button', 'Terminer la session').click();
+  await sleep(300);
+});
+await test('F11-H3', 'postflop short: 15bb says push/fold, 20bb deals only played lines, every decision has a strategy', async () => {
+  const start = async (stack) => {
+    await load('#/practice');
+    byRole('button', 'Postflop').click();
+    await sleep(100);
+    const sel = doc().querySelector('select[aria-label="Stack effectif"]');
+    sel.value = String(stack); sel.dispatchEvent(new Event('change'));
+    byRole('button', 'Commencer la session').click();
+    await sleep(300);
+  };
+  await start(15);
+  assert(/tapis ou fold/.test(doc().querySelector('.result')?.textContent || ''), 'push/fold message at 15bb');
+  byRole('button', 'Terminer la session').click();
+  await start(20);
+  let graded = 0;
+  for (let n = 0; n < 60 && graded < 6; n++) {
+    const fl = doc().querySelector('.freq-list');
+    if (fl) { graded++; assert(!/–/.test(fl.textContent), `strategy missing: ${fl.textContent}`); }
+    const b = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button'), 8000);
+    b.click();
+    await sleep(250);
+  }
+  assert(graded >= 3, `graded ${graded}`);
+  assert(!/–/.test(doc().querySelector('.stats-row').textContent), 'score and EV are numbers');
   byRole('button', 'Terminer la session').click();
   await sleep(300);
 });

@@ -521,12 +521,40 @@ export function rangesOf(st) {
   if (last.kind === 'act') {
     const ai = parent.actions.findIndex((a) => actionKey(a) === actionKey(last.act));
     const f = parent.freqs && ai >= 0 ? parent.freqs[ai] : null;
-    if (f) { const r = ranges[last.p]; for (let i = 0; i < 1326; i++) r[i] *= f[i]; }
+    if (f) {
+      const r = ranges[last.p];
+      const prev = r.slice();
+      let sum = 0;
+      for (let i = 0; i < 1326; i++) { r[i] *= f[i]; sum += r[i]; }
+      // An action the strategy never takes (e.g. a min-raise where it only
+      // shoves or folds) would leave an empty range and NaN equities below.
+      // Keep the hands closest to taking it instead, with a floor so it's never empty.
+      if (!(sum > 0.5)) { const mx = Math.max(...f); for (let i = 0; i < 1326; i++) r[i] = prev[i] * Math.max(mx > 0 ? f[i] / mx : 0, 0.02); }
+    }
   } else {
     const dead = deadMask(last.cards);
     for (const r of ranges) for (let i = 0; i < 1326; i++) { const [a, b] = COMBOS[i]; if (dead[a] || dead[b]) r[i] = 0; }
   }
   return ranges;
+}
+
+// A line the strategy really plays: every action in it is taken by at least
+// half a combo of its player's range (at 15bb, a min-raise is not: it shoves or folds).
+export function liveLine(st) {
+  const hist = st.history;
+  for (let k = 0; k < hist.length; k++) {
+    const e = hist[k];
+    if (e.kind !== 'act') continue;
+    const parent = analyze(replay(hist.slice(0, k), st.cfg));
+    const ai = parent.actions.findIndex((a) => actionKey(a) === actionKey(e.act));
+    const f = parent.freqs && ai >= 0 ? parent.freqs[ai] : null;
+    if (!f) continue;
+    const w = parent.ranges[e.p];
+    let s = 0;
+    for (let i = 0; i < 1326; i++) s += f[i] * w[i];
+    if (!(s > 0.5)) return false;
+  }
+  return true;
 }
 
 export function analyze(st) {
