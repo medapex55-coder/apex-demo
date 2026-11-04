@@ -645,3 +645,15 @@ h1 { font-size: 26px; }
 .combo-cards .suit-d { color: #5b9cf5; }
 .combo-cards .suit-c { color: #4cc38a; }
 .played-hands .hand-list { max-height: 360px; overflow-y: auto; }
+
+/* ---- practice table: villains and actions stand out ---- */
+.seat-plate { font-size: var(--fs-md, 15px); padding: 4px 10px; }
+.seat-plate strong { font-size: 17px; font-weight: 900; }
+.seat.villain .seat-plate { border: 2px solid var(--warning); background: var(--surface-2); box-shadow: 0 0 12px color-mix(in srgb, var(--warning) 45%, transparent); }
+.seat.villain .seat-plate strong { color: var(--warning); }
+.seat.acting .seat-plate { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent), 0 0 18px var(--accent); }
+.seat.folded { opacity: .35; }
+.seat-action { background: var(--c); color: #fff; font: 900 15px var(--font-sans, inherit); letter-spacing: .02em; text-transform: uppercase; padding: 3px 10px; border-radius: var(--r-pill); box-shadow: 0 2px 8px rgba(0, 0, 0, .45); white-space: nowrap; }
+.seat.folded .seat-action { opacity: 1; }
+.bet-chip { font-size: 14px; padding: 2px 10px; }
+.act.big { min-width: 140px; height: 56px; font-size: 20px; font-weight: 900; box-shadow: 0 3px 12px rgba(0, 0, 0, .4); }

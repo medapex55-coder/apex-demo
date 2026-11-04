@@ -684,10 +684,15 @@ function tableView() {
     const cards = hand.hands[p];
     const faceUp = p === hand.hero || (showAll && !folded && cards);
     const bet = st.streetBet[p];
-    return h('div.seat' + (folded ? '.folded' : '') + (st.toAct === p && !hand.over ? '.acting' : '') + (p === hand.hero ? '.hero' : ''), { style: { left: x + '%', top: y + '%' } },
+    // The player's last action this street (or his fold), shown big in its action colour.
+    const last = folded ? { act: { type: 'fold' }, label: 'Fold' } : [...st.history].reverse().find((e) => e.kind === 'act' && e.p === p && e.street === st.street);
+    const role = last && (last.act.type === 'fold' ? 'fold' : ['check', 'call'].includes(last.act.type) ? 'call' : last.act.type === 'allin' ? 'allin' : 'bet-m');
+    const villain = p !== hand.hero && !folded;
+    return h('div.seat' + (folded ? '.folded' : '') + (st.toAct === p && !hand.over ? '.acting' : '') + (p === hand.hero ? '.hero' : '') + (villain ? '.villain' : ''), { style: { left: x + '%', top: y + '%' } },
       h('div.seat-cards', folded ? null : (faceUp && cards ? cards.map((c) => PlayingCard(c, p === hand.hero ? 'lg' : 'sm')) : [PlayingCard(null, 'sm'), PlayingCard(null, 'sm')])),
       h('div.seat-plate', h('strong', POS[p]), h('span.mono', num(remaining(st, p)) + 'bb'), p === 3 ? h('span.dealer', { title: 'Donneur' }, 'D') : null),
-      bet > 0 ? h('div.bet-chip', num(bet)) : null);
+      last ? h('div.seat-action', { style: { '--c': `var(--act-${role})` } }, last.label) : null,
+      bet > 0 ? h('div.bet-chip', num(bet) + 'bb') : null);
   });
   const hero = hand.hero;
   const myTurn = !hand.over && st.toAct === hero && !P.feedback?.pausing;
