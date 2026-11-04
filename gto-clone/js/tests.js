@@ -907,6 +907,26 @@ await test('F12-H1', 'multiway drill: three or more players see the flop', async
   byRole('button', 'Terminer la session').click();
   await sleep(300);
 });
+await test('F12-H2', 'random spots drill: no setup choices, 10 hands mix every spot type', async () => {
+  await load('#/practice');
+  byRole('button', 'Spots aléatoires').click();
+  await sleep(100);
+  assert(!doc().querySelector('[aria-label="Position"]') && !doc().querySelector('[aria-label="Stack effectif"]'), 'no position or stack choice');
+  byRole('button', 'Commencer la session').click();
+  const seen = new Set();
+  const hands = () => +[...doc().querySelectorAll('.stat')].find((x) => /Mains/.test(x.textContent))?.textContent.replace(/\D/g, '');
+  for (let n = 0; n < 300 && hands() <= 10; n++) {
+    const pills = [...doc().querySelectorAll('.table-top .pill')].map((p) => p.textContent);
+    assert(pills[0] === '🎲 Aléatoire', `mix pill: ${pills[0]}`);
+    seen.add(pills[1]);
+    const b = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button'), 8000);
+    b.click();
+    await sleep(250);
+  }
+  assert(seen.size === 8, `spot types in 10 hands: ${[...seen].join(', ')}`);
+  byRole('button', 'Terminer la session').click();
+  await sleep(300);
+});
 await test('F13-H1', 'progression page shows the level, XP and badges', async () => {
   await load('#/stats');
   await waitFor(() => doc().querySelector('.hero-card'));

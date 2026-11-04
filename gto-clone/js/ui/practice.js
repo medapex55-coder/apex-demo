@@ -24,6 +24,7 @@ export const DRILLS = [
   { id: 'postflop', name: 'Postflop', icon: '🃏', desc: 'Pot relancé ou 3-bet : joue flop, turn et river jusqu\'à la fin du coup.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
   { id: 'multiway', name: 'Multiway', icon: '👥', desc: 'Un open payé par plusieurs joueurs : joue le coup à 3 ou 4 dès le flop.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
   { id: 'full', name: 'Mains complètes', icon: '♠️', desc: 'À six joueurs, de la donne jusqu\'à l\'abattage.', heroes: [0, 1, 2, 3, 4, 5], mode: 'full' },
+  { id: 'mix', name: 'Spots aléatoires', icon: '🎲', desc: 'Aucun réglage : sur 10 mains, un mélange d\'ouvertures, de défenses, de 3-bets, de BB, de postflop et de multiway, positions et stacks au hasard.', heroes: [0, 1, 2, 3, 4, 5], mode: 'mix' },
   // Launched from Programme only: the spots to fix from Leakfinder.
   { id: 'program', name: 'Programme', icon: '📅', desc: 'Tes spots à corriger, planifiés dans Programme.', heroes: [0, 1, 2, 3, 4, 5], mode: 'spot', hidden: true },
   // Opened from Leakfinder's « Étudier » button: one spot to fix.
@@ -57,6 +58,22 @@ const coverCfg = (cover, hero) => (cover === 'hero' ? { big: hero } : cover === 
 const rngMode = () => (P.cfg.level === 'gto' && P.cfg.rng === 'off' ? 'high' : P.cfg.rng);
 const HANDS_PER_SPOT = 10; // Programme: hands on a spot before the next one
 const SPOT_DRILLS = new Set(['program', 'target']); // drills that train Leakfinder spots
+// « Spots aléatoires »: each block of 10 hands deals every kind of spot, in a
+// random order, with random seats, stack, open size, format and field stage.
+export const MIX_BAG = ['rfi', 'rfi', 'vsopen', 'vsopen', 'bb50', 'vs3bet', 'srp', 'postflop', 'multiway', 'full'];
+const MIX_STACKS = [100, 100, 80, 70, 50, 50, 40, 30, 25, 20, 15];
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function mixCfg(drill) {
+  const r = Math.random();
+  return {
+    ...P.cfg, drill, hero: 'any', villain: 'any',
+    cover: r < 0.6 ? 'equal' : r < 0.8 ? 'hero' : 'villain',
+    stack: rand(MIX_STACKS), open: rand(['2', '2.5', '2.5']), bbDepth: rand([50, 50, 25, 20]),
+    format: Math.random() < 0.25 ? 'ko' : 'vanilla',
+    stage: Math.random() < 0.5 ? '100' : rand(['50', '25', '10', 'semi', 'ft']),
+    multiway: Math.random() < 0.3,
+  };
+}
 
 const DEFAULT_CFG = {
   drill: 'rfi', hero: 'any', villain: 'any', cover: 'equal', stack: 100, open: '2.5', format: 'vanilla', stage: '100', multiway: false, bbDepth: 50,
@@ -107,6 +124,7 @@ function setupView() {
   const level = LEVELS.find((l) => l.value === c.level);
   const chipEV = c.drill === 'bb50' || (c.format === 'vanilla' && c.stage === '100');
   const t = c.drill === 'target' ? P.program?.spots[0] : null; // spot opened from Leakfinder
+  const mix = c.drill === 'mix';
   return h('div.setup',
     h('div.setup-head', h('h1', 'Entraînement'), h('p.muted', 'Choisis un exercice, joue le spot et compare ton choix à la stratégie. La référence est la même que dans Étude : tes charts quand il y en a un pour le spot, sinon le modèle Spotwise.')),
     t ? h('section.panel.target-spot',
@@ -117,27 +135,28 @@ function setupView() {
       h('p.small.muted', 'Toutes les mains de la session se jouent dans ce spot. Règle la difficulté puis clique sur « Commencer la session ».')) : null,
     t ? null : h('div.drills', DRILLS.filter((d) => !d.hidden).map((d) => h('button.drill' + (d.id === c.drill ? '.on' : ''), {
       type: 'button', title: d.name, 'aria-pressed': d.id === c.drill ? 'true' : 'false', on: { click: () => set('drill')(d.id) },
-    }, h('span.drill-icon', { 'aria-hidden': 'true' }, d.icon), h('strong', d.name), h('span.muted.small', d.desc), h('span.pill', d.mode === 'full' ? 'Main complète' : 'Spot unique')))),
+    }, h('span.drill-icon', { 'aria-hidden': 'true' }, d.icon), h('strong', d.name), h('span.muted.small', d.desc), h('span.pill', d.mode === 'full' ? 'Main complète' : d.mode === 'mix' ? 'Tout au hasard' : 'Spot unique')))),
     h('div.panel.setup-opts',
       field('Difficulté', h('div', Segmented('Difficulté', LEVELS.map(({ value, label }) => ({ value, label })), c.level, set('level')), h('p.small.muted', level.desc))),
-      t ? null : field('Ta position', Segmented('Position', [{ value: 'any', label: 'Toutes' }, ...drill.heroes.map((p) => ({ value: p, label: POS[p] }))], c.hero, set('hero'))),
-      t ? null : field('Position du vilain', villains
+      mix ? field('Spots', h('p.small.muted', 'Tout est tiré au hasard à chaque main : le type de spot (sur 10 mains : 2 ouvertures, 2 face à un open, 1 défense BB, 1 face à un 3-bet, 1 BTN vs BB au flop, 1 postflop, 1 multiway, 1 main complète), ta position, le vilain, le stack, la taille d\'open, le format et le field.')) : null,
+      t || mix ? null : field('Ta position', Segmented('Position', [{ value: 'any', label: 'Toutes' }, ...drill.heroes.map((p) => ({ value: p, label: POS[p] }))], c.hero, set('hero'))),
+      t || mix ? null : field('Position du vilain', villains
         ? h('div', Segmented('Position du vilain', [{ value: 'any', label: 'Toutes' }, ...villains.map((p) => ({ value: p, label: POS[p] }))], c.villain, set('villain')),
           clash ? h('p.small.neg', CLASH[c.drill]) : null)
         : h('p.small.muted', NO_VILLAIN[c.drill])),
-      t ? null : field('Tapis', h('div',
+      t || mix ? null : field('Tapis', h('div',
         h('div.radio-row', { role: 'radiogroup', 'aria-label': 'Tapis' }, COVERS.map((o) => h('label.check',
           h('input', { type: 'radio', name: 'cover', value: o.value, checked: c.cover === o.value, on: { change: () => set('cover')(o.value) } }), ' ', o.label))),
         c.drill === 'rfi' && c.cover !== 'equal' ? h('p.small.muted', 'En ouverture, ton chart s\'applique tel quel : le tapis compte dès qu\'un vilain relance ou paie.') : null,
         c.cover !== 'equal' && chipEV ? h('p.small.muted', 'En Vanilla au début du tournoi, couvrir ou être couvert ne change pas la stratégie (pas d\'ICM, pas de prime). Choisis KO ou un field plus avancé pour voir la différence.') : null)),
       t ? field('Spot', h('p.small.muted', 'Position, vilain, stack, taille d\'open et format : ceux du spot de Leakfinder.')) : c.drill === 'bb50' ? field('Profondeur', h('div', Segmented('Profondeur', [50, 25, 20].map((d) => ({ value: d, label: d + 'bb' })), bbDrill(c).stack, (v) => { c.bbDepth = v; c.villain = 'any'; render(); }),
         h('p.small.muted', `${bbDrill(c).stack}bb, ${bbDrill(c).note}, Vanilla en début de tournoi : les réglages de tes charts.${bbDrill(c).stack === 20 ? ' À 20bb, tu as des charts BB contre LJ et HJ.' : ''}`))) : null,
-      t || c.drill === 'bb50' ? null : field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
-      t || c.drill === 'bb50' ? null : field('Field restant', Segmented('Field restant', FIELD_STAGES.map(([value, label]) => ({ value, label })), c.stage, set('stage'))),
+      t || mix || c.drill === 'bb50' ? null : field('Format', Segmented('Format', [{ value: 'vanilla', label: 'Vanilla' }, { value: 'ko', label: 'KO (bounty)' }], c.format, set('format'))),
+      t || mix || c.drill === 'bb50' ? null : field('Field restant', Segmented('Field restant', FIELD_STAGES.map(([value, label]) => ({ value, label })), c.stage, set('stage'))),
       c.drill === 'full' ? field('Multiway', h('label.check', h('input', { type: 'checkbox', checked: c.multiway, on: { change: (e) => { c.multiway = e.target.checked; } } }), ' Autoriser les coups à 3 joueurs ou plus')) : null,
-      t || c.drill === 'bb50' ? null : field('Stack effectif', h('label.pick-field', h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => { c.stack = +e.target.value; } } },
+      t || mix || c.drill === 'bb50' ? null : field('Stack effectif', h('label.pick-field', h('select', { 'aria-label': 'Stack effectif', on: { change: (e) => { c.stack = +e.target.value; } } },
         STACKS.map((s) => h('option', { value: String(s), selected: s === c.stack }, s + 'bb'))))),
-      t || c.drill === 'bb50' ? null : field('Taille d\'open', Segmented('Taille d\'open', [{ value: '2', label: '2bb' }, { value: '2.5', label: '2.5bb' }, { value: '4.5', label: '4.5bb' }], c.open, set('open'))),
+      t || mix || c.drill === 'bb50' ? null : field('Taille d\'open', Segmented('Taille d\'open', [{ value: '2', label: '2bb' }, { value: '2.5', label: '2.5bb' }, { value: '4.5', label: '4.5bb' }], c.open, set('open'))),
       field('RNG', h('div', Segmented('RNG', [{ value: 'off', label: 'Désactivé' }, { value: 'high', label: 'Haut' }, { value: 'low', label: 'Bas' }], c.rng, set('rng')),
         c.level === 'gto' && c.rng === 'off' ? h('p.small.muted', 'En GTO max, le RNG est activé (Haut).') : null)),
       field('Temps par décision', Segmented('Timebank', [{ value: 0, label: 'Illimité' }, { value: 7, label: '7s' }, { value: 15, label: '15s' }, { value: 25, label: '25s' }], c.timebank, set('timebank'))),
@@ -149,7 +168,7 @@ function setupView() {
 function startSession() {
   P.session = {
     id: uid(), startedAt: new Date().toISOString(), drill: P.cfg.drill, config: { ...P.cfg },
-    hands: 0, decisionsCount: 0, mistakes: 0, scoreSum: 0, evLoss: 0, decisions: [], handsLog: [], combo: 0, xp: 0,
+    hands: 0, mixBag: [], decisionsCount: 0, mistakes: 0, scoreSum: 0, evLoss: 0, decisions: [], handsLog: [], combo: 0, xp: 0,
     program: P.program ? { slotId: P.program.slotId, spots: P.program.spots.map((s) => s.title), random: P.program.random } : undefined,
   };
   dealHand();
@@ -303,16 +322,22 @@ function programSpot() {
 
 function dealHand() {
   stopTimer();
-  const drill = DRILLS.find((d) => d.id === P.cfg.drill);
+  // Spots aléatoires: the next spot of the shuffled bag, with random settings.
+  let c = P.cfg;
+  if (c.drill === 'mix') {
+    if (!P.session.mixBag?.length) P.session.mixBag = shuffle([...MIX_BAG]);
+    c = mixCfg(P.session.mixBag.pop());
+  }
+  const drill = DRILLS.find((d) => d.id === c.drill);
   // A chosen villain seat narrows the hero seats it works with.
-  const vil = villainsOf(P.cfg)?.includes(P.cfg.villain) ? P.cfg.villain : null;
+  const vil = villainsOf(c)?.includes(c.villain) ? c.villain : null;
   const heroes = drill.heroes.filter((p) => vil == null || villainOk(drill.id, p, vil));
-  let hero = P.cfg.hero === 'any' ? rand(heroes) : P.cfg.hero;
+  let hero = c.hero === 'any' ? rand(heroes) : c.hero;
   // Programme: the spot (and its stack, open size, format) comes from Leakfinder.
   const prog = SPOT_DRILLS.has(drill.id) ? programSpot() : null;
   if (prog) hero = prog.st.toAct;
-  const game = prog ? prog.st.cfg : { ...gameCfg(P.cfg), ...coverCfg(P.cfg.cover, hero) };
-  const hand = { hero, hands: Array(6).fill(null), boardCards: [], st: initialState(game), decisions: [], over: false, mode: drill.mode, result: null, spotTitle: prog?.title };
+  const game = prog ? prog.st.cfg : { ...gameCfg(c), ...coverCfg(c.cover, hero) };
+  const hand = { hero, hands: Array(6).fill(null), boardCards: [], st: initialState(game), decisions: [], over: false, mode: drill.mode, result: null, spotTitle: prog?.title, drill: drill.id };
   P.feedback = null;
   P.hand = hand;
   let st = initialState(game);
@@ -321,7 +346,12 @@ function dealHand() {
   }
   if (drill.id === 'postflop' || drill.id === 'multiway') {
     // With a covering option the hero seat must be fixed before the line.
-    const line = flopLine(st, drill.id, P.cfg.cover !== 'equal' ? hero : P.cfg.hero, vil);
+    let line = flopLine(st, drill.id, c.cover !== 'equal' ? hero : c.hero, vil);
+    if (!line && P.cfg.drill === 'mix') { // random stack too short for this line: deal it at 100bb
+      c = { ...c, stack: 100 };
+      st = initialState({ ...gameCfg(c), ...coverCfg(c.cover, hero) });
+      line = flopLine(st, drill.id, c.cover !== 'equal' ? hero : c.hero, vil);
+    }
     if (!line) { P.session.hands++; hand.over = true; hand.result = 'Spot impossible à ces réglages (stack trop court ?) : change le stack ou la position.'; render(); return; }
     hand.hero = hero = line.hero;
     dealFromRanges(hand, line.st);
@@ -342,7 +372,7 @@ function dealHand() {
   if (prog) st = prog.st;
   else if (drill.id === 'rfi') st = foldTo(st, hero);
   else if (drill.id === 'bb50') {
-    const spots = bbDrill(P.cfg).spots;
+    const spots = bbDrill(c).spots;
     const spot = vil == null ? rand(spots) : vil === 4 ? rand(spots.filter(SB_SPOT)) : POS[vil];
     const take = (s, t) => applyAction(s, legalActions(s).find((a) => a.type === t));
     if (spot.startsWith('limp')) {
@@ -431,7 +461,7 @@ function finishHand() {
   // Keep the hand for the replay ("Revoir").
   if (hand.decisions.length) {
     P.session.handsLog.unshift({
-      t: new Date().toISOString(), drill: P.cfg.drill, hero: hand.hero,
+      t: new Date().toISOString(), drill: hand.drill, hero: hand.hero,
       cards: hand.hands.map((c) => (c ? c.map(cardStr).join('') : null)), shown: !!(hand.showdown || hand.mode === 'spot'),
       history: st.history.map((e) => (e.kind === 'deal' ? { s: e.street, d: e.cards.map(cardStr).join('') } : { p: e.p, s: e.street, l: e.label })),
       decisions: hand.decisions, result: hand.result, pot: pot(st),
@@ -574,7 +604,7 @@ function heroAct(k, timedOut = false) {
   const units = getSettings().units;
   const labels = node.actions.map((a) => actionLabel(st, a, units));
   const rec = {
-    t: new Date().toISOString(), drill: P.cfg.drill, pos: POS[hand.hero], hand: comboStr(i), board: st.board.map(cardStr).join(''),
+    t: new Date().toISOString(), drill: hand.drill, pos: POS[hand.hero], hand: comboStr(i), board: st.board.map(cardStr).join(''),
     street: STREETS[st.street], stack: st.cfg.stack, spot: practiceSpotKey(st), chosen: labels[k], best: labels[g.bestK], grade: g.grade, score: g.score, evLoss: g.loss, pot: pot(st),
     freqs: node.actions.map((a, j) => ({ label: labels[j], role: actionRole(st, a), f: g.f[j] })), timedOut,
     why: explain(node, i),
@@ -651,7 +681,7 @@ function tableView() {
   } else bar = [h('span.muted', 'Les autres joueurs réfléchissent…')];
 
   return h('section.table-area', { 'aria-label': 'Table de poker' },
-    h('div.table-top', h('span.pill', DRILLS.find((d) => d.id === P.cfg.drill).name), hand.spotTitle ? h('span.pill', hand.spotTitle) : null,
+    h('div.table-top', P.cfg.drill === 'mix' ? h('span.pill', '🎲 Aléatoire') : null, h('span.pill', DRILLS.find((d) => d.id === hand.drill).name), hand.spotTitle ? h('span.pill', hand.spotTitle) : null,
       h('span.pill', STREETS[st.street]), h('span.pill', st.cfg.stack + 'bb'), h('span.pill', LEVELS.find((l) => l.value === P.cfg.level).label),
       st.cfg.big != null ? h('span.pill', 'Tu couvres') : st.cfg.short != null ? h('span.pill', 'Tu es couvert') : null,
       hand.rng ? h('span.dice', { title: 'RNG roll' }, '🎲 ' + hand.rng) : null,
