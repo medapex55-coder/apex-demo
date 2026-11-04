@@ -808,19 +808,33 @@ await test('F05-H1', 'trainer spot drill: start, act, get graded', async () => {
   const g = await waitFor(() => doc().querySelector('.feedback .grade'));
   assert(/Meilleur coup|Correct|Imprécision|Erreur|Grosse erreur/.test(g.textContent), 'graded');
 });
+await test('F05-H2', 'combos panel: every combo of the hand with its action frequencies, a grid click shows another hand; played hands under the actions', async () => {
+  const panel = doc().querySelector('.combos-panel');
+  const rows = panel.querySelectorAll('tbody tr');
+  assert(rows.length >= 5 && panel.querySelector('tr.mine'), `combo rows: ${rows.length}`);
+  const sums = [...rows].slice(1).filter((r) => !r.classList.contains('out')).map((r) => [...r.querySelectorAll('td')].slice(2).reduce((a, td) => a + parseFloat(td.textContent), 0));
+  assert(sums.every((s) => Math.abs(s - 100) <= 3), `freqs add up to 100%: ${sums.join(',')}`);
+  const before = panel.querySelector('.panel-title').textContent;
+  const cell = [...doc().querySelectorAll('.learn .cell')].find((c) => c.querySelector('.lbl').textContent === (/AA/.test(before) ? 'KK' : 'AA'));
+  cell.click();
+  await sleep(50);
+  const after = doc().querySelector('.combos-panel .panel-title').textContent;
+  assert(after !== before && doc().querySelectorAll('.combos-panel tbody tr').length === 7, `${before} → ${after}`);
+  assert(doc().querySelector('.table-area .played-hands .hand-row') && !doc().querySelector('.practice-side .hand-list'), 'played hands moved under the table');
+});
 await test('F05-E1', 'double click on an action records one decision', async () => {
   byRole('button', 'Main suivante').click();
   const btn = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
   btn.click(); btn.click();
   await sleep(200);
-  const items = doc().querySelectorAll('.decision-log li').length;
-  assert(items === 2, `expected 2 decisions, got ${items}`);
+  const items = doc().querySelectorAll('.played-hands .hand-row').length;
+  assert(items === 2, `expected 2 hands of one decision, got ${items}`);
 });
 await test('F05-E2', 'keyboard only: digit keys act, space deals next', async () => {
   doc().body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
   await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'));
   doc().body.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true }));
-  await waitFor(() => doc().querySelectorAll('.decision-log li').length === 3);
+  await waitFor(() => doc().querySelectorAll('.played-hands .hand-row').length === 3);
 });
 await test('F06-H1', 'full hand mode plays to the end', async () => {
   byRole('button', 'Terminer la session').click();
@@ -898,7 +912,7 @@ async function playUntilHandListed(drillName) {
 }
 await test('F11-H1', 'postflop drill: decisions after the flop, XP gained, hand listed', async () => {
   await playUntilHandListed('Postflop');
-  const log = [...doc().querySelectorAll('.decision-log li')].map((li) => li.textContent).join(' ');
+  const log = doc().querySelector('.combos-panel').textContent;
   assert(/Flop|Turn|River/.test(log), `postflop decisions: ${log.slice(0, 80)}`);
   assert(/\+\d+ XP/.test(doc().querySelector('.progress-strip').textContent), 'XP shown');
 });

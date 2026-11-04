@@ -626,3 +626,22 @@ h1 { font-size: 26px; }
 .decision-card tr.chosen td { font-weight: 600; }
 .decision-card tr.best td:first-child { color: var(--success); }
 .hero-row td { font-weight: 600; }
+
+/* ---- practice: combos panel, played hands under the table ---- */
+.combos-scroll { overflow-x: auto; }
+.combos { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.combos th { text-align: right; font-weight: 600; color: var(--muted); padding: 2px var(--s1); white-space: nowrap; font-size: var(--fs-xs); }
+.combos th:first-child { text-align: left; }
+.combos th .swatch { margin-right: 4px; }
+.combos td { padding: 3px var(--s1); border-top: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.combos td:first-child { text-align: left; }
+.combos td[style] { background: linear-gradient(to right, color-mix(in srgb, var(--c) 35%, transparent) var(--f), transparent var(--f)); }
+.combos tr.total td { font-weight: 700; border-top: 0; }
+.combos tr.mine td { box-shadow: inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent); }
+.combos tr.out td { opacity: .4; }
+.combo-cards { font: 700 var(--fs-sm) var(--font-mono); display: inline-flex; gap: 1px; }
+.combo-cards .suit-s { color: var(--text); }
+.combo-cards .suit-h { color: #f0605d; }
+.combo-cards .suit-d { color: #5b9cf5; }
+.combo-cards .suit-c { color: #4cc38a; }
+.played-hands .hand-list { max-height: 360px; overflow-y: auto; }
