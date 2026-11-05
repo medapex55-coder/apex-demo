@@ -926,6 +926,12 @@ await test('F11-H3', 'postflop short: 15bb says push/fold, 20bb deals only playe
   };
   await start(15);
   assert(/tapis ou fold/.test(doc().querySelector('.result')?.textContent || ''), 'push/fold message at 15bb');
+  assert(doc().querySelector('.result').offsetWidth <= doc().querySelector('.felt').offsetWidth, 'the message stays on the table');
+  const handsTile = () => [...doc().querySelectorAll('.stat')].find((x) => /Mains/.test(x.textContent)).querySelector('.stat-value').textContent;
+  const before = handsTile();
+  byRole('button', 'Main suivante').click();
+  await sleep(100);
+  assert(handsTile() !== before, 'Main suivante deals when the hand ended without a decision');
   byRole('button', 'Terminer la session').click();
   await start(20);
   let graded = 0;
@@ -964,6 +970,8 @@ await test('F12-H2', 'random spots drill: no setup choices, 10 hands mix every s
     const pills = [...doc().querySelectorAll('.table-top .pill')].map((p) => p.textContent);
     assert(pills[0] === '🎲 Aléatoire', `mix pill: ${pills[0]}`);
     seen.add(pills[1]);
+    const street = { Flop: 3, Turn: 4, River: 5 }[pills[2]] || 0;
+    assert(doc().querySelectorAll('.board .pcard').length === street, `street ${pills[2]} with ${doc().querySelectorAll('.board .pcard').length} board cards`);
     const b = await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button'), 8000);
     b.click();
     await sleep(250);

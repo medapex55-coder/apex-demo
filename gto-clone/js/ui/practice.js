@@ -104,6 +104,9 @@ let root = null;
 
 export function renderPractice(el) {
   root = el;
+  const hand = P.hand;
+  // Back from another page: leavePractice stopped the clock of the pending decision.
+  if (P.session && hand && !P.timer && !hand.over && !hand.st.needBoard && hand.st.toAct === hand.hero && !P.feedback?.pausing) startTimer();
   render();
 }
 
@@ -475,7 +478,8 @@ function finishHand() {
   hand.over = true;
   const st = hand.st;
   const live = alive(st);
-  if (hand.mode === 'full') {
+  if (hand.mode === 'full' && st.folded[hand.hero] && live.length > 1) hand.result = 'Tu es hors du coup.'; // the others' hand isn't played out
+  else if (hand.mode === 'full') {
     if (live.length === 1) hand.result = `${POS[live[0]]} gagne ${num(pot(st))}bb`;
     else {
       let board = st.board.slice();
@@ -497,7 +501,7 @@ function finishHand() {
       cfg: { stack: st.cfg.stack, ko: !!st.cfg.ko, stage: st.cfg.stage, multiway: !!st.cfg.multiway },
     });
   }
-  saveSession({ ...P.session });
+  if (P.session.decisionsCount) saveSession({ ...P.session }); // no empty session in Progression
   if (P.cfg.autoNext && !P.feedback?.pausing) setTimeout(() => { if (P.hand === hand) dealHand(); }, 1400);
 }
 
@@ -505,10 +509,15 @@ function finishHand() {
 function startDecision() {
   const hand = P.hand;
   hand.rng = rngMode() !== 'off' ? 1 + Math.floor(Math.random() * 100) : null;
+  startTimer();
+}
+function startTimer() {
+  const hand = P.hand;
   stopTimer();
   if (P.cfg.timebank) {
     P.timeLeft = P.cfg.timebank;
     P.timer = setInterval(() => {
+      if (!root?.isConnected) { stopTimer(); return; } // on another page: no unseen auto-fold, renderPractice restarts it
       P.timeLeft -= 1;
       const t = root?.querySelector('.timer');
       if (t) { t.textContent = P.timeLeft + 's'; t.classList.toggle('low', P.timeLeft <= 3); }
@@ -624,7 +633,7 @@ function simpleGroups(node) {
 
 function heroAct(k, timedOut = false) {
   const hand = P.hand;
-  if (!hand || hand.over || P.feedback?.pausing || k < 0) return;
+  if (!hand || hand.over || hand.st.needBoard || P.feedback?.pausing || k < 0) return;
   stopTimer();
   const st = hand.st;
   const node = analyze(st);
@@ -664,8 +673,8 @@ function heroAct(k, timedOut = false) {
 
 function continueAfterFeedback() {
   const hand = P.hand;
-  if (!P.feedback) return;
-  P.feedback = { ...P.feedback, pausing: false };
+  if (!hand || (!P.feedback && !hand.over)) return; // a hand can end without a decision (hero folded out by a raise, impossible spot)
+  if (P.feedback) P.feedback = { ...P.feedback, pausing: false };
   if (hand.over || hand.mode === 'spot') { dealHand(); return; }
   advance();
 }
@@ -676,6 +685,8 @@ const SEAT_SPOTS = [[50, 92], [9, 70], [9, 26], [50, 6], [91, 26], [91, 70]]; //
 function tableView() {
   const hand = P.hand;
   const st = hand.st;
+  // st.street already moved on while the next card waits to be dealt.
+  const street = st.needBoard ? st.street - 1 : st.street;
   const showAll = hand.over && (hand.showdown || hand.mode === 'spot');
   const seats = POS.map((_, k) => {
     const p = (hand.hero + k) % 6;
@@ -685,17 +696,17 @@ function tableView() {
     const faceUp = p === hand.hero || (showAll && !folded && cards);
     const bet = st.streetBet[p];
     // The player's last action this street (or his fold), shown big in its action colour.
-    const last = folded ? { act: { type: 'fold' }, label: 'Fold' } : [...st.history].reverse().find((e) => e.kind === 'act' && e.p === p && e.street === st.street);
+    const last = folded ? { act: { type: 'fold' }, label: 'Fold' } : [...st.history].reverse().find((e) => e.kind === 'act' && e.p === p && e.street === street);
     const role = last && (last.act.type === 'fold' ? 'fold' : ['check', 'call'].includes(last.act.type) ? 'call' : last.act.type === 'allin' ? 'allin' : 'bet-m');
     const villain = p !== hand.hero && !folded;
-    return h('div.seat' + (folded ? '.folded' : '') + (st.toAct === p && !hand.over ? '.acting' : '') + (p === hand.hero ? '.hero' : '') + (villain ? '.villain' : ''), { style: { left: x + '%', top: y + '%' } },
+    return h('div.seat' + (folded ? '.folded' : '') + (st.toAct === p && !hand.over && !st.needBoard ? '.acting' : '') + (p === hand.hero ? '.hero' : '') + (villain ? '.villain' : ''), { style: { left: x + '%', top: y + '%' } },
       h('div.seat-cards', folded ? null : (faceUp && cards ? cards.map((c) => PlayingCard(c, p === hand.hero ? 'lg' : 'sm')) : [PlayingCard(null, 'sm'), PlayingCard(null, 'sm')])),
       h('div.seat-plate', h('strong', POS[p]), h('span.mono', num(remaining(st, p)) + 'bb'), p === 3 ? h('span.dealer', { title: 'Donneur' }, 'D') : null),
       last ? h('div.seat-action', { style: { '--c': `var(--act-${role})` } }, last.label) : null,
       bet > 0 ? h('div.bet-chip', num(bet) + 'bb') : null);
   });
   const hero = hand.hero;
-  const myTurn = !hand.over && st.toAct === hero && !P.feedback?.pausing;
+  const myTurn = !hand.over && st.toAct === hero && !st.needBoard && !P.feedback?.pausing;
   let bar;
   if (myTurn) {
     const node = analyze(st);
@@ -716,7 +727,7 @@ function tableView() {
 
   return h('section.table-area', { 'aria-label': 'Table de poker' },
     h('div.table-top', P.cfg.drill === 'mix' ? h('span.pill', '🎲 Aléatoire') : null, h('span.pill', DRILLS.find((d) => d.id === hand.drill).name), hand.spotTitle ? h('span.pill', hand.spotTitle) : null,
-      h('span.pill', STREETS[st.street]), h('span.pill', st.cfg.stack + 'bb'), h('span.pill', LEVELS.find((l) => l.value === P.cfg.level).label),
+      h('span.pill', STREETS[street]), h('span.pill', st.cfg.stack + 'bb'), h('span.pill', LEVELS.find((l) => l.value === P.cfg.level).label),
       st.cfg.big != null ? h('span.pill', 'Tu couvres') : st.cfg.short != null ? h('span.pill', 'Tu es couvert') : null,
       hand.rng ? h('span.dice', { title: 'RNG roll' }, '🎲 ' + hand.rng) : null,
       P.cfg.timebank && myTurn ? h('span.timer', P.timeLeft + 's') : null,
@@ -775,7 +786,7 @@ export function practiceKey(e) {
     if (P.feedback?.pausing || hand?.over) { e.preventDefault(); continueAfterFeedback(); return true; }
   }
   const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= 9 && hand && !hand.over && hand.st.toAct === hand.hero && !P.feedback?.pausing) {
+  if (n >= 1 && n <= 9 && hand && !hand.over && !hand.st.needBoard && hand.st.toAct === hand.hero && !P.feedback?.pausing) {
     const node = analyze(hand.st);
     if (P.cfg.level === 'easy') {
       const g = simpleGroups(node)[n - 1];
