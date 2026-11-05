@@ -249,7 +249,8 @@ function preflopClassFreqs(st, actions, range) {
   const hu = isHU(st);
   const shoveCall = Math.min(0.6, (0.025 + 2 / st.cfg.stack) * k);
   const facingShove = rl >= 1 && iR < 0 && st.lastAggr >= 0 && remaining(st, st.lastAggr) <= 0;
-  const width = (q) => (hu && q === 4 ? HU_OPEN : openWidth(q, st.cfg.stack));
+  const widths = {}; // once per seat: the loop below asks for it for each of the 169 classes
+  const width = (q) => (widths[q] ??= hu && q === 4 ? HU_OPEN : openWidth(q, st.cfg.stack));
   const pf = pushFoldSpot(st);
   const bbc = pf ? null : bbChart(st);
   // Players who already called the open (multiway spots only).

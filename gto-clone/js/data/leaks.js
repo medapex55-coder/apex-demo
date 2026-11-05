@@ -1,7 +1,7 @@
 // Leakfinder: rebuild each imported decision as a Study spot, compare the
 // hero's action with the strategy for that hand class, and aggregate by spot.
 import { initialState, applyAction, legalActions, foldTo, POS, actionKey } from '../engine/game.js';
-import { analyze } from '../engine/strategy.js';
+import { analyze, getOpenStyle } from '../engine/strategy.js';
 import { CLASS_OF_COMBO, CLASSES, comboIndex, parseCard, cardStr } from '../engine/cards.js';
 
 export const SCEN = {
@@ -79,29 +79,67 @@ function grade(freqs, k) {
 const ACTION_OF = { fold: ['fold'], check: ['check'], call: ['call'], raise: ['raise', 'allin'], allin: ['allin', 'raise'] };
 const GROUP_OF = { fold: 'fold', check: 'call', call: 'call', bet: 'raise', raise: 'raise', allin: 'allin' };
 
+// What the strategy does in one spot, per hand class (preflop frequencies only
+// depend on the class). Kept across calls: Leakfinder re-renders on every click
+// and thousands of decisions share a few hundred spots.
+const models = new Map();
+// Same stack and open size side by side: they share the parent nodes of the tree.
+const modelKey = (d) => [getOpenStyle(), d.s, spotOpen(d), !!d.ko, d.sc, d.hp, d.vp, d.lp, d.r3].join('|');
+function spotModel(d) {
+  const key = modelKey(d);
+  if (models.has(key)) return models.get(key);
+  const st = spotState(d);
+  let model = null;
+  if (st) {
+    const node = analyze(st);
+    model = {
+      actions: node.actions,
+      byClass: CLASSES.map((c) => node.actions.map((_, k) => node.freqs[k][c.combos[0]])),
+      labels: node.actions.map((a) => (a.type === 'call' && st.raiseLevel === 0 ? 'limp' : a.type)),
+      link: studyLink(st),
+    };
+  }
+  models.set(key, model);
+  return model;
+}
+
+// Computes the spots not known yet in small slices, so a first analysis of
+// thousands of hands never freezes the page. analyzeDecisions is then instant.
+export async function prepareSpots(decisions, onProgress) {
+  const todo = [...new Map(decisions.map((d) => [modelKey(d), d])).entries()].filter(([k]) => !models.has(k)).sort(([a], [b]) => (a < b ? -1 : 1));
+  let last = performance.now();
+  for (let i = 0; i < todo.length; i++) {
+    spotModel(todo[i][1]);
+    if (performance.now() - last > 25) {
+      onProgress?.(i / todo.length);
+      await new Promise((r) => setTimeout(r));
+      last = performance.now();
+    }
+  }
+}
+
 export function analyzeDecisions(decisions) {
   const spots = new Map();
   let covered = 0, notCovered = 0;
   for (const d of decisions) {
-    const st = spotState(d);
-    if (!st) { notCovered++; continue; }
-    const node = analyze(st);
+    const model = spotModel(d);
+    if (!model) { notCovered++; continue; }
     const cards = d.c.match(/../g).map(parseCard);
     const ci = comboIndex(cards[0], cards[1]);
     if (ci < 0) { notCovered++; continue; }
-    const freqs = node.actions.map((_, k) => node.freqs[k][ci]);
+    const freqs = model.byClass[CLASS_OF_COMBO[ci]];
     let k = -1;
-    for (const t of ACTION_OF[d.a] || []) { k = node.actions.findIndex((a) => a.type === t); if (k >= 0) break; }
+    for (const t of ACTION_OF[d.a] || []) { k = model.actions.findIndex((a) => a.type === t); if (k >= 0) break; }
     const g = grade(freqs, k);
     covered++;
     const vill = d.sc === 'VL' ? d.lp.map((p) => POS[p]).join('+') : d.vp != null ? POS[d.vp] : '';
     const key = spotKey(d.sc, POS[d.hp], vill, d.s);
     if (!spots.has(key)) spots.set(key, { key, sc: d.sc, hero: POS[d.hp], vill, group: stackGroup(d.s), hands: [] });
     const gto = { fold: 0, call: 0, raise: 0, allin: 0 };
-    node.actions.forEach((a, j) => { gto[GROUP_OF[a.type]] += freqs[j]; });
+    model.actions.forEach((a, j) => { gto[GROUP_OF[a.type]] += freqs[j]; });
     spots.get(key).hands.push({
       d, cls: CLASSES[CLASS_OF_COMBO[ci]].name, grade: g.grade, score: g.score, you: GROUP_OF[d.a] || 'fold', gto, freqs,
-      labels: node.actions.map((a) => a.type === 'call' && st.raiseLevel === 0 ? 'limp' : a.type), link: studyLink(st),
+      labels: model.labels, link: model.link,
     });
   }
   return { spots: [...spots.values()].map((sp) => aggregate(sp, sp.hands)), covered, notCovered };

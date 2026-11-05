@@ -29,9 +29,14 @@ export function spotTarget(s) {
   };
 }
 
-export function spotsToFix() {
+// Every imported decision, with the KO flag of its tournament.
+export function trainingDecisions() {
   const ko = new Map(getTournaments().map((t) => [t.tid, t.type === 'ko' || t.type === 'mystery']));
-  const decisions = getDecisions().map((d) => ({ ...d, ko: ko.get(d.t) }));
+  return getDecisions().map((d) => ({ ...d, ko: ko.get(d.t) }));
+}
+
+export function spotsToFix() {
+  const decisions = trainingDecisions();
   return decisions.length ? rankSpots(analyzeDecisions(decisions).spots) : [];
 }
 

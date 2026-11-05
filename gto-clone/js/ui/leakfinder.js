@@ -5,14 +5,14 @@ import { getDecisions, getTournaments, getHandRecords } from '../data/datastore.
 import { getSessions } from '../store.js';
 import { hudTotals, results } from '../data/handstats.js';
 import {
-  analyzeDecisions, verdict, SCEN, STACK_GROUPS, spotTitle, spotStory, keyMetric, liveAction,
+  analyzeDecisions, prepareSpots, verdict, SCEN, STACK_GROUPS, spotTitle, spotStory, keyMetric, liveAction,
 } from '../data/leaks.js';
-import { spotTarget } from '../data/program.js';
+import { spotTarget, trainingDecisions } from '../data/program.js';
 import { prepareSpot } from './practice.js';
 
 const filter = { type: 'all', scen: 'all', group: 'all', show: 'all', minN: 1 };
 const open = new Set();
-let tab = 'stats';
+let tab = 'spots';
 let hudTab = 'preflop';
 let root;
 
@@ -23,14 +23,16 @@ const VERDICT_TEXT = { weak: 'Point faible', strong: 'Point fort', ok: 'Correct'
 const fmt = (t) => (Number.isFinite(t) ? new Date(t).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–');
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 
-export function renderLeaks(el) {
+export async function renderLeaks(el) {
   root = el;
-  mount(root, h('div.panel.loading', h('div.spinner'), 'Analyse de tes mains…'));
-  setTimeout(render, 20);
+  const label = h('span', 'Analyse de tes mains…');
+  mount(root, h('div.panel.loading', h('div.spinner'), label));
+  await prepareSpots(trainingDecisions(), (x) => { label.textContent = `Analyse de tes mains… ${Math.round(x * 100)} %`; });
+  if (root === el && el.isConnected) render(); // the page may have been left meanwhile
 }
 
 function render() {
-  const tabs = Segmented('Vue Leakfinder', [{ value: 'stats', label: 'Stats' }, { value: 'spots', label: 'Mes spots' }, { value: 'live', label: 'Live action' }], tab, (v) => { tab = v; render(); });
+  const tabs = Segmented('Vue Leakfinder', [{ value: 'spots', label: 'Mes spots' }, { value: 'stats', label: 'Stats' }, { value: 'live', label: 'Live action' }], tab, (v) => { tab = v; render(); });
   mount(root, h('div.leaks-page',
     h('div.row.between.wrap', h('h1', 'Leakfinder'), tabs),
     tab === 'live' ? liveView() : tab === 'stats' ? statsView() : spotsView()));

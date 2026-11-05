@@ -1,4 +1,4 @@
-import { h, mount } from './ui/dom.js';
+import { h, mount, toast } from './ui/dom.js';
 import { Logo, Segmented, RangeGrid, FreqBar, PlayingCard, StatTile, Tabs } from './ui/components.js';
 import { renderStudy, studyKey, rerenderStudy } from './ui/study.js';
 import { renderPractice, practiceKey, leavePractice } from './ui/practice.js';
@@ -88,6 +88,9 @@ document.addEventListener('keydown', (e) => {
   if (r?.key && r.key(e)) e.preventDefault();
 });
 
+// A click whose handler throws looks like a dead button: say why.
+window.addEventListener('error', (e) => toast(`Erreur : ${e.message}`));
+window.addEventListener('unhandledrejection', (e) => toast(`Erreur : ${e.reason?.message || e.reason}`));
 window.addEventListener('hashchange', route);
 route();
 

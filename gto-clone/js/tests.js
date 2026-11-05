@@ -1,7 +1,7 @@
 // In-browser test suite (no Node on this machine, so no Playwright).
 // Unit tests for the engine, then flow tests that drive the real app in an
 // iframe using roles and labels. Open /tests.html; results land in #summary.
-import { parseCard, COMBOS, CLASS_BY_NAME, comboIndex } from './engine/cards.js';
+import { parseCard, COMBOS, CLASS_BY_NAME, comboIndex, cardStr } from './engine/cards.js';
 import { evalHand, classify } from './engine/evaluator.js';
 import { rangeEquity, weightedMean } from './engine/equity.js';
 import { levelOf, streakOf } from './data/progress.js';
@@ -692,6 +692,27 @@ await test('U34', 'covering: matters in KO and ICM, not in chip EV', () => {
   assert(bb({ ...ft, big: 5 }) > bb({ ...ft, short: 5 }), 'final table: the covered player defends tighter');
   near(bb({ big: 5 }), bb({}), 1e-9, 'vanilla start: no difference');
 });
+await test('U45', 'leakfinder: thousands of decisions re-analyse at once, and a new open style still counts', () => {
+  const dec = [];
+  for (let i = 0; i < 3000; i++) {
+    const [a, b] = COMBOS[i % 1326];
+    dec.push({ sc: 'RFI', hp: i % 5, s: [100, 50, 30, 20, 15][i % 4], o: '2.5', a: 'fold', c: cardStr(a) + cardStr(b), t: 't', h: i });
+  }
+  const first = analyzeDecisions(dec);
+  const t = performance.now();
+  const again = analyzeDecisions(dec);
+  assert(performance.now() - t < 300, `second run took ${Math.round(performance.now() - t)}ms`);
+  assert(first.covered === 3000 && JSON.stringify(first.spots.map((s) => [s.key, s.score])) === JSON.stringify(again.spots.map((s) => [s.key, s.score])), 'same result');
+  const n = analyze(foldTo(initialState({ stack: 100, open: '2.5', ko: false, stage: '100' }), 3));
+  const fresh = (cls) => comboFreqs(n, CLASS_BY_NAME[cls].combos[0]);
+  const hit = analyzeDecisions(dec.filter((d) => d.hp === 3)).spots.find((s) => s.key === spotKey('RFI', 'BTN', '', 100));
+  const hand = hit.hands.find((x) => x.d.s === 100);
+  assert(hand.freqs.join() === fresh(hand.cls).join(), 'same frequencies as the strategy');
+  setOpenStyle('tight');
+  const tight = analyzeDecisions(dec);
+  setOpenStyle('standard');
+  assert(JSON.stringify(tight.spots.map((s) => s.gto)) !== JSON.stringify(first.spots.map((s) => s.gto)), 'open style changes the analysis');
+});
 await test('U44', 'off-strategy line (BTN min-raise at 15bb): flagged, range never empty, no NaN', () => {
   let st = foldTo(initialState({ stack: 15, open: '2.5', ko: false, stage: '100', multiway: false }), 3);
   st = applyAction(st, legalActions(st).find((a) => a.type === 'raise'));
@@ -882,6 +903,7 @@ await test('F10-H1', 'my data: an import is a session with a recap, a run meter 
   assert(/1 tournoi/.test(sess.textContent) && /2 mains/.test(sess.textContent) && /ABI 5,00/.test(sess.textContent), `recap: ${sess.querySelector('.recap').textContent}`);
   assert(doc().querySelector('.run-bar .run-marker') && doc().querySelector('svg.wchart polyline'), 'run meter and graph');
   await load('#/leaks');
+  (await waitFor(() => [...doc().querySelectorAll('[aria-label="Vue Leakfinder"] button')].find((b) => b.textContent === 'Stats'))).click();
   await waitFor(() => doc().querySelectorAll('.hud-stat').length >= 7);
   const vpip = [...doc().querySelectorAll('.hud-stat')].find((s) => s.querySelector('.name').textContent === 'VPIP');
   assert(vpip.querySelector('.val').textContent === '50', `VPIP ${vpip.querySelector('.val').textContent}`);

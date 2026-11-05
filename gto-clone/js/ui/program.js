@@ -5,7 +5,8 @@
 import { h, mount, pct, modal } from './dom.js';
 import { Segmented } from './components.js';
 import { getSlots } from '../store.js';
-import { spotsToFix, planSlots, addSlot, removeSlot, overlaps, slotStart, slotEnd, SPOT_MINUTES } from '../data/program.js';
+import { spotsToFix, trainingDecisions, planSlots, addSlot, removeSlot, overlaps, slotStart, slotEnd, SPOT_MINUTES } from '../data/program.js';
+import { prepareSpots } from '../data/leaks.js';
 import { startProgram } from './practice.js';
 
 const DAY = 86400e3;
@@ -27,8 +28,12 @@ function firstDay(offset) {
   return d;
 }
 
-export function renderProgram(el) {
+export async function renderProgram(el) {
   root = el;
+  const label = h('span', 'Analyse de tes mains…');
+  mount(root, h('div.panel.loading', h('div.spinner'), label));
+  await prepareSpots(trainingDecisions(), (x) => { label.textContent = `Analyse de tes mains… ${Math.round(x * 100)} %`; });
+  if (root !== el || !el.isConnected) return; // the page was left meanwhile
   spots = spotsToFix();
   render();
 }
