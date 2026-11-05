@@ -1,6 +1,6 @@
 import { h, mount, pct, num } from './dom.js';
 import { PlayingCard, FreqBar, RangeGrid, Segmented, StatTile } from './components.js';
-import { COMBOS, CLASSES, CLASS_OF_COMBO, SUIT_SYM, comboIndex, comboStr, cardStr } from '../engine/cards.js';
+import { COMBOS, CLASSES, CLASS_OF_COMBO, comboIndex, comboStr, cardStr } from '../engine/cards.js';
 import { evalHand, catFr } from '../engine/evaluator.js';
 import { pickWeighted } from '../engine/rng.js';
 import {
@@ -755,13 +755,8 @@ function sideView() {
       h('div.small.muted', `Stratégie pour ${fb.rec.hand} :`),
       FreqBar(order(fb.rec.freqs).map((k) => ({ role: fb.rec.freqs[k].role, label: fb.rec.freqs[k].label, freq: fb.rec.freqs[k].f })), { height: 16, labels: true }),
       h('ul.freq-list', fb.rec.freqs.map((x) => h('li', h('span.swatch', { style: { background: `var(--act-${x.role})` } }), x.label, h('span.mono', pct(x.f, 1))))),
-      learnGrid(fb)) : h('section.panel', h('p.muted', 'Prends une décision pour la comparer à la stratégie.')),
-    combosPanel(fb));
+      learnGrid(fb)) : h('section.panel', h('p.muted', 'Prends une décision pour la comparer à la stratégie.')));
 }
-
-// The class shown in the Combos panel: the hero's hand, or the grid cell clicked.
-const selectedClass = (fb) => (P.comboSel?.fb === fb ? P.comboSel.idx : CLASS_OF_COMBO[fb.heroIdx]);
-const selectClass = (idx) => { P.comboSel = { fb: P.feedback, idx }; render(); };
 
 function learnGrid(fb) {
   const node = fb.node;
@@ -769,42 +764,8 @@ function learnGrid(fb) {
   const units = getSettings().units;
   const roles = node.actions.map((a) => ({ role: actionRole(node.st, a), label: actionLabel(node.st, a, units) }));
   const order = node.actions.map((_, k) => k).sort((x, y) => aggression(node.actions[y]) - aggression(node.actions[x]));
-  const sel = summ.findIndex((c) => c.cls === CLASSES[selectedClass(fb)]);
-  return h('details.learn', { open: !!P.gridOpen, on: { toggle: (e) => { P.gridOpen = e.target.open; } } },
-    h('summary', 'Voir toute la range · clique une main pour ses combos'),
-    RangeGrid({ cells: summ, roles, order, size: 'xs', selected: sel, onSelect: selectClass, label: 'Stratégie de la range à cette décision' }));
-}
-
-// Every combo of a hand class at the last decision, with how often the
-// strategy folds, calls, raises (3-bet…) and shoves with it.
-const comboLabel = (i) => h('span.combo-cards', COMBOS[i].map((c) => {
-  const s = cardStr(c);
-  return h('span.suit-' + s[1], s[0] + SUIT_SYM[s[1]]);
-}));
-function combosPanel(fb) {
-  if (!fb) return h('section.panel.combos-panel', h('div.panel-title', 'Combos'), h('p.muted.small', 'Prends une décision : ici s\'affichent les fréquences de chaque combo de ta main (fold, call, 3-bet, tapis…).'));
-  const node = fb.node;
-  const st = node.st;
-  const units = getSettings().units;
-  const ks = node.actions.map((_, k) => k).sort((x, y) => aggression(node.actions[x]) - aggression(node.actions[y]));
-  const cls = CLASSES[selectedClass(fb)];
-  const w = node.ranges[node.actor];
-  const combos = cls.combos.filter((i) => !node.dead[COMBOS[i][0]] && !node.dead[COMBOS[i][1]]);
-  const inRange = combos.reduce((a, i) => a + w[i], 0);
-  const avg = ks.map((k) => (inRange > 0 ? combos.reduce((a, i) => a + w[i] * node.freqs[k][i], 0) / inRange : NaN));
-  const cell = (f, k) => h('td.mono', { style: { '--c': `var(--act-${actionRole(st, node.actions[k])})`, '--f': (Number.isFinite(f) ? f * 100 : 0) + '%' } }, Number.isFinite(f) ? pct(f, 0) : '–');
-  return h('section.panel.combos-panel',
-    h('div.row.between', h('div.panel-title', `Combos · ${cls.name}`), h('span.small.muted', `${fb.rec.pos} · ${fb.rec.street}`)),
-    h('div.combos-scroll', h('table.combos', { 'aria-label': `Fréquences des combos de ${cls.name}` },
-      h('thead', h('tr', h('th', 'Combo'), h('th', { title: 'Part du combo encore dans ta range' }, 'Range'),
-        ks.map((k) => h('th', h('span.swatch', { style: { background: `var(--act-${actionRole(st, node.actions[k])})` } }), actionLabel(st, node.actions[k], units))))),
-      h('tbody',
-        h('tr.total', h('td', cls.name), h('td.mono', pct(inRange / Math.max(1, combos.length), 0)), ks.map((k, j) => cell(avg[j], k))),
-        combos.map((i) => h('tr' + (i === fb.heroIdx ? '.mine' : '') + (w[i] < 0.005 ? '.out' : ''),
-          h('td', comboLabel(i), i === fb.heroIdx ? h('span.small.muted', ' (toi)') : null),
-          h('td.mono', pct(w[i], 0)),
-          ks.map((k) => cell(node.freqs[k][i], k))))))),
-    combos.some((i) => w[i] < 0.005) ? h('p.small.muted', 'Grisés : combos qui ne sont plus dans ta range à ce moment du coup.') : null);
+  const sel = summ.findIndex((c) => c.cls.combos.includes(fb.heroIdx));
+  return h('details.learn', h('summary', 'Voir toute la range'), RangeGrid({ cells: summ, roles, order, size: 'xs', selected: sel, label: 'Stratégie de la range à cette décision' }));
 }
 
 export function practiceKey(e) {

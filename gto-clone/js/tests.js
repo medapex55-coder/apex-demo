@@ -808,19 +808,9 @@ await test('F05-H1', 'trainer spot drill: start, act, get graded', async () => {
   const g = await waitFor(() => doc().querySelector('.feedback .grade'));
   assert(/Meilleur coup|Correct|Imprécision|Erreur|Grosse erreur/.test(g.textContent), 'graded');
 });
-await test('F05-H2', 'combos panel: every combo of the hand with its action frequencies, a grid click shows another hand; played hands under the actions', async () => {
-  const panel = doc().querySelector('.combos-panel');
-  const rows = panel.querySelectorAll('tbody tr');
-  assert(rows.length >= 5 && panel.querySelector('tr.mine'), `combo rows: ${rows.length}`);
-  const sums = [...rows].slice(1).filter((r) => !r.classList.contains('out')).map((r) => [...r.querySelectorAll('td')].slice(2).reduce((a, td) => a + parseFloat(td.textContent), 0));
-  assert(sums.every((s) => Math.abs(s - 100) <= 3), `freqs add up to 100%: ${sums.join(',')}`);
-  const before = panel.querySelector('.panel-title').textContent;
-  const cell = [...doc().querySelectorAll('.learn .cell')].find((c) => c.querySelector('.lbl').textContent === (/AA/.test(before) ? 'KK' : 'AA'));
-  cell.click();
-  await sleep(50);
-  const after = doc().querySelector('.combos-panel .panel-title').textContent;
-  assert(after !== before && doc().querySelectorAll('.combos-panel tbody tr').length === 7, `${before} → ${after}`);
-  assert(doc().querySelector('.table-area .played-hands .hand-row') && !doc().querySelector('.practice-side .hand-list'), 'played hands moved under the table');
+await test('F05-H2', 'layout: no session or combos panel on the right, played hands under the actions', async () => {
+  assert(!doc().querySelector('.combos-panel') && !doc().querySelector('.decision-log'), 'panels removed');
+  assert(doc().querySelector('.action-bar + .played-hands .hand-row') && !doc().querySelector('.practice-side .hand-list'), 'played hands right under the action buttons');
 });
 await test('F05-E1', 'double click on an action records one decision', async () => {
   byRole('button', 'Main suivante').click();
@@ -912,7 +902,7 @@ async function playUntilHandListed(drillName) {
 }
 await test('F11-H1', 'postflop drill: decisions after the flop, XP gained, hand listed', async () => {
   await playUntilHandListed('Postflop');
-  const log = doc().querySelector('.combos-panel').textContent;
+  const log = doc().querySelector('.table-top').textContent;
   assert(/Flop|Turn|River/.test(log), `postflop decisions: ${log.slice(0, 80)}`);
   assert(/\+\d+ XP/.test(doc().querySelector('.progress-strip').textContent), 'XP shown');
 });
