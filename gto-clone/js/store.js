@@ -53,7 +53,7 @@ export function saveSession(sess) {
     n += s.decisions.length;
     if (n > MAX_DECISIONS) s.decisions = s.decisions.slice(0, Math.max(0, s.decisions.length - (n - MAX_DECISIONS)));
     logs += (s.handsLog || []).length;
-    if (logs > MAX_HAND_LOGS) s.handsLog = s.handsLog.slice(0, Math.max(0, s.handsLog.length - (logs - MAX_HAND_LOGS)));
+    if (logs > MAX_HAND_LOGS && s.handsLog) s.handsLog = s.handsLog.slice(0, Math.max(0, s.handsLog.length - (logs - MAX_HAND_LOGS))); // old sessions have no hand list
   }
   save();
 }

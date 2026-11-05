@@ -1151,6 +1151,21 @@ Total pot 100 | Rake 0
   byRole('button', 'Terminer la session').click();
   ds.clearAll();
 });
+await test('F05-H3', 'over 300 stored hands, an old session without a hand list does not break the next decision', async () => {
+  await load('#/practice');
+  const store = await frame.contentWindow.eval(`import('${new URL('js/store.js', frame.contentWindow.location.href).href}')`);
+  const base = { startedAt: new Date().toISOString(), drill: 'rfi', hands: 1, decisionsCount: 1, mistakes: 0, scoreSum: 1, evLoss: 0, decisions: [] };
+  store.saveSession({ ...base, id: 'old-no-log' });
+  store.saveSession({ ...base, id: 'many-logs', handsLog: Array.from({ length: 310 }, () => ({ decisions: [] })) });
+  byRole('button', 'Ouverture').click();
+  byRole('button', 'Commencer la session').click();
+  (await waitFor(() => doc().querySelector('[aria-label="Tes actions"] button.act'))).click();
+  await waitFor(() => doc().querySelector('.feedback .grade'));
+  assert(store.getSessions().find((s) => s.id === 'many-logs').handsLog.length <= 300, 'hands are still capped');
+  byRole('button', 'Terminer la session').click();
+  await sleep(300);
+  store.clearSessions();
+});
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {
   await load('#/study');
