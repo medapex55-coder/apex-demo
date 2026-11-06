@@ -1,6 +1,7 @@
 // Local persistence (localStorage key gtoc.v1). Same shapes as replica/schema.sql.
 // The test suite runs the app with ?test=1 so it never touches real data.
 const KEY = /[?&]test=1/.test(location.search) ? 'gtoc.test' : 'gtoc.v1';
+export const STORE_KEY = KEY;
 const MAX_DECISIONS = 2000;
 const MAX_HAND_LOGS = 300; // replayable hands kept across all sessions
 

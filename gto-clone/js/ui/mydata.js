@@ -8,6 +8,7 @@ import { results, runZone, reliability } from '../data/handstats.js';
 import { playSessions, abi, SESSION_HOURS } from '../data/playsessions.js';
 import { recordImport } from '../data/progress.js';
 import { celebrate } from './gamify.js';
+import { exportBackup, importBackup } from '../data/backup.js';
 import { getGateway } from '../data/datastore.js';
 import { gatewaySupported, savedFolder, pickFolder, forgetFolder, hasAccess, syncFolder, onGatewaySync } from '../data/gateway.js';
 
@@ -146,6 +147,7 @@ function render() {
       all.length ? h('button.btn.ghost.sm', { type: 'button', on: { click: () => { if (confirm('Supprimer tous les tournois importés de ce navigateur ?')) { clearAll(); render(); } } } }, 'Tout supprimer') : null),
     drop,
     gatewayPanel(),
+    backupPanel(),
     lastReport?.errors.length ? h('div.panel.warn', h('strong', 'Certains fichiers n\'ont pas été lus'), h('ul', lastReport.errors.slice(0, 8).map((e) => h('li.small', e)))) : null,
     h('details.help', h('summary', 'Règle anti-doublon'),
       h('ul.small',
@@ -288,3 +290,24 @@ function tourTable(list) {
 
 export const fmtEur = eur;
 export { num };
+
+// ---------- backup ----------
+function backupPanel() {
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([exportBackup()], { type: 'application/json' }));
+    const a = h('a', { href: url, download: `sauvegarde-poker-${new Date().toISOString().slice(0, 10)}.json` });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const restore = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file || !confirm('Remplacer toutes les données de ce navigateur par cette sauvegarde ?')) return;
+    try { importBackup(await file.text()); location.reload(); } catch (err) { toast(err.message); }
+  };
+  return h('section.panel.backup', h('div.panel-title', 'Sauvegarde'),
+    h('p.small.muted', 'Tes mains, sessions, XP et badges sont gardés dans ce navigateur, pour cette adresse du site. Exporte-les pour les retrouver sur une autre adresse ou un autre ordinateur. La passerelle Winamax sera à reconnecter.'),
+    h('div.row.gap.wrap',
+      h('button.btn.secondary.sm', { type: 'button', on: { click: download } }, 'Exporter mes données'),
+      h('label.btn.ghost.sm', 'Importer une sauvegarde', h('input', { type: 'file', accept: '.json', hidden: true, 'aria-label': 'Importer une sauvegarde', on: { change: restore } }))));
+}

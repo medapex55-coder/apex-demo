@@ -13,6 +13,7 @@ import { hashStr } from '../engine/rng.js';
 // - a hand is identified by its hand number: the same hand is kept once,
 //   even when it shows up in two files.
 const KEY = /[?&]test=1/.test(location.search) ? 'gtoc.data.test' : 'gtoc.data.v1';
+export const DATA_KEY = KEY;
 const EMPTY = () => ({ tournaments: {}, decisions: {}, hands: {}, sessions: [], screenNames: [], files: {} });
 const fingerprint = (text) => `${text.length}:${hashStr(text)}`;
 let db = load();

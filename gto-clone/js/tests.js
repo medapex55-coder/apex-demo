@@ -1166,6 +1166,23 @@ await test('F05-H3', 'over 300 stored hands, an old session without a hand list 
   await sleep(300);
   store.clearSessions();
 });
+await test('F19-H1', 'backup: export then import restores the data, a wrong file changes nothing', async () => {
+  await load('#/data');
+  assert(doc().querySelector('.backup') && byRole('button', 'Exporter mes données'), 'panel shown');
+  const bk = await frame.contentWindow.eval(`import('${new URL('js/data/backup.js', frame.contentWindow.location.href).href}')`);
+  const ls = frame.contentWindow.localStorage;
+  ls.setItem('gtoc.test', '{"sessions":[],"mark":1}');
+  ls.setItem('gtoc.data.test', '{"mark":2}');
+  const file = bk.exportBackup();
+  ls.setItem('gtoc.test', '{"sessions":[]}');
+  ls.removeItem('gtoc.data.test');
+  bk.importBackup(file);
+  assert(JSON.parse(ls.getItem('gtoc.test')).mark === 1 && JSON.parse(ls.getItem('gtoc.data.test')).mark === 2, 'restored');
+  let refused = 0;
+  for (const bad of ['pas du json', '{"app":"autre"}', '{"app":"spotwise-backup","training":"{abîmé"}']) { try { bk.importBackup(bad); } catch { refused++; } }
+  assert(refused === 3 && JSON.parse(ls.getItem('gtoc.test')).mark === 1, 'wrong files refused');
+  ls.removeItem('gtoc.test'); ls.removeItem('gtoc.data.test');
+});
 await test('X01', 'no uncaught errors during flows', () => assert(!errors.length, errors.join('; ')));
 await test('X02', 'every grid cell has an accessible name', async () => {
   await load('#/study');
